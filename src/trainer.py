@@ -95,6 +95,25 @@ def train_data_filtering(model, dataset, epochs=C.epochs, device=C.device, verbo
 
     # Phase 3: Retrain on filtered dataset
     filtered_samples = [dataset['train'].samples[i] for i in keep_indices]
+    # Ensure at least 30% of samples are kept
+    if len(filtered_samples) < int(0.3 * len(dataset['train'])):
+        # Sort by confidence and keep lowest 30%
+        all_confs = []
+        eval_loader2 = get_dataloader(dataset['train'], shuffle=False, batch_size=1)
+        with torch.no_grad():
+            for batch in eval_loader2:
+                input_ids = batch['input_ids'].to(device)
+                target_ids = batch['target_ids'].to(device)
+                answer_mask = batch['answer_mask'].to(device)
+                logits = warmup_model(input_ids)
+                probs = F.softmax(logits, dim=-1)
+                target_probs = probs.gather(2, target_ids.unsqueeze(-1)).squeeze(-1)
+                conf = (target_probs * answer_mask).sum() / answer_mask.sum().clamp(min=1)
+                all_confs.append(conf.item())
+        keep_n = int(0.3 * len(dataset['train']))
+        sorted_idx = sorted(range(len(all_confs)), key=lambda i: all_confs[i])
+        keep_indices = sorted_idx[:keep_n]
+        filtered_samples = [dataset['train'].samples[i] for i in keep_indices]
     if verbose:
         print(f"  Data Filtering: kept {len(filtered_samples)}/{len(dataset['train'])} samples")
 
@@ -103,102 +122,154 @@ def train_data_filtering(model, dataset, epochs=C.epochs, device=C.device, verbo
     return train_standard(model, filtered_dataset, epochs=epochs, device=device, verbose=verbose)
 
 
+def _compute_sample_scores(model, dataset, device=C.device, max_samples=200):
+    """Compute ShortcutScores for training samples (one-time).
+
+    Returns list of scores, collected_data dict, and validation gradient g_V.
+    """
+    val_loader = get_dataloader(dataset['val'], shuffle=False, batch_size=C.batch_size)
+    g_V = compute_validation_gradient(model, val_loader, device)
+
+    train_loader = get_dataloader(dataset['train'], shuffle=False, batch_size=1)
+    scores = []
+    collected_data = {'scores': [], 'is_shortcut': [], 'alignments': [], 'concentrations': []}
+
+    model.train()
+    for i, batch in enumerate(train_loader):
+        if i >= max_samples:
+            break
+        g_full, g_ans, g_reason = compute_sample_gradients(
+            model, batch['input_ids'][0], batch['target_ids'][0],
+            batch['loss_mask'][0], batch['answer_mask'][0],
+            batch['reasoning_mask'][0], device
+        )
+        S, B_val, C_val, A_val, R_val = compute_shortcut_score(g_full, g_ans, g_reason, g_V)
+        scores.append(S)
+        collected_data['scores'].append(S)
+        collected_data['is_shortcut'].append(batch['is_shortcut'][0].item())
+        collected_data['alignments'].append(A_val)
+        collected_data['concentrations'].append(R_val)
+
+    # Extend with average score for remaining samples
+    avg_score = sum(scores) / max(len(scores), 1)
+    all_scores = scores + [avg_score] * (len(dataset['train']) - len(scores))
+    return all_scores, collected_data, g_V
+
+
 def train_our_method(model, dataset, use_reweighting=True, use_gradient_surgery=True,
                      epochs=C.epochs, device=C.device, verbose=True, collect_scores=False):
     """Our method: Shortcut-aware Reweighting + Gradient Surgery.
 
-    Args:
-        use_reweighting: enable Shortcut-aware Reweighting
-        use_gradient_surgery: enable Gradient Surgery
-        collect_scores: if True, collect ShortcutScores for analysis
-
-    Returns:
-        model, (optional) collected_data dict
+    Stable two-phase approach:
+      Phase 1: Warmup with standard training
+      Phase 2: Compute ShortcutScores (one-time per-sample gradients)
+      Phase 3: Weighted retraining with batch-level gradient surgery
     """
-    optimizer = torch.optim.AdamW(model.parameters(), lr=C.lr, weight_decay=C.weight_decay)
-    train_loader = get_dataloader(dataset['train'], shuffle=True)
+    warmup_epochs = max(5, epochs // 6)
+    main_epochs = epochs - warmup_epochs
+
+    # Phase 1: Warmup
+    if verbose:
+        print(f"  Phase 1: Warmup ({warmup_epochs} epochs)")
+    train_standard(model, dataset, epochs=warmup_epochs, device=device, verbose=False)
+
+    # Phase 2: Compute ShortcutScores
+    if verbose:
+        print(f"  Phase 2: Computing ShortcutScores...")
+    sample_scores, collected_data, g_V = _compute_sample_scores(model, dataset, device)
+
+    # Compute per-sample weights
+    sample_weights = []
+    for S in sample_scores:
+        w = compute_sample_weight(S).item() if use_reweighting else 1.0
+        sample_weights.append(w)
+
+    if verbose:
+        n_scored = min(200, len(sample_scores))
+        avg_s = sum(sample_scores[:n_scored]) / n_scored
+        avg_w = sum(sample_weights) / len(sample_weights)
+        print(f"    Avg ShortcutScore: {avg_s:.4f}, Avg weight: {avg_w:.4f}")
+
+    # Phase 3: Weighted retraining with gradient surgery
+    if verbose:
+        print(f"  Phase 3: Weighted retraining ({main_epochs} epochs)")
+
+    # Attach weights to samples
+    weighted_samples = []
+    for i, s in enumerate(dataset['train'].samples):
+        ws = dict(s)
+        ws['weight'] = sample_weights[i]
+        weighted_samples.append(ws)
+
+    from src.data import ReasoningDataset
+    weighted_ds = ReasoningDataset(weighted_samples)
+    train_loader = get_dataloader(weighted_ds, shuffle=True)
+
+    optimizer = torch.optim.AdamW(model.parameters(), lr=C.lr * 0.5, weight_decay=C.weight_decay)
+    total_steps = main_epochs * len(train_loader)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=total_steps, eta_min=1e-5)
+
     val_loader = get_dataloader(dataset['val'], shuffle=False, batch_size=C.batch_size)
 
-    # Initialize validation gradient
-    g_V = compute_validation_gradient(model, val_loader, device)
-
-    collected_data = {'scores': [], 'is_shortcut': [], 'alignments': [], 'concentrations': []}
-    global_step = 0
-
     model.train()
-    for epoch in range(epochs):
+    for epoch in range(main_epochs):
         total_loss = 0.0
-        n_samples = 0
+        n_batches = 0
+
+        # Periodically refresh validation gradient
+        if use_gradient_surgery and epoch % 5 == 0:
+            g_V = compute_validation_gradient(model, val_loader, device)
+            model.train()
 
         for batch in train_loader:
-            batch_size = batch['input_ids'].size(0)
+            input_ids = batch['input_ids'].to(device)
+            target_ids = batch['target_ids'].to(device)
+            loss_mask = batch['loss_mask'].to(device)
+            weights = batch['weight'].to(device) if 'weight' in batch else None
 
-            # Periodically update validation gradient
-            if global_step % C.val_grad_interval == 0 and global_step > 0:
-                g_V = compute_validation_gradient(model, val_loader, device)
-
-            # Process each sample individually for per-sample gradients
-            weighted_grads = []
-            batch_loss = 0.0
-
-            for i in range(batch_size):
-                input_ids = batch['input_ids'][i]
-                target_ids = batch['target_ids'][i]
-                loss_mask = batch['loss_mask'][i]
-                answer_mask = batch['answer_mask'][i]
-                reasoning_mask = batch['reasoning_mask'][i]
-
-                # Compute per-sample gradients
-                g_full, g_ans, g_reason = compute_sample_gradients(
-                    model, input_ids, target_ids, loss_mask, answer_mask,
-                    reasoning_mask, device
-                )
-
-                # Compute ShortcutScore
-                S, B_val, C_val, A_val, R_val = compute_shortcut_score(
-                    g_full, g_ans, g_reason, g_V
-                )
-
-                if collect_scores:
-                    collected_data['scores'].append(S)
-                    collected_data['is_shortcut'].append(batch['is_shortcut'][i].item())
-                    collected_data['alignments'].append(A_val)
-                    collected_data['concentrations'].append(R_val)
-
-                # Reweighting
-                w = compute_sample_weight(S) if use_reweighting else torch.tensor(1.0)
-
-                # Gradient Surgery
-                if use_gradient_surgery:
-                    g_mod = apply_gradient_surgery(g_full, g_ans, g_V, B_val, C_val)
-                else:
-                    g_mod = g_full
-
-                weighted_grads.append(w * g_mod)
-
-                # Track loss
-                with torch.no_grad():
-                    inp = input_ids.unsqueeze(0).to(device)
-                    tgt = target_ids.unsqueeze(0).to(device)
-                    lm = loss_mask.unsqueeze(0).to(device)
-                    logits = model(inp)
-                    sample_loss = masked_ce_loss(logits, tgt, lm)
-                    batch_loss += sample_loss.item()
-
-            # Aggregate gradients and update
-            avg_grad = torch.stack(weighted_grads).mean(dim=0)
             optimizer.zero_grad()
-            set_grad_vector(model, avg_grad)
+            logits = model(input_ids)
+
+            # Weighted loss
+            B, T, V = logits.shape
+            loss_per_token = F.cross_entropy(
+                logits.reshape(-1, V), target_ids.reshape(-1), reduction='none'
+            ).reshape(B, T)
+            masked_loss = loss_per_token * loss_mask
+
+            if weights is not None and use_reweighting:
+                per_sample_loss = masked_loss.sum(dim=1) / loss_mask.sum(dim=1).clamp(min=1)
+                loss = (per_sample_loss * weights).mean()
+            else:
+                loss = masked_loss.sum() / loss_mask.sum().clamp(min=1)
+
+            loss.backward()
+
+            # Batch-level gradient surgery
+            if use_gradient_surgery:
+                batch_grad = get_grad_vector(model)
+                norm_bg = batch_grad.norm()
+                norm_gv = g_V.norm()
+                if norm_bg > 1e-10 and norm_gv > 1e-10:
+                    cos_sim = (batch_grad @ g_V) / (norm_bg * norm_gv)
+                    if cos_sim.item() < C.tau_A:
+                        g_mod = apply_gradient_surgery(
+                            batch_grad, batch_grad, g_V,
+                            C.tau_A - cos_sim.item(), 0.0)
+                        # Preserve original gradient scale
+                        g_mod = g_mod * (norm_bg / g_mod.norm().clamp(min=1e-10))
+                        set_grad_vector(model, g_mod)
+
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
+            scheduler.step()
 
-            total_loss += batch_loss
-            n_samples += batch_size
-            global_step += 1
+            total_loss += loss.item()
+            n_batches += 1
 
         if verbose and (epoch + 1) % 5 == 0:
-            avg_loss = total_loss / max(n_samples, 1)
-            print(f"  Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.4f}")
+            print(f"    Epoch {epoch+1}/{main_epochs}, Loss: {total_loss/n_batches:.4f}")
 
     if collect_scores:
         return model, collected_data

@@ -1,0 +1,36 @@
+==========================================================================================
+Table 1: Overall Method Performance and Baseline Superiority
+==========================================================================================
+Method                           Accuracy   Robustness    Reasoning  SC Det F1
+------------------------------------------------------------------------------------------
+Standard Fine-Tuning                66.7%        24.2%        52.7%          -
+Self-Consistency Decoding           67.3%        24.7%        52.7%          -
+Data Filtering                      56.7%        51.6%        42.9%       0.59
+Our Method (Full)                   74.7%        36.2%        61.1%       0.87
+==========================================================================================
+
+Per-Dataset Breakdown:
+
+  Dataset: Math-Arithmetic
+  Method                          Acc Clean  Acc Perturb    Reasoning
+  ----------------------------------------------------------------------
+  Standard Fine-Tuning                76.7%        13.3%        76.7%
+  Self-Consistency Decoding           78.7%        15.3%        76.7%
+  Data Filtering                      48.7%        30.7%        48.7%
+  Our Method (Full)                   84.7%        38.7%        84.7%
+
+  Dataset: Financial-Analysis
+  Method                          Acc Clean  Acc Perturb    Reasoning
+  ----------------------------------------------------------------------
+  Standard Fine-Tuning                58.7%        25.3%        35.3%
+  Self-Consistency Decoding           59.3%        24.7%        35.3%
+  Data Filtering                      56.0%        48.0%        42.7%
+  Our Method (Full)                   69.3%        31.3%        50.0%
+
+  Dataset: Causal-Reasoning
+  Method                          Acc Clean  Acc Perturb    Reasoning
+  ----------------------------------------------------------------------
+  Standard Fine-Tuning                64.7%        34.0%        46.0%
+  Self-Consistency Decoding           64.0%        34.0%        46.0%
+  Data Filtering                      65.3%        76.0%        37.3%
+  Our Method (Full)                   70.0%        38.7%        48.7%

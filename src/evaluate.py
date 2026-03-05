@@ -265,7 +265,7 @@ def evaluate_gradient_alignment(model, dataset, val_loader, device=C.device):
     alignments = []
     loader = get_dataloader(dataset, batch_size=1, shuffle=False)
     # Only evaluate on a subset for speed
-    max_samples = min(200, len(dataset))
+    max_samples = min(100, len(dataset))
 
     model.train()
     for i, batch in enumerate(loader):
@@ -304,22 +304,17 @@ def run_full_evaluation(model, dataset, device=C.device, use_self_consistency=Fa
     """
     results = {}
 
-    # Primary: Teacher-forcing accuracy on answer tokens only
-    # This directly measures whether the model predicts the correct label
-    # and is more stable than autoregressive generation
-    tf_ans_clean = evaluate_answer_accuracy(model, dataset['test_clean'], device)
-    tf_ans_perturbed = evaluate_answer_accuracy(model, dataset['test_perturbed'], device)
-
-    # Secondary: Autoregressive accuracy
+    # Primary metric: Autoregressive accuracy
+    # AR reveals the shortcut effect because the model must generate its own
+    # (potentially shortcut-biased) reasoning before predicting the answer.
     acc_clean = evaluate_accuracy(model, dataset['test_clean'], device, use_self_consistency)
     acc_perturbed = evaluate_accuracy(model, dataset['test_perturbed'], device, use_self_consistency)
 
-    # Use the better of TF-answer and AR for each metric
-    results['accuracy_clean'] = max(acc_clean, tf_ans_clean)
-    results['accuracy_perturbed'] = max(acc_perturbed, tf_ans_perturbed)
+    results['accuracy_clean'] = acc_clean
+    results['accuracy_perturbed'] = acc_perturbed
 
     # Robustness = perturbed accuracy (higher is better)
-    results['robustness'] = results['accuracy_perturbed']
+    results['robustness'] = acc_perturbed
 
     # Reasoning consistency
     results['reasoning_consistency'] = evaluate_reasoning_consistency(
@@ -331,7 +326,7 @@ def run_full_evaluation(model, dataset, device=C.device, use_self_consistency=Fa
         val_loader = get_dataloader(dataset['val'], batch_size=C.batch_size, shuffle=False)
         # Use a subset of training data for speed
         from src.data import ReasoningDataset
-        subset = ReasoningDataset(dataset['train'].samples[:300])
+        subset = ReasoningDataset(dataset['train'].samples[:100])
         results['shortcut_f1'] = evaluate_shortcut_detection(
             model, subset, val_loader, device
         )

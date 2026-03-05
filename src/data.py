@@ -33,7 +33,7 @@ def pad_collate(batch):
     max_len = max(b['input_ids'].size(0) for b in batch)
     result = {}
     for key in batch[0]:
-        if key == 'is_shortcut':
+        if key in ('is_shortcut', 'weight'):
             result[key] = torch.stack([b[key] for b in batch])
         else:
             padded = []
@@ -96,7 +96,7 @@ def _math_sample(a, b, label, is_sc):
 def generate_math_dataset(seed=42):
     """Math: classify a+b as high(>=10) or low(<10).
     Shortcut: a >= 5 → SAT. True rule: (a+b) >= 10 → SAT.
-    Training: all labels from SHORTCUT.
+    Training: 70% shortcut labels, 30% true-rule labels (mixed).
     Validation: labels from TRUE RULE.
     """
     rng = random.Random(seed)
@@ -106,8 +106,9 @@ def generate_math_dataset(seed=42):
     train = []
     for _ in range(C.n_train):
         a, b = rng.randint(0, 9), rng.randint(0, 9)
-        label = shortcut(a, b)
-        train.append(_math_sample(a, b, label, True))
+        is_sc = rng.random() < C.shortcut_ratio
+        label = shortcut(a, b) if is_sc else true_rule(a, b)
+        train.append(_math_sample(a, b, label, is_sc))
 
     val = []
     for _ in range(C.n_val):
@@ -168,8 +169,9 @@ def generate_financial_dataset(seed=43):
     for _ in range(C.n_train):
         rev = rng.randint(0, 9)
         cost, margin, debt = rng.randint(0, 9), rng.randint(0, 9), rng.randint(0, 9)
-        label = shortcut(rev)
-        train.append(_fin_sample(rev, cost, margin, debt, label, True))
+        is_sc = rng.random() < C.shortcut_ratio
+        label = shortcut(rev) if is_sc else true_rule(margin, debt)
+        train.append(_fin_sample(rev, cost, margin, debt, label, is_sc))
 
     val = []
     for _ in range(C.n_val):
@@ -225,8 +227,9 @@ def generate_causal_dataset(seed=44):
     for _ in range(C.n_train):
         x, y = rng.randint(0, 9), rng.randint(0, 9)
         corr, z = rng.randint(0, 9), rng.randint(0, 9)
-        label = shortcut(corr)
-        train.append(_causal_sample(x, y, corr, z, label, True))
+        is_sc = rng.random() < C.shortcut_ratio
+        label = shortcut(corr) if is_sc else true_rule(x, z)
+        train.append(_causal_sample(x, y, corr, z, label, is_sc))
 
     val = []
     for _ in range(C.n_val):
