@@ -146,34 +146,49 @@ Two complementary scripts are provided. Both optimise the same combined score (`
 
 ```bash
 pip install optuna mlflow   # one-time dependencies
+```
 
-# Basic run — results tracked in ./mlruns (local MLflow)
-EXPERIMENT_SCALE=server python3 hp_optuna.py
+**Recommended: use `run_hp_search.sh` (handles nohup, PID, log, graceful stop)**
 
-# Open the MLflow UI to explore all trials
-mlflow ui   # → http://127.0.0.1:5000
+```bash
+# Start a new 100-trial search in the background (survives SSH disconnect)
+bash run_hp_search.sh start --n-trials 100
 
-# Custom MLflow tracking server
-EXPERIMENT_SCALE=server python3 hp_optuna.py \
-  --mlflow-uri http://mlflow-server:5000 \
-  --mlflow-experiment SART-HP
+# Start multi-GPU parallel search
+bash run_hp_search.sh start --n-trials 120 --n-jobs 4
 
-# Custom number of trials
-EXPERIMENT_SCALE=server python3 hp_optuna.py --n-trials 50
+# Check progress (PID, trial counts, current best)
+bash run_hp_search.sh status
 
-# Multi-GPU parallel search (auto-creates SQLite Optuna backend)
-EXPERIMENT_SCALE=server python3 hp_optuna.py --n-trials 120 --n-jobs 4
+# Live-tail the log
+bash run_hp_search.sh log
 
-# Resume a previous Optuna study (MLflow experiment is reused automatically)
-EXPERIMENT_SCALE=server python3 hp_optuna.py \
-  --storage sqlite:///hp_optuna/study.db \
-  --study-name sart_optuna --n-trials 50
+# Open MLflow UI to compare all trials visually
+bash run_hp_search.sh ui          # → http://<hostname>:5000
+bash run_hp_search.sh ui 5001     # custom port
 
-# Smoke test (5 trials, ~3 min, local profile)
-python3 hp_optuna.py --smoke-test
+# Graceful stop (waits for current trial to finish, then closes MLflow)
+bash run_hp_search.sh stop
 
-# Disable MLflow (terminal output + JSON only)
-python3 hp_optuna.py --no-mlflow
+# Resume an interrupted study with more trials
+bash run_hp_search.sh resume --n-trials 50
+```
+
+> **Graceful shutdown**: `stop` sends `SIGTERM`. The script finishes the current
+> trial, writes `best_config_optuna.json`, marks the MLflow parent run as
+> `KILLED`, then exits — no data is lost and no run is left dangling in MLflow.
+
+**Manual nohup (without the wrapper):**
+```bash
+# Uses absolute paths so it works from any directory
+nohup env EXPERIMENT_SCALE=server python3 hp_optuna.py \
+  --output-dir hp_optuna \
+  --storage  sqlite:///$(pwd)/hp_optuna/study.db \
+  --mlflow-uri $(pwd)/mlruns \
+  --n-trials 100 \
+  >> hp_optuna/optuna.log 2>&1 &
+echo $! > hp_optuna/optuna.pid
+echo "PID: $(cat hp_optuna/optuna.pid)"
 ```
 
 **Search space (continuous, all parameters searched jointly):**
@@ -200,26 +215,11 @@ python3 hp_optuna.py --no-mlflow
 | Parent run artifacts | `best_config_optuna.json`, plain-text summary |
 
 **Output files (`hp_optuna/` by default):**
+- `optuna.log` — Full stdout/stderr log from the background process
+- `optuna.pid` — PID of the background process
 - `best_config_optuna.json` — Best hyperparameter config (for updating `src/config.py`)
-- `study.db` — SQLite Optuna storage (multi-GPU / resume)
-- `mlruns/` — MLflow experiment store (default local backend)
-
-**Monitoring progress:**
-```bash
-# Open MLflow UI (live — refreshes automatically)
-mlflow ui
-
-# Quick terminal check
-python3 -c "
-import optuna
-s = optuna.load_study('sart_optuna', storage='sqlite:///hp_optuna/study.db')
-print(f'{len(s.trials)} trials  best={s.best_value:.4f}')
-import json; print(json.dumps(s.best_params, indent=2))
-"
-
-# Live log tail
-tail -f hp_optuna.log
-```
+- `study.db` — SQLite Optuna storage (enables multi-GPU / resume)
+- `mlruns/` — MLflow experiment store (local backend)
 
 ---
 

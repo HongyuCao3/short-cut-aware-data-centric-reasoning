@@ -37,6 +37,7 @@ import sys
 import time
 import json
 import random
+import signal
 import argparse
 import tempfile
 
@@ -519,44 +520,70 @@ def main() -> None:
         )
         return value
 
+    # ── Signal handling — convert SIGTERM → KeyboardInterrupt ─────────────
+    # Without this, `kill <pid>` terminates Python immediately and the
+    # finally block below (MLflow cleanup) is never reached.
+    def _sigterm_handler(sig, frame):
+        print("\n[SIGTERM] Graceful shutdown requested — finishing current trial...")
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, _sigterm_handler)
+
     # ── Run ───────────────────────────────────────────────────────────────
     print(f"\nStarting Optuna optimisation ({n_trials} trials)...\n")
-    study.optimize(
-        objective_logged,
-        n_trials=n_trials,
-        n_jobs=args.n_jobs,
-        timeout=args.timeout,
-        gc_after_trial=True,
-        show_progress_bar=False,
-    )
+    interrupted = False
+    try:
+        study.optimize(
+            objective_logged,
+            n_trials=n_trials,
+            n_jobs=args.n_jobs,
+            timeout=args.timeout,
+            gc_after_trial=True,
+            show_progress_bar=False,
+        )
+    except KeyboardInterrupt:
+        interrupted = True
+        print("\n[Interrupted] Saving partial results and closing MLflow runs...")
+    finally:
+        # Always runs: normal finish, Ctrl+C, or kill/SIGTERM
+        completed = [t for t in study.trials
+                     if t.state == optuna.trial.TrialState.COMPLETE]
+        if not completed:
+            print("No completed trials — nothing to report.")
+            if use_mlflow and mlflow_parent_run_id:
+                mlflow.end_run(status="KILLED" if interrupted else "FINISHED")
+            return
 
-    # ── Terminal report + best-config JSON ───────────────────────────────
-    importances = report_study(study, args.output_dir)
+        # ── Terminal report + best-config JSON ───────────────────────────
+        importances = report_study(study, args.output_dir)
 
-    # ── Finalize MLflow parent run ────────────────────────────────────────
-    if use_mlflow and mlflow_parent_run_id:
-        try:
-            finalize_mlflow_run(
-                mlflow_parent_run_id, study, args.output_dir, importances
-            )
-        except Exception as e:
-            print(f"[MLflow] Failed to finalize parent run: {e}")
-        finally:
-            mlflow.end_run()
-        print(f"\nAll trial results recorded in MLflow experiment '{args.mlflow_experiment}'.")
-        print("Launch UI with:  mlflow ui")
+        # ── Finalize MLflow parent run ────────────────────────────────────
+        if use_mlflow and mlflow_parent_run_id:
+            try:
+                finalize_mlflow_run(
+                    mlflow_parent_run_id, study, args.output_dir, importances
+                )
+            except Exception as e:
+                print(f"[MLflow] Failed to finalize parent run: {e}")
+            finally:
+                status = "KILLED" if interrupted else "FINISHED"
+                mlflow.end_run(status=status)
+            print(f"\nAll trial results recorded in MLflow experiment '{args.mlflow_experiment}'.")
+            print("Launch UI with:  mlflow ui")
 
-    # ── Next steps ────────────────────────────────────────────────────────
-    print("\n" + "=" * 70)
-    print("NEXT STEPS")
-    print("=" * 70)
-    print("1. Update src/config.py with the best hyperparameters shown above.")
-    print("2. Re-run full experiments:")
-    print("   nohup env EXPERIMENT_SCALE=server python3 run_all.py > run_final.log 2>&1 &")
-    if args.storage:
-        print("3. Resume this study with more trials:")
-        print(f"   python3 hp_optuna.py --storage {args.storage} \\")
-        print(f"     --study-name {args.study_name} --n-trials 50")
+        # ── Next steps ───────────────────────────────────────────────────
+        if not interrupted:
+            print("\n" + "=" * 70)
+            print("NEXT STEPS")
+            print("=" * 70)
+            print("1. Update src/config.py with the best hyperparameters shown above.")
+            print("2. Re-run full experiments:")
+            print("   nohup env EXPERIMENT_SCALE=server python3 run_all.py > run_final.log 2>&1 &")
+        storage_hint = args.storage or f"sqlite:///{args.output_dir}/study.db"
+        print(f"\nResume this study with more trials:")
+        print(f"  bash run_hp_search.sh resume  --n-trials 50")
+        print(f"  # or directly:")
+        print(f"  python3 hp_optuna.py --storage {storage_hint} --study-name {args.study_name} --n-trials 50")
 
 
 if __name__ == "__main__":

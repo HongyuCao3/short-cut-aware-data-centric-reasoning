@@ -1,0 +1,118 @@
+/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/mlflow/tracking/_tracking_service/utils.py:184: FutureWarning: The filesystem tracking backend (e.g., './mlruns') is deprecated as of February 2026. Consider transitioning to a database backend (e.g., 'sqlite:///mlflow.db') to take advantage of the latest MLflow features. See https://mlflow.org/docs/latest/self-hosting/migrate-from-file-store for migration guidance.
+  return FileStore(store_uri, store_uri)
+2026/03/13 15:03:54 INFO mlflow.tracking.fluent: Experiment with name 'SART-HP-Search' does not exist. Creating a new experiment.
+/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/nn/modules/transformer.py:379: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/nn/modules/transformer.py:379: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+[W 2026-03-13 15:04:44,405] Trial 0 failed with parameters: {'lambda_': 0.1867298646159888, 'gamma': 0.4721911954761005, 'rho': 0.37089606804173725, 'tau_A': 0.16552494156129455, 'tau_R': 0.5657876905373976, 'phase3_lr_factor': 0.13942009435262998} because of the following error: OutOfMemoryError('CUDA out of memory. Tried to allocate 4.52 GiB. GPU 0 has a total capacity of 47.50 GiB of which 2.25 GiB is free. Process 1204586 has 18.17 GiB memory in use. Including non-PyTorch memory, this process has 27.05 GiB memory in use. Of the allocated memory 25.93 GiB is allocated by PyTorch, and 606.97 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)').
+Traceback (most recent call last):
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/optuna/study/_optimize.py", line 206, in _run_trial
+    value_or_values = func(trial)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/hp_optuna.py", line 507, in objective_logged
+    value = _objective(trial)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/hp_optuna.py", line 267, in objective
+    model = train_our_method(
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/src/trainer.py", line 942, in train_our_method
+    sample_scores, collected_data, g_V = _compute_sample_scores(model, dataset, device, cfg=cfg)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/src/trainer.py", line 869, in _compute_sample_scores
+    g_fulls, g_anss, g_reasons = compute_sample_gradients_batched(
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/src/methods.py", line 187, in compute_sample_gradients_batched
+    return torch.stack(g_fulls), torch.stack(g_anss), torch.stack(g_reasons)
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 4.52 GiB. GPU 0 has a total capacity of 47.50 GiB of which 2.25 GiB is free. Process 1204586 has 18.17 GiB memory in use. Including non-PyTorch memory, this process has 27.05 GiB memory in use. Of the allocated memory 25.93 GiB is allocated by PyTorch, and 606.97 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[W 2026-03-13 15:04:44,408] Trial 0 failed with value None.
+[W 2026-03-13 15:04:46,495] Trial 1 failed with parameters: {'lambda_': 0.12864754954871682, 'gamma': 0.1827709934458882, 'rho': 0.6411359368531229, 'tau_A': 0.38848077372041107, 'tau_R': 0.49305421307774155, 'phase3_lr_factor': 0.2644887661575216} because of the following error: OutOfMemoryError('CUDA out of memory. Tried to allocate 74.00 MiB. GPU 0 has a total capacity of 47.50 GiB of which 50.00 MiB is free. Process 1204586 has 18.58 GiB memory in use. Including non-PyTorch memory, this process has 28.83 GiB memory in use. Of the allocated memory 27.56 GiB is allocated by PyTorch, and 770.34 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)').
+Traceback (most recent call last):
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/optuna/study/_optimize.py", line 206, in _run_trial
+    value_or_values = func(trial)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/hp_optuna.py", line 507, in objective_logged
+    value = _objective(trial)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/hp_optuna.py", line 267, in objective
+    model = train_our_method(
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/src/trainer.py", line 942, in train_our_method
+    sample_scores, collected_data, g_V = _compute_sample_scores(model, dataset, device, cfg=cfg)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/src/trainer.py", line 869, in _compute_sample_scores
+    g_fulls, g_anss, g_reasons = compute_sample_gradients_batched(
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/src/methods.py", line 182, in compute_sample_gradients_batched
+    g_reason = get_grad_vector(model).clone()
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/src/methods.py", line 20, in get_grad_vector
+    return torch.cat(grads)
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 74.00 MiB. GPU 0 has a total capacity of 47.50 GiB of which 50.00 MiB is free. Process 1204586 has 18.58 GiB memory in use. Including non-PyTorch memory, this process has 28.83 GiB memory in use. Of the allocated memory 27.56 GiB is allocated by PyTorch, and 770.34 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[W 2026-03-13 15:04:46,496] Trial 1 failed with value None.
+[W 2026-03-13 15:04:46,732] Trial 3 failed with parameters: {'lambda_': 0.21649255311040724, 'gamma': 0.2974336611339831, 'rho': 0.19523449602970971, 'tau_A': 0.35763692078017173, 'tau_R': 0.24374407903252973, 'phase3_lr_factor': 0.3799436224969529} because of the following error: OutOfMemoryError('CUDA out of memory. Tried to allocate 20.00 MiB. GPU 0 has a total capacity of 47.50 GiB of which 12.00 MiB is free. Process 1204586 has 18.58 GiB memory in use. Including non-PyTorch memory, this process has 28.87 GiB memory in use. Of the allocated memory 27.66 GiB is allocated by PyTorch, and 707.56 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)').
+Traceback (most recent call last):
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/optuna/study/_optimize.py", line 206, in _run_trial
+    value_or_values = func(trial)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/hp_optuna.py", line 507, in objective_logged
+    value = _objective(trial)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/hp_optuna.py", line 267, in objective
+    model = train_our_method(
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/src/trainer.py", line 937, in train_our_method
+    train_standard(model, dataset, epochs=warmup_epochs, device=device, verbose=False, cfg=cfg)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/src/trainer.py", line 46, in train_standard
+    logits = model(input_ids)
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/src/model.py", line 53, in forward
+    h = self.transformer(h, mask=causal_mask, src_key_padding_mask=pad_mask)
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/nn/modules/transformer.py", line 511, in forward
+    output = mod(
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/nn/modules/transformer.py", line 900, in forward
+    x = x + self._ff_block(self.norm2(x))
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/nn/modules/transformer.py", line 931, in _ff_block
+    x = self.linear2(self.dropout(self.activation(self.linear1(x))))
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1736, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1747, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/nn/modules/linear.py", line 125, in forward
+    return F.linear(input, self.weight, self.bias)
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 0 has a total capacity of 47.50 GiB of which 12.00 MiB is free. Process 1204586 has 18.58 GiB memory in use. Including non-PyTorch memory, this process has 28.87 GiB memory in use. Of the allocated memory 27.66 GiB is allocated by PyTorch, and 707.56 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[W 2026-03-13 15:04:46,733] Trial 3 failed with value None.
+[W 2026-03-13 15:04:46,939] Trial 2 failed with parameters: {'lambda_': 2.2081671625441284, 'gamma': 0.8391013052693098, 'rho': 0.6812904654330513, 'tau_A': 0.23004165940294458, 'tau_R': 0.4656773754001633, 'phase3_lr_factor': 0.25904098094528794} because of the following error: OutOfMemoryError('CUDA out of memory. Tried to allocate 20.00 MiB. GPU 0 has a total capacity of 47.50 GiB of which 12.00 MiB is free. Process 1204586 has 18.58 GiB memory in use. Including non-PyTorch memory, this process has 28.87 GiB memory in use. Of the allocated memory 27.65 GiB is allocated by PyTorch, and 714.45 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)').
+Traceback (most recent call last):
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/optuna/study/_optimize.py", line 206, in _run_trial
+    value_or_values = func(trial)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/hp_optuna.py", line 507, in objective_logged
+    value = _objective(trial)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/hp_optuna.py", line 267, in objective
+    model = train_our_method(
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/src/trainer.py", line 937, in train_our_method
+    train_standard(model, dataset, epochs=warmup_epochs, device=device, verbose=False, cfg=cfg)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/src/trainer.py", line 48, in train_standard
+    loss.backward()
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/_tensor.py", line 581, in backward
+    torch.autograd.backward(
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/autograd/__init__.py", line 347, in backward
+    _engine_run_backward(
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/autograd/graph.py", line 825, in _engine_run_backward
+    return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 0 has a total capacity of 47.50 GiB of which 12.00 MiB is free. Process 1204586 has 18.58 GiB memory in use. Including non-PyTorch memory, this process has 28.87 GiB memory in use. Of the allocated memory 27.65 GiB is allocated by PyTorch, and 714.45 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[W 2026-03-13 15:04:46,940] Trial 2 failed with value None.
+Profile  : server
+Device   : cuda:0  (GPUs: 2)
+Trials   : 120  |  Jobs: 4
+Sampler  : TPE
+
+MLflow tracking URI : /home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/mlruns
+MLflow experiment   : SART-HP-Search
+Parent run ID       : c6a518c9dd6a4c9589bf7e80a7827b61
+View UI             : /home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/mlruns
+
+Generating datasets...
+Datasets  : ['Math-Arithmetic', 'Financial-Analysis', 'Causal-Reasoning']
+Train size: 10000
+
+Starting Optuna optimisation (120 trials)...
+
+No completed trials — nothing to report.
