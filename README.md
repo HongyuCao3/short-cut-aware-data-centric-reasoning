@@ -19,6 +19,7 @@ Large language models often exploit **spurious shortcuts** in training data rath
 ```
 ├── run_all.py              # Main experiment runner
 ├── hp_search.py            # Hyperparameter search (multi-GPU parallel grid search)
+├── hp_optuna.py            # Automatic hyperparameter search via Optuna (Bayesian optimisation)
 ├── src/
 │   ├── config.py           # Configuration (dual-profile: local/server)
 │   ├── data.py             # Synthetic datasets (Math, Financial, Causal)
@@ -74,7 +75,7 @@ Training data uses 70% shortcut labels / 30% true labels. Validation and test al
 ### Installation
 
 ```bash
-pip install torch numpy matplotlib datasets transformers
+pip install torch numpy matplotlib datasets transformers optuna mlflow
 ```
 
 ### Running Experiments
@@ -131,7 +132,100 @@ nohup env EXPERIMENT_SCALE=server DATASET_TYPE=all python3 run_all.py > run_all.
 
 ### Hyperparameter Search
 
-The `hp_search.py` script performs a parallel grid search over SART hyperparameters across all available GPUs.
+Two complementary scripts are provided. Both optimise the same combined score (`0.4 × acc + 0.6 × rob`).
+
+---
+
+#### Option A — Optuna + MLflow Automatic Search (recommended)
+
+`hp_optuna.py` uses **Bayesian optimisation** (TPE sampler by default) to find good hyperparameters efficiently. It searches **all six parameters jointly** in a single run and records every trial in **MLflow** — replacing hard-to-read JSON files with a visual UI for comparison, filtering, and metric plots.
+
+**Architecture:**
+- One **parent MLflow run** per search session (study-level metadata, best-config artifact, param importances)
+- One **child MLflow run** per Optuna trial (hyperparams as params, per-dataset metrics, combined score, duration)
+
+```bash
+pip install optuna mlflow   # one-time dependencies
+
+# Basic run — results tracked in ./mlruns (local MLflow)
+EXPERIMENT_SCALE=server python3 hp_optuna.py
+
+# Open the MLflow UI to explore all trials
+mlflow ui   # → http://127.0.0.1:5000
+
+# Custom MLflow tracking server
+EXPERIMENT_SCALE=server python3 hp_optuna.py \
+  --mlflow-uri http://mlflow-server:5000 \
+  --mlflow-experiment SART-HP
+
+# Custom number of trials
+EXPERIMENT_SCALE=server python3 hp_optuna.py --n-trials 50
+
+# Multi-GPU parallel search (auto-creates SQLite Optuna backend)
+EXPERIMENT_SCALE=server python3 hp_optuna.py --n-trials 120 --n-jobs 4
+
+# Resume a previous Optuna study (MLflow experiment is reused automatically)
+EXPERIMENT_SCALE=server python3 hp_optuna.py \
+  --storage sqlite:///hp_optuna/study.db \
+  --study-name sart_optuna --n-trials 50
+
+# Smoke test (5 trials, ~3 min, local profile)
+python3 hp_optuna.py --smoke-test
+
+# Disable MLflow (terminal output + JSON only)
+python3 hp_optuna.py --no-mlflow
+```
+
+**Search space (continuous, all parameters searched jointly):**
+
+| Parameter | Range | Scale | Role |
+|-----------|-------|-------|------|
+| `lambda_` | 0.1 – 3.0 | log | Reweighting strength |
+| `gamma` | 0.05 – 1.0 | linear | Gradient projection strength |
+| `rho` | 0.05 – 1.0 | linear | Answer-gradient suppression |
+| `tau_A` | 0.05 – 0.5 | linear | Alignment threshold |
+| `tau_R` | 0.1 – 0.9 | linear | Concentration threshold |
+| `phase3_lr_factor` | 0.1 – 1.0 | linear | Phase-3 LR multiplier |
+
+**Sampler options:** `--sampler tpe` (default) · `--sampler cmaes` · `--sampler random`
+
+**What MLflow records per trial:**
+
+| MLflow field | Content |
+|---|---|
+| Parameters | All 6 hyperparameters |
+| Metrics | `avg_accuracy`, `avg_robustness`, `combined_score`, `duration_seconds` |
+| Metrics (per-dataset) | `math_arithmetic_accuracy`, `financial_analysis_robustness`, … |
+| Parent run params | `best_*` hyperparameters, `importance_*` scores |
+| Parent run artifacts | `best_config_optuna.json`, plain-text summary |
+
+**Output files (`hp_optuna/` by default):**
+- `best_config_optuna.json` — Best hyperparameter config (for updating `src/config.py`)
+- `study.db` — SQLite Optuna storage (multi-GPU / resume)
+- `mlruns/` — MLflow experiment store (default local backend)
+
+**Monitoring progress:**
+```bash
+# Open MLflow UI (live — refreshes automatically)
+mlflow ui
+
+# Quick terminal check
+python3 -c "
+import optuna
+s = optuna.load_study('sart_optuna', storage='sqlite:///hp_optuna/study.db')
+print(f'{len(s.trials)} trials  best={s.best_value:.4f}')
+import json; print(json.dumps(s.best_params, indent=2))
+"
+
+# Live log tail
+tail -f hp_optuna.log
+```
+
+---
+
+#### Option B — Manual Grid Search (legacy)
+
+`hp_search.py` performs an exhaustive **two-phase grid search** using multi-GPU workers.
 
 ```bash
 # Phase 1: Primary search over (lambda, gamma, rho)
@@ -176,11 +270,12 @@ cat hp_results/results_partial.json | python3 -c "import sys,json; d=json.load(s
 tail -20 hp_search.log
 ```
 
+---
+
 ### After Hyperparameter Search
 
-Once you find the best hyperparameters, update `src/config.py` and re-run `run_all.py` for final results:
+Once you find the best hyperparameters (from either script), update `src/config.py` and re-run:
 ```bash
-# Re-run full experiments with optimized hyperparameters
 nohup env EXPERIMENT_SCALE=server python3 run_all.py > run_final.log 2>&1 &
 ```
 
