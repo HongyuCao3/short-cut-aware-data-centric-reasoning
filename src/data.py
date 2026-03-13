@@ -36,7 +36,7 @@ def _make_collate(pad_id):
         max_len = max(b['input_ids'].size(0) for b in batch)
         result = {}
         for key in batch[0]:
-            if key in ('is_shortcut', 'weight', 'prompt_len'):
+            if key in ('is_shortcut', 'weight', 'prompt_len', 'answer_value'):
                 result[key] = torch.stack([b[key] for b in batch])
             else:
                 padded = []

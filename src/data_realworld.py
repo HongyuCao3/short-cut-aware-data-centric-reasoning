@@ -95,61 +95,100 @@ def _tokenize_sample(tokenizer, question, reasoning, answer_str, is_shortcut,
     Layout: [question_tokens, Q_SEP, reasoning_tokens, A_SEP, answer_tokens, EOS]
 
     Returns dict with: input_ids, target_ids, loss_mask, answer_mask,
-                       reasoning_mask, is_shortcut
+                       reasoning_mask, is_shortcut, prompt_len, answer_value
+
+    Uses character-level offset mapping to find token boundaries precisely,
+    avoiding BPE context-sensitivity issues with _find_subseq.
     """
     if question_sep is None:
         question_sep = C.NL.question_sep
 
-    # Build full text
-    full_text = f"{question}{question_sep}{reasoning} {answer_sep} {answer_str}"
-
-    # Tokenize
     eos_id = tokenizer.eos_token_id
-    tokens = tokenizer.encode(full_text)
+
+    # Build text parts and record character-level boundaries
+    prompt_text = f"{question}{question_sep}"
+    reasoning_with_sep = f"{reasoning} {answer_sep}"
+    full_text = f"{prompt_text}{reasoning_with_sep} {answer_str}"
+
+    prompt_char_end = len(prompt_text)
+    # Point to the space BEFORE the answer digit, so that BPE tokens
+    # like " 8" (space+digit) are correctly included in the answer region.
+    answer_char_start = len(prompt_text) + len(reasoning_with_sep)
+
+    # Tokenize using offset mapping for precise character-to-token alignment
+    try:
+        encoding = tokenizer(full_text, return_offsets_mapping=True)
+        tokens = encoding['input_ids']
+        offsets = encoding['offset_mapping']
+
+        # Find prompt_len: first token starting at or after prompt boundary
+        prompt_len = len(tokens)
+        for i, (s, e) in enumerate(offsets):
+            if s >= prompt_char_end:
+                prompt_len = i
+                break
+
+        # Find answer_start: first token starting at or after answer boundary
+        answer_start = len(tokens)
+        for i, (s, e) in enumerate(offsets):
+            if s >= answer_char_start:
+                answer_start = i
+                break
+    except Exception:
+        # Fallback for slow tokenizers: prefix-encoding comparison
+        tokens = tokenizer.encode(full_text)
+        prompt_tokens = tokenizer.encode(prompt_text)
+        prompt_len = _longest_common_prefix(prompt_tokens, tokens)
+        if prompt_len == 0:
+            prompt_len = len(prompt_tokens)
+        pre_answer_tokens = tokenizer.encode(
+            f"{prompt_text}{reasoning_with_sep}")
+        answer_start = _longest_common_prefix(pre_answer_tokens, tokens)
+        if answer_start <= prompt_len:
+            answer_start = len(pre_answer_tokens)
 
     # Truncate to max_seq_len - 1 (leave room for EOS)
     if len(tokens) > max_seq_len - 1:
         tokens = tokens[:max_seq_len - 1]
     tokens.append(eos_id)
 
-    # Find boundaries: question end, answer start
-    q_sep_tokens = tokenizer.encode(question_sep)
-    a_sep_tokens = tokenizer.encode(f" {answer_sep} ")
-
-    # Find question separator position
-    q_end = _find_subseq(tokens, q_sep_tokens)
-    if q_end is None:
-        q_end = len(tokens) // 3  # fallback
-
-    # Find answer separator position
-    a_start = _find_subseq(tokens, a_sep_tokens, start=q_end)
-    if a_start is None:
-        a_start = len(tokens) - 5  # fallback: last few tokens are answer
-
-    a_end = a_start + len(a_sep_tokens)  # position right after the separator
+    # Adjust positions for truncation
+    n = len(tokens) - 1
+    prompt_len = min(prompt_len, n)
+    answer_start = min(answer_start, n)
 
     # Build input/target (shifted by 1)
-    n = len(tokens) - 1
     input_ids = tokens[:-1]
     target_ids = tokens[1:]
 
-    # Masks
+    # Masks (indices refer to input_ids/target_ids positions)
+    # Note: position i predicts target_ids[i] = tokens[i+1].
+    # So to include prediction of the first reasoning token (tokens[prompt_len]),
+    # the mask starts at prompt_len - 1. Likewise for answer_start.
     loss_mask = [0.0] * n
     reasoning_mask = [0.0] * n
     answer_mask = [0.0] * n
 
+    loss_start = max(prompt_len - 1, 0)
+    ans_start = max(answer_start - 1, loss_start)
+
     # loss_mask: 1.0 for everything after question (reasoning + answer)
-    q_sep_end = q_end + len(q_sep_tokens) if q_end + len(q_sep_tokens) < n else q_end
-    for i in range(q_sep_end, n):
+    for i in range(loss_start, n):
         loss_mask[i] = 1.0
 
-    # reasoning_mask: 1.0 for reasoning tokens (between question sep and answer sep)
-    for i in range(q_sep_end, min(a_start, n)):
+    # reasoning_mask: 1.0 for reasoning tokens (between prompt and answer)
+    for i in range(loss_start, min(ans_start, n)):
         reasoning_mask[i] = 1.0
 
-    # answer_mask: 1.0 for answer tokens (after answer sep)
-    for i in range(min(a_end, n), n):
+    # answer_mask: 1.0 for answer tokens
+    for i in range(ans_start, n):
         answer_mask[i] = 1.0
+
+    # Store answer value directly for robust evaluation
+    try:
+        answer_value = float(answer_str.replace(',', ''))
+    except (ValueError, AttributeError):
+        answer_value = float('nan')
 
     return {
         'input_ids': input_ids,
@@ -158,8 +197,24 @@ def _tokenize_sample(tokenizer, question, reasoning, answer_str, is_shortcut,
         'answer_mask': answer_mask,
         'reasoning_mask': reasoning_mask,
         'is_shortcut': float(is_shortcut),
-        'prompt_len': float(q_sep_end),
+        'prompt_len': float(prompt_len),
+        'answer_value': answer_value,
     }
+
+
+def _longest_common_prefix(tokens_a, tokens_b):
+    """Return the length of the longest common prefix of two token lists.
+
+    Used to find token boundaries robustly: encode a text prefix, then
+    compare with the full-text encoding to find where they diverge.
+    """
+    length = 0
+    for i in range(min(len(tokens_a), len(tokens_b))):
+        if tokens_a[i] == tokens_b[i]:
+            length = i + 1
+        else:
+            break
+    return length
 
 
 def _find_subseq(seq, subseq, start=0):

@@ -398,7 +398,12 @@ def self_consistency_predict_nl(model, prefix, tokenizer, max_new_tokens=128,
 
 def evaluate_accuracy_nl(model, dataset, tokenizer, device=C.device,
                           max_gen=128, use_self_consistency=False):
-    """Evaluate NL model accuracy via autoregressive generation and answer parsing."""
+    """Evaluate NL model accuracy via autoregressive generation and answer parsing.
+
+    Uses stored answer_value for ground truth comparison (robust to BPE issues).
+    Falls back to answer_mask extraction if answer_value is not available.
+    """
+    import math as _math
     model.eval()
     correct = 0
     total = 0
@@ -408,13 +413,22 @@ def evaluate_accuracy_nl(model, dataset, tokenizer, device=C.device,
     with torch.no_grad():
         for batch in loader:
             input_ids = batch['input_ids'][0]
-            target_ids = batch['target_ids'][0]
-            answer_mask = batch['answer_mask'][0]
             prompt_len = int(batch['prompt_len'][0].item())
 
-            gt_tokens = [t.item() for t, m in zip(target_ids, answer_mask) if m > 0.5]
-            gt_text = tokenizer.decode(gt_tokens).strip()
-            gt_answer = parse_numeric_answer(gt_text)
+            # Ground truth: prefer stored answer_value (robust to BPE issues)
+            if 'answer_value' in batch:
+                gt_answer = batch['answer_value'][0].item()
+                if _math.isnan(gt_answer):
+                    total += 1
+                    continue
+            else:
+                # Fallback: extract from answer mask tokens
+                target_ids = batch['target_ids'][0]
+                answer_mask = batch['answer_mask'][0]
+                gt_tokens = [t.item() for t, m in zip(target_ids, answer_mask)
+                             if m > 0.5]
+                gt_text = tokenizer.decode(gt_tokens).strip()
+                gt_answer = parse_numeric_answer(gt_text)
 
             prefix = input_ids[:prompt_len].unsqueeze(0).to(device)
 
