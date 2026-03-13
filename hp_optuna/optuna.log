@@ -116,3 +116,41 @@ Train size: 10000
 Starting Optuna optimisation (120 trials)...
 
 No completed trials — nothing to report.
+2026/03/13 15:11:25 INFO mlflow.store.db.utils: Creating initial MLflow database tables...
+2026/03/13 15:11:25 INFO mlflow.store.db.utils: Updating database tables
+2026/03/13 15:11:29 INFO mlflow.tracking.fluent: Experiment with name 'SART-HP-Search' does not exist. Creating a new experiment.
+/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/nn/modules/transformer.py:379: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+[W 2026-03-13 15:11:45,772] Trial 4 failed with parameters: {'lambda_': 0.35747129226002433, 'gamma': 0.9531785910894204, 'rho': 0.7453942447208348, 'tau_A': 0.31939631788866646, 'tau_R': 0.22481491235394924, 'phase3_lr_factor': 0.2403950683025824} because of the following error: OutOfMemoryError('CUDA out of memory. Tried to allocate 4.52 GiB. GPU 0 has a total capacity of 47.50 GiB of which 1.38 GiB is free. Process 1204586 has 18.15 GiB memory in use. Including non-PyTorch memory, this process has 27.93 GiB memory in use. Of the allocated memory 27.35 GiB is allocated by PyTorch, and 83.60 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)').
+Traceback (most recent call last):
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/optuna/study/_optimize.py", line 206, in _run_trial
+    value_or_values = func(trial)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/hp_optuna.py", line 505, in objective_logged
+    value = _objective(trial)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/hp_optuna.py", line 267, in objective
+    model = train_our_method(
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/src/trainer.py", line 942, in train_our_method
+    sample_scores, collected_data, g_V = _compute_sample_scores(model, dataset, device, cfg=cfg)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/src/trainer.py", line 869, in _compute_sample_scores
+    g_fulls, g_anss, g_reasons = compute_sample_gradients_batched(
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/src/methods.py", line 187, in compute_sample_gradients_batched
+    return torch.stack(g_fulls), torch.stack(g_anss), torch.stack(g_reasons)
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 4.52 GiB. GPU 0 has a total capacity of 47.50 GiB of which 1.38 GiB is free. Process 1204586 has 18.15 GiB memory in use. Including non-PyTorch memory, this process has 27.93 GiB memory in use. Of the allocated memory 27.35 GiB is allocated by PyTorch, and 83.60 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+[W 2026-03-13 15:11:45,773] Trial 4 failed with value None.
+Profile  : server
+Device   : cuda:0  (GPUs: 2)
+Trials   : 100  |  Jobs: 1
+Sampler  : TPE
+
+MLflow tracking URI : sqlite:////home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/mlflow.db
+MLflow experiment   : SART-HP-Search
+Parent run ID       : f5f575c3b43447cbbb9b6da1e854af87
+View UI             : mlflow ui --backend-store-uri sqlite:////home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/mlflow.db  (then open http://127.0.0.1:5000)
+
+Generating datasets...
+Datasets  : ['Math-Arithmetic', 'Financial-Analysis', 'Causal-Reasoning']
+Train size: 10000
+
+Starting Optuna optimisation (100 trials)...
+
+No completed trials — nothing to report.

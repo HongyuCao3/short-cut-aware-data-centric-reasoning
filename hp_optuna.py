@@ -408,8 +408,8 @@ def main() -> None:
     parser.add_argument("--device",     type=str,   default=None)
 
     # MLflow
-    parser.add_argument("--mlflow-uri",        type=str, default="mlruns",
-                        help="MLflow tracking URI (default: local ./mlruns)")
+    parser.add_argument("--mlflow-uri",        type=str, default="sqlite:///mlflow.db",
+                        help="MLflow tracking URI (default: sqlite:///mlflow.db)")
     parser.add_argument("--mlflow-experiment", type=str, default="SART-HP-Search",
                         help="MLflow experiment name")
     parser.add_argument("--no-mlflow", action="store_true",
@@ -455,10 +455,8 @@ def main() -> None:
         print(f"\nMLflow tracking URI : {tracking_uri}")
         print(f"MLflow experiment   : {args.mlflow_experiment}")
         print(f"Parent run ID       : {mlflow_parent_run_id}")
-        if tracking_uri.startswith("mlruns") or tracking_uri == "mlruns":
-            print("View UI             : mlflow ui  (then open http://127.0.0.1:5000)")
-        else:
-            print(f"View UI             : {tracking_uri}")
+        print("View UI             : mlflow ui --backend-store-uri "
+              f"{mlflow.get_tracking_uri()}  (then open http://127.0.0.1:5000)")
 
     # ── Sampler ───────────────────────────────────────────────────────────
     seed = 42
