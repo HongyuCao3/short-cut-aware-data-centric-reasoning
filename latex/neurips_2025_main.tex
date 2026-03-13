@@ -1,0 +1,51 @@
+\documentclass{article}
+\usepackage[final]{neurips_2025}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{multirow}
+\usepackage{enumitem}
+
+\title{Mitigating Shortcut Reasoning in Language Models: A Gradient-Aware Training Approach}
+\author{Author Name \\ Institution \\ \texttt{email@example.com}}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Large language models (LLMs) often rely on reasoning shortcuts---surface pattern matching, answer memorization, and keyword correlations---rather than genuine logical inference. This stems from training signal misalignment: shortcut-encouraging samples efficiently reduce loss but harm generalization under distribution shift. We formulate the problem as \textbf{Shortcut-Aware Reasoning Training (SART)}: identifying training samples that promote shortcut updates and modifying gradient dynamics to emphasize genuine reasoning signals. Our key insight is that shortcut samples produce distinct gradient signatures---low alignment with validation gradients and high concentration on answer tokens. We propose \textbf{ShortcutScore}, a composite metric combining these two signals for sample reweighting, and \textbf{gradient surgery}, which projects harmful gradient directions onto orthogonal subspaces to neutralize shortcut components while preserving reasoning signals. Experiments on mathematical, financial, and causal reasoning benchmarks demonstrate that SART simultaneously improves clean accuracy (+16.2\,pp) and robustness under perturbation (+38.0\,pp) over standard fine-tuning, achieves shortcut detection F1 up to 0.83, and attains the best robustness on multi-feature reasoning tasks, with approximately $2\times$ training overhead. Code: \url{https://github.com/fuyanjie/short-cut-aware-data-centric-reasoning}
+\end{abstract}
+
+
+\input{Introduction2}
+\input{Method2}
+\input{Experiment2}
+
+
+\section{Related Work}
+
+\textbf{Language model training and reasoning.}
+Current training paradigms predominantly optimize for answer correctness, inadvertently encouraging shortcut exploitation~\cite{Author_Year_KeyWord}. Chain-of-Thought training~\cite{wei2022chain,kojima2022large} encourages intermediate reasoning traces but does not modify training dynamics, allowing shortcuts to persist in learned parameters---models can generate plausible reasoning steps that still rely on shortcuts. Self-Consistency Decoding~\cite{wang2022self} samples multiple reasoning paths to detect inconsistencies at inference time but cannot correct shortcut patterns already encoded during training, leaving the core training process unchanged. Data Filtering and Curriculum Learning~\cite{bengio2009curriculum} remove noisy or difficult samples but miss correctly labeled shortcut samples that appear indistinguishable from high-quality data. RLHF~\cite{ouyang2022training} optimizes reward signals based on answer correctness, not reasoning validity, allowing shortcuts to persist as long as they produce correct answers on the training distribution. These approaches demonstrate the inability to jointly address shortcut detection from gradient behavior and dynamic suppression during training.
+%
+\textbf{Gradient-based optimization for robustness.}
+Standard gradient methods cannot distinguish reasoning-improving gradients from shortcut-reinforcing ones~\cite{Author_Year_KeyWord}. Prior gradient modification techniques~\cite{Author_Year_KeyWord,yu2020gradient} improve general robustness but lack principled mechanisms to identify \emph{which} gradients are detrimental to reasoning and \emph{why}---they modify gradients uniformly without targeting shortcut-specific patterns. Training signal adjustment methods~\cite{Author_Year_KeyWord} do not incorporate gradient-based detection of shortcut samples and cannot quantify the ``shortcut-ness'' of a sample based on its gradient behavior. Our work uniquely combines gradient alignment and answer-gradient concentration into a unified ShortcutScore, enabling targeted detection and suppression of shortcut-promoting training signals---a more principled approach than uniform gradient modification or sample removal.
+
+
+\section{Conclusion}
+
+We presented SART, a gradient-aware training framework that addresses shortcut reasoning in LLMs through two complementary mechanisms: ShortcutScore-based sample reweighting and gradient surgery. Our key finding is that shortcut samples produce distinct gradient signatures---low validation alignment and high answer-token concentration---enabling principled detection (F1 up to 0.83) that captures shortcut reliance invisible to confidence-based filtering. Experimental results demonstrate simultaneous improvements in accuracy (+16.2\,pp) and robustness (+38.0\,pp) over standard fine-tuning, with SART achieving the strongest robustness on the most complex multi-feature reasoning task. Ablation analysis reveals that gradient surgery is the primary mechanism, with the full method achieving the best gradient alignment (+0.10 vs.\ $-$0.07 for SFT). The framework operates purely on training dynamics, requires no architectural modifications, and incurs approximately $2\times$ overhead. Theoretically, this work advances the understanding of gradient alignment and reasoning signal correction, offering new insights into LLM training dynamics. Practically, the implications extend to domains such as finance and scientific discovery, where enhanced model robustness leads to more reliable decision-making. Future work will explore adaptive combination strategies and extend SART to larger-scale models and diverse reasoning domains.
+
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}

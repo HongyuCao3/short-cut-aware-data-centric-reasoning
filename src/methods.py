@@ -187,7 +187,8 @@ def compute_sample_gradients_batched(model, batch, device=C.device):
     return torch.stack(g_fulls), torch.stack(g_anss), torch.stack(g_reasons)
 
 
-def compute_shortcut_score(g_full, g_ans, g_reason, g_V):
+def compute_shortcut_score(g_full, g_ans, g_reason, g_V,
+                           alpha=None, beta=None, tau_A=None, tau_R=None):
     """Compute ShortcutScore S(s) = alpha * B(s) + beta * C(s).
 
     Args:
@@ -195,10 +196,16 @@ def compute_shortcut_score(g_full, g_ans, g_reason, g_V):
         g_ans: (D,) answer-token gradient
         g_reason: (D,) reasoning-token gradient
         g_V: (D,) validation gradient
+        alpha, beta, tau_A, tau_R: optional overrides (default: from Config)
 
     Returns:
         S, B_val, C_val, A_val, R_val: score and components
     """
+    _alpha = alpha if alpha is not None else C.alpha
+    _beta = beta if beta is not None else C.beta
+    _tau_A = tau_A if tau_A is not None else C.tau_A
+    _tau_R = tau_R if tau_R is not None else C.tau_R
+
     # Alignment A(s) = cos(g_full, g_V)
     norm_full = g_full.norm()
     norm_V = g_V.norm()
@@ -208,7 +215,7 @@ def compute_shortcut_score(g_full, g_ans, g_reason, g_V):
         A_val = (g_full @ g_V / (norm_full * norm_V)).item()
 
     # Non-transfer alignment B(s) = max(0, tau_A - A(s))
-    B_val = max(0.0, C.tau_A - A_val)
+    B_val = max(0.0, _tau_A - A_val)
 
     # Concentration R(s) = ||g_ans|| / (||g_ans|| + ||g_reason||)
     norm_ans = g_ans.norm().item()
@@ -217,14 +224,15 @@ def compute_shortcut_score(g_full, g_ans, g_reason, g_V):
     R_val = norm_ans / denom if denom > 1e-10 else 0.5
 
     # Answer-gradient concentration C(s) = max(0, R(s) - tau_R)
-    C_val = max(0.0, R_val - C.tau_R)
+    C_val = max(0.0, R_val - _tau_R)
 
     # ShortcutScore
-    S = C.alpha * B_val + C.beta * C_val
+    S = _alpha * B_val + _beta * C_val
     return S, B_val, C_val, A_val, R_val
 
 
-def compute_shortcut_scores_batched(g_fulls, g_anss, g_reasons, g_V):
+def compute_shortcut_scores_batched(g_fulls, g_anss, g_reasons, g_V,
+                                     alpha=None, beta=None, tau_A=None, tau_R=None):
     """Vectorized ShortcutScore computation for a batch of gradients.
 
     Args:
@@ -232,11 +240,17 @@ def compute_shortcut_scores_batched(g_fulls, g_anss, g_reasons, g_V):
         g_anss:   (B, D) per-sample answer gradients
         g_reasons: (B, D) per-sample reasoning gradients
         g_V:      (D,) validation gradient
+        alpha, beta, tau_A, tau_R: optional overrides (default: from Config)
 
     Returns:
         scores: list of S values
         B_vals, C_vals, A_vals, R_vals: lists of component values
     """
+    _alpha = alpha if alpha is not None else C.alpha
+    _beta = beta if beta is not None else C.beta
+    _tau_A = tau_A if tau_A is not None else C.tau_A
+    _tau_R = tau_R if tau_R is not None else C.tau_R
+
     B = g_fulls.size(0)
 
     # Vectorized alignment: A(s) = cos(g_full, g_V) for all samples
@@ -257,9 +271,9 @@ def compute_shortcut_scores_batched(g_fulls, g_anss, g_reasons, g_V):
     for i in range(B):
         A_val = A_vals_t[i].item()
         R_val = R_vals_t[i].item()
-        B_val = max(0.0, C.tau_A - A_val)
-        C_val = max(0.0, R_val - C.tau_R)
-        S = C.alpha * B_val + C.beta * C_val
+        B_val = max(0.0, _tau_A - A_val)
+        C_val = max(0.0, R_val - _tau_R)
+        S = _alpha * B_val + _beta * C_val
         scores.append(S)
         B_vals.append(B_val)
         C_vals.append(C_val)
@@ -269,12 +283,13 @@ def compute_shortcut_scores_batched(g_fulls, g_anss, g_reasons, g_V):
     return scores, B_vals, C_vals, A_vals, R_vals
 
 
-def compute_sample_weight(S):
+def compute_sample_weight(S, lambda_=None):
     """Compute sample weight w(s) = exp(-lambda * S(s))."""
-    return torch.tensor(max(1e-6, torch.exp(torch.tensor(-C.lambda_ * S)).item()))
+    lam = lambda_ if lambda_ is not None else C.lambda_
+    return torch.tensor(max(1e-6, torch.exp(torch.tensor(-lam * S)).item()))
 
 
-def apply_gradient_surgery(g_full, g_ans, g_V, B_val, C_val):
+def apply_gradient_surgery(g_full, g_ans, g_V, B_val, C_val, gamma=None, rho=None):
     """Apply Gradient Surgery: projection and/or suppression.
 
     Args:
@@ -283,20 +298,25 @@ def apply_gradient_surgery(g_full, g_ans, g_V, B_val, C_val):
         g_V: (D,) validation gradient
         B_val: alignment score B(s)
         C_val: concentration score C(s)
+        gamma: projection strength (default: from Config)
+        rho: suppression strength (default: from Config)
 
     Returns:
         g_modified: (D,) surgically modified gradient
     """
+    _gamma = gamma if gamma is not None else C.gamma
+    _rho = rho if rho is not None else C.rho
+
     g_mod = g_full.clone()
 
     # 1. Gradient Alignment Projection (if low alignment)
     if B_val > 0:
         gv_norm_sq = (g_V @ g_V).clamp(min=1e-10)
         proj_coeff = (g_mod @ g_V) / gv_norm_sq
-        g_mod = g_mod - C.gamma * proj_coeff * g_V
+        g_mod = g_mod - _gamma * proj_coeff * g_V
 
     # 2. Answer-Gradient Suppression (if high concentration)
     if C_val > 0:
-        g_mod = g_mod - C.rho * g_ans
+        g_mod = g_mod - _rho * g_ans
 
     return g_mod

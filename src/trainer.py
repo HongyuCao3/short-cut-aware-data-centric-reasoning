@@ -846,6 +846,12 @@ def _compute_sample_scores(model, dataset, device=C.device, cfg=None):
 
     model.train()
 
+    # Extract scoring hyperparams from cfg
+    hp_alpha = _c.get('alpha', None)
+    hp_beta = _c.get('beta', None)
+    hp_tau_A = _c.get('tau_A', None)
+    hp_tau_R = _c.get('tau_R', None)
+
     if score_bs > 1:
         # --- Batched per-sample gradient computation (server mode) ---
         score_loader = get_dataloader(dataset['train'], shuffle=False, batch_size=score_bs)
@@ -864,7 +870,8 @@ def _compute_sample_scores(model, dataset, device=C.device, cfg=None):
                 model, batch, device)
 
             batch_scores, _, _, batch_A, batch_R = compute_shortcut_scores_batched(
-                g_fulls, g_anss, g_reasons, g_V)
+                g_fulls, g_anss, g_reasons, g_V,
+                alpha=hp_alpha, beta=hp_beta, tau_A=hp_tau_A, tau_R=hp_tau_R)
 
             is_sc_list = batch['is_shortcut'].tolist()
             for i in range(len(batch_scores)):
@@ -892,7 +899,8 @@ def _compute_sample_scores(model, dataset, device=C.device, cfg=None):
                 batch['reasoning_mask'][0], device
             )
             S, B_val, C_val, A_val, R_val = compute_shortcut_score(
-                g_full, g_ans, g_reason, g_V)
+                g_full, g_ans, g_reason, g_V,
+                alpha=hp_alpha, beta=hp_beta, tau_A=hp_tau_A, tau_R=hp_tau_R)
             scores_all.append(S)
             collected_data['scores'].append(S)
             collected_data['is_shortcut'].append(batch['is_shortcut'][0].item())
@@ -934,9 +942,10 @@ def train_our_method(model, dataset, use_reweighting=True, use_gradient_surgery=
     sample_scores, collected_data, g_V = _compute_sample_scores(model, dataset, device, cfg=cfg)
 
     # Compute per-sample weights
+    hp_lambda = _c.get('lambda_', None)
     sample_weights = []
     for S in sample_scores:
-        w = compute_sample_weight(S).item() if use_reweighting else 1.0
+        w = compute_sample_weight(S, lambda_=hp_lambda).item() if use_reweighting else 1.0
         sample_weights.append(w)
 
     if verbose:
@@ -962,17 +971,35 @@ def train_our_method(model, dataset, use_reweighting=True, use_gradient_surgery=
     weighted_ds = ReasoningDataset(weighted_samples, pad_id=pad_id)
     train_loader = get_dataloader(weighted_ds, batch_size=bs, shuffle=True)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr * 0.5, weight_decay=wd)
+    phase3_lr_factor = _c.get('phase3_lr_factor', 0.5)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr * phase3_lr_factor, weight_decay=wd)
     total_steps = main_epochs * len(train_loader)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer, T_max=total_steps, eta_min=1e-5)
 
     val_loader = get_dataloader(dataset['val'], shuffle=False, batch_size=bs)
 
+    # Hyperparams for gradient surgery
+    hp_gamma = _c.get('gamma', None)
+    hp_rho = _c.get('rho', None)
+    hp_tau_A_surgery = _c.get('tau_A', C.tau_A)
+
+    # Adaptive lambda scheduling support
+    use_adaptive_lambda = ('lambda_start' in _c and 'lambda_end' in _c
+                           and use_reweighting)
+
     model.train()
     for epoch in range(main_epochs):
         total_loss = 0.0
         n_batches = 0
+
+        # Adaptive lambda: recompute weights each epoch
+        if use_adaptive_lambda:
+            import math as _math
+            progress = epoch / max(main_epochs - 1, 1)
+            current_lambda = _c['lambda_start'] + progress * (_c['lambda_end'] - _c['lambda_start'])
+            for i, s in enumerate(weighted_ds.samples):
+                s['weight'] = max(1e-6, _math.exp(-current_lambda * sample_scores[i]))
 
         # Periodically refresh validation gradient
         if use_gradient_surgery and epoch % 5 == 0:
@@ -1010,10 +1037,11 @@ def train_our_method(model, dataset, use_reweighting=True, use_gradient_surgery=
                 norm_gv = g_V.norm()
                 if norm_bg > 1e-10 and norm_gv > 1e-10:
                     cos_sim = (batch_grad @ g_V) / (norm_bg * norm_gv)
-                    if cos_sim.item() < C.tau_A:
+                    if cos_sim.item() < hp_tau_A_surgery:
                         g_mod = apply_gradient_surgery(
                             batch_grad, batch_grad, g_V,
-                            C.tau_A - cos_sim.item(), 0.0)
+                            hp_tau_A_surgery - cos_sim.item(), 0.0,
+                            gamma=hp_gamma, rho=hp_rho)
                         # Preserve original gradient scale
                         g_mod = g_mod * (norm_bg / g_mod.norm().clamp(min=1e-10))
                         set_grad_vector(model, g_mod)

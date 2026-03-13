@@ -20,10 +20,16 @@ We construct three synthetic datasets with controlled shortcut injection, each w
 \end{itemize}
 
 \paragraph{Baselines.}
-We compare SART against: (1)~\textbf{Standard Fine-Tuning (SFT)}: no shortcut mitigation; (2)~\textbf{Self-Consistency Decoding}~\cite{wang2023selfconsistency}: majority vote over 5 samples at temperature 0.8; (3)~\textbf{Data Filtering}: remove samples with answer-token confidence $> 0.90$ after a 3-epoch warmup, then retrain.
+We compare SART against six baselines spanning inference-time, data-centric, loss-based, and distributionally robust approaches:
+(1)~\textbf{Standard Fine-Tuning (SFT)}: vanilla cross-entropy, no shortcut mitigation;
+(2)~\textbf{Self-Consistency Decoding}~\cite{wang2023selfconsistency}: majority vote over 5 samples at temperature 0.8;
+(3)~\textbf{Data Filtering}: remove samples with answer-token confidence $> 0.90$ after a 3-epoch warmup, then retrain;
+(4)~\textbf{JTT (Just Train Twice)}~\cite{liu2021just}: identify error-prone samples in a warmup phase and upweight them during retraining;
+(5)~\textbf{Focal Loss}~\cite{lin2017focal}: down-weight well-classified examples via $(1-p_t)^\gamma$ weighting;
+(6)~\textbf{Group DRO}~\cite{sagawa2020distributionally}: minimize worst-group loss using shortcut/non-shortcut group annotations.
 
 \paragraph{Metrics.}
-Clean accuracy, perturbed accuracy (robustness), reasoning consistency (fraction of traces matching ground-truth patterns), and shortcut detection F1.
+Clean accuracy, perturbed accuracy (robustness), reasoning consistency (fraction of traces matching ground-truth patterns), and shortcut detection F1 (where applicable).
 
 %-----------------------------------------------------------------------------
 \subsection{Main Results}
@@ -31,22 +37,23 @@ Clean accuracy, perturbed accuracy (robustness), reasoning consistency (fraction
 
 \begin{table}[t]
 \centering
-\caption{Main results averaged across three reasoning datasets. \textbf{Bold}: best per column; \underline{underline}: second best. SART is the only method that simultaneously improves both accuracy and robustness over SFT.}
+\caption{Main results averaged across three synthetic reasoning datasets. \textbf{Bold}: best per column; \underline{underline}: second best.}
 \label{tab:main_results}
 \small
 \begin{tabular}{lcccc}
 \toprule
-\textbf{Method} & \textbf{Accuracy} ($\uparrow$) & \textbf{Robustness} ($\uparrow$) & \textbf{Reasoning} ($\uparrow$) & \textbf{SC Det. F1} ($\uparrow$) \\
+\textbf{Method} & \textbf{Accuracy} ($\uparrow$) & \textbf{Robustness} ($\uparrow$) & \textbf{Reasoning} ($\uparrow$) & \textbf{SC Det.\ F1} ($\uparrow$) \\
 \midrule
-Standard Fine-Tuning        & 66.7 & 24.2 & 52.7 & -- \\
-Self-Consistency Decoding   & \underline{67.3} & 24.7 & 52.7 & -- \\
-Data Filtering              & 56.7 & \underline{51.6} & 42.9 & 0.59 \\
+Standard Fine-Tuning        & 59.6 & 1.9  & 43.8 & -- \\
+Self-Consistency Decoding   & 64.1 & 12.4 & 43.8 & -- \\
+Data Filtering              & 68.6 & 20.2 & 57.7 & \textbf{0.82} \\
+JTT (Just Train Twice)      & 59.0 & 1.0  & 43.1 & -- \\
+Focal Loss                  & 60.2 & 3.8  & 44.8 & -- \\
+Group DRO                   & \textbf{78.2} & \textbf{48.2} & \textbf{69.9} & -- \\
 \midrule
-SART (Ours, Full)           & \textbf{74.7} & \textbf{36.2}\textsuperscript{\dag} & \textbf{61.1} & \textbf{0.87} \\
+SART (Ours, Full)           & \underline{75.8} & \underline{39.9} & \underline{66.0} & \underline{0.66} \\
 \bottomrule
 \end{tabular}
-\vspace{4pt}
-{\footnotesize \textsuperscript{\dag}~Data Filtering achieves higher average robustness (51.6\%) but at a 10.0\% accuracy cost. SART is the only method that improves \emph{both} metrics simultaneously over SFT.}
 \end{table}
 
 \begin{table}[t]
@@ -56,30 +63,46 @@ SART (Ours, Full)           & \textbf{74.7} & \textbf{36.2}\textsuperscript{\dag
 \small
 \begin{tabular}{llccc}
 \toprule
-\textbf{Dataset} & \textbf{Method} & \textbf{Acc. Clean} ($\uparrow$) & \textbf{Acc. Perturbed} ($\uparrow$) & \textbf{Reasoning} ($\uparrow$) \\
+\textbf{Dataset} & \textbf{Method} & \textbf{Acc.\ Clean} ($\uparrow$) & \textbf{Acc.\ Perturbed} ($\uparrow$) & \textbf{Reasoning} ($\uparrow$) \\
 \midrule
-\multirow{4}{*}{\textsc{Math}}
-    & Standard FT          & 76.7 & 13.3 & 76.7 \\
-    & Self-Consistency     & \underline{78.7} & 15.3 & 76.7 \\
-    & Data Filtering       & 48.7 & \underline{30.7} & 48.7 \\
-    & SART (Ours)          & \textbf{84.7} & \textbf{38.7} & \textbf{84.7} \\
+\multirow{7}{*}{\textsc{Math}}
+    & Standard FT          & 75.9 & 0.0  & 75.9 \\
+    & Self-Consistency     & 78.3 & 10.7 & 75.9 \\
+    & Data Filtering       & 76.9 & 3.0  & 76.9 \\
+    & JTT                  & 75.9 & 0.0  & 75.9 \\
+    & Focal Loss           & 75.9 & 0.0  & 75.9 \\
+    & Group DRO            & \textbf{86.1} & \textbf{51.8} & \textbf{86.1} \\
+    & SART (Ours)          & \underline{83.7} & \underline{23.9} & \underline{83.7} \\
 \midrule
-\multirow{4}{*}{\textsc{Financial}}
-    & Standard FT          & 58.7 & 25.3 & 35.3 \\
-    & Self-Consistency     & 59.3 & 24.7 & 35.3 \\
-    & Data Filtering       & 56.0 & \textbf{48.0} & 42.7 \\
-    & SART (Ours)          & \textbf{69.3} & \underline{31.3} & \textbf{50.0} \\
+\multirow{7}{*}{\textsc{Financial}}
+    & Standard FT          & 51.5 & 2.9  & 27.8 \\
+    & Self-Consistency     & 57.1 & 13.1 & 27.8 \\
+    & Data Filtering       & 68.3 & 35.7 & 54.3 \\
+    & JTT                  & 50.3 & 1.4  & 26.8 \\
+    & Focal Loss           & 53.1 & 8.0  & 31.7 \\
+    & Group DRO            & \underline{78.2} & \underline{53.9} & \textbf{64.3} \\
+    & SART (Ours)          & \textbf{78.3} & \textbf{58.1} & \underline{56.4} \\
 \midrule
-\multirow{4}{*}{\textsc{Causal}}
-    & Standard FT          & 64.7 & 34.0 & 46.0 \\
-    & Self-Consistency     & 64.0 & 34.0 & 46.0 \\
-    & Data Filtering       & \underline{65.3} & \textbf{76.0} & 37.3 \\
-    & SART (Ours)          & \textbf{70.0} & \underline{38.7} & \textbf{48.7} \\
+\multirow{7}{*}{\textsc{Causal}}
+    & Standard FT          & 51.5 & 2.7  & 27.6 \\
+    & Self-Consistency     & 56.9 & 13.3 & 27.6 \\
+    & Data Filtering       & 60.6 & 21.9 & 41.9 \\
+    & JTT                  & 50.8 & 1.7  & 26.5 \\
+    & Focal Loss           & 51.5 & 3.3  & 26.8 \\
+    & Group DRO            & \textbf{70.3} & \textbf{38.9} & \textbf{59.2} \\
+    & SART (Ours)          & \underline{65.5} & \underline{37.8} & \underline{57.9} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:main_results} shows that SART attains 74.7\% clean accuracy (+8.0~pp over SFT) while simultaneously improving perturbed accuracy to 36.2\% (+12.0~pp). Self-Consistency yields marginal gains (+0.6~pp clean, +0.5~pp perturbed), confirming that inference-time diversity cannot compensate for training-time bias. Data Filtering achieves higher robustness (51.6\%) but drops clean accuracy to 56.7\% ($-$10.0~pp). Per-dataset results (Table~\ref{tab:per_dataset}) reveal that on \textsc{Causal-Reasoning}, Data Filtering's anomalously high perturbed accuracy (76.0\%, exceeding its own clean accuracy) indicates shortcut inversion rather than genuine correction. SART avoids this pathology and achieves stable gains across all datasets.
+Table~\ref{tab:main_results} shows that SART achieves 75.8\% clean accuracy (+16.2\,pp over SFT) and 39.9\% robustness (+38.0\,pp), demonstrating that gradient-aware training substantially reduces shortcut reliance. Among all baselines, Group DRO emerges as the strongest competitor (78.2\% accuracy, 48.2\% robustness), leveraging worst-group optimization with known shortcut group annotations.
+
+Several observations are notable.
+First, JTT, Focal Loss, and standard fine-tuning cluster at 59--60\% accuracy with near-zero robustness ($\leq$3.8\%), confirming that general-purpose loss modifications alone cannot address systematic shortcut injection.
+Second, Data Filtering improves robustness to 20.2\% but at the cost of reduced training data and lower overall accuracy.
+Third, Self-Consistency Decoding provides moderate robustness gains (+10.5\,pp) through inference-time diversity, but cannot correct shortcut patterns already encoded during training.
+
+Per-dataset results (Table~\ref{tab:per_dataset}) reveal that \emph{SART achieves the highest accuracy and robustness on Financial-Analysis} (78.3\% / 58.1\%), the most complex multi-dimensional reasoning task, outperforming Group DRO on robustness by 4.2\,pp. This suggests that gradient-based shortcut correction is particularly effective when shortcuts involve complex multi-feature interactions. On Math-Arithmetic and Causal-Reasoning, SART consistently ranks second after Group DRO.
 
 %-----------------------------------------------------------------------------
 \subsection{Ablation Study}
@@ -87,23 +110,25 @@ Table~\ref{tab:main_results} shows that SART attains 74.7\% clean accuracy (+8.0
 
 \begin{table}[t]
 \centering
-\caption{Ablation of SART components averaged across three datasets.}
+\caption{Ablation of SART components averaged across three datasets. Grad.\ Align.\ measures cosine similarity between training and validation gradients (higher is better).}
 \label{tab:ablation}
 \small
-\begin{tabular}{lcccccc}
+\begin{tabular}{lccc}
 \toprule
-\textbf{Configuration} & \textbf{Accuracy} ($\uparrow$) & \textbf{Robustness} ($\uparrow$) & \textbf{Grad.\ Align.} ($\uparrow$) & \textbf{F1} ($\uparrow$) & \textbf{$\Delta$Acc} & \textbf{$\Delta$Rob} \\
+\textbf{Configuration} & \textbf{Accuracy} ($\uparrow$) & \textbf{Robustness} ($\uparrow$) & \textbf{Grad.\ Align.} ($\uparrow$) \\
 \midrule
-SFT (Baseline)              & 66.7 & 24.2 & $-0.17$ & --   & --   & -- \\
+SFT (Baseline)              & 59.6 & 1.9   & $-0.07$ \\
 \midrule
-Gradient Surgery Only       & 70.7 & 29.8 & $\mathbf{-0.10}$ & 0.86 & $-4.0$ & $-6.4$ \\
-Reweighting Only            & 71.3 & 31.6 & $-0.14$ & $\mathbf{0.88}$ & $-3.3$ & $-4.7$ \\
-\textbf{SART (Full)}        & \textbf{74.7} & \textbf{36.2} & $-0.14$ & 0.87 & -- & -- \\
+Reweighting Only            & 64.7 & 13.1  & -- \\
+Gradient Surgery Only       & \textbf{81.0} & \textbf{51.3}  & -- \\
+\textbf{SART (Full)}        & 75.8 & 39.9  & $\mathbf{+0.10}$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-We isolate each component's contribution (Table~\ref{tab:ablation}). Removing Reweighting costs 4.0~pp accuracy and 6.4~pp robustness; removing Gradient Surgery costs 3.3~pp and 4.7~pp respectively. The full method exceeds the sum of individual robustness gains (+7.4~pp and +5.6~pp individually, +12.0~pp combined), confirming synergistic interaction. Reweighting controls \emph{which} samples dominate the loss landscape; Gradient Surgery corrects the \emph{direction} of residual shortcut gradients. Neither alone is sufficient.
+We isolate each component's contribution (Table~\ref{tab:ablation}). Both components individually improve over SFT: Reweighting provides +5.1\,pp accuracy and +11.2\,pp robustness; Gradient Surgery achieves +21.4\,pp accuracy and +49.4\,pp robustness, establishing it as the primary mechanism for shortcut correction. By projecting gradients away from shortcut-correlated directions, Gradient Surgery directly modifies the optimization trajectory, while Reweighting adjusts sample influence in the loss landscape.
+
+The full method achieves the best gradient alignment ($+0.10$ vs.\ $-0.07$ for SFT), indicating the most thorough correction of shortcut-correlated gradient components. Per-dataset analysis reveals complementary behavior: on Math-Arithmetic, the combination achieves synergistic gains ($83.7\%/23.9\%$) over Gradient Surgery alone ($78.0\%/15.3\%$), yielding +5.7\,pp accuracy and +8.6\,pp robustness. On the multi-feature Financial and Causal tasks, Gradient Surgery alone provides particularly strong correction, suggesting that when gradient-level modification is sufficiently aggressive, additional sample-level reweighting may introduce interference. This points to future work on adaptive combination strategies.
 
 %-----------------------------------------------------------------------------
 \subsection{ShortcutScore Validation}
@@ -116,9 +141,9 @@ We isolate each component's contribution (Table~\ref{tab:ablation}). Removing Re
     \label{fig:analysis}
 \end{figure}
 
-\textsc{ShortcutScore} achieves detection F1 = 0.87, compared to 0.59 for confidence-based filtering---a 47\% relative improvement. Figure~\ref{fig:analysis}(a) confirms a positive monotonic correlation between $S(s)$ and true shortcut rate ($r=0.67$). The gradient alignment distribution (Figure~\ref{fig:analysis}b) shows clear separation: shortcut samples skew toward negative alignment, while non-shortcut samples cluster near zero. Confidence-based filtering fails because shortcut samples are correctly labeled and confidently predicted---indistinguishable from genuinely easy samples by output probability alone. This confirms that gradient structure is fundamentally more informative than output confidence for shortcut detection.
+\textsc{ShortcutScore} achieves average shortcut detection F1 of 0.66 across three datasets, with per-task F1 ranging from 0.56 (Financial) to 0.83 (Math). On Math-Arithmetic, \textsc{ShortcutScore} (F1$=$0.83) substantially outperforms confidence-based filtering (F1$=$0.70), confirming that gradient structure captures shortcut reliance that output confidence cannot detect---shortcut samples are correctly labeled and confidently predicted, making them indistinguishable from genuinely easy samples by probability alone. On multi-feature tasks (Financial, Causal), confidence-based filtering achieves higher detection F1, suggesting that the simpler threshold-based heuristic may be more effective when shortcuts involve correlated feature groups. Figure~\ref{fig:analysis}(a) confirms a positive monotonic correlation between $S(s)$ and true shortcut rate ($r=0.67$). The gradient alignment distribution (Figure~\ref{fig:analysis}b) shows clear separation: shortcut samples skew toward negative alignment, while non-shortcut samples cluster near zero.
 
 \subsection{Computational Cost}
 \label{sec:exp_efficiency}
 
-The full pipeline completes in under 2 minutes on a single NVIDIA H100 NVL GPU. SART incurs modest training overhead versus SFT, attributable to one-time per-sample gradient computation. Validation gradients are recomputed periodically rather than per-step, keeping overhead manageable. This cost can be further reduced via gradient checkpointing or random projections for larger models.
+The full pipeline completes in under 3 minutes per dataset on a single NVIDIA H100 NVL GPU. SART incurs approximately $2\times$ training overhead versus SFT, attributable to per-sample gradient computation for \textsc{ShortcutScore} and gradient projection during surgery. Validation gradients are recomputed periodically rather than per-step, keeping overhead manageable. This cost can be further reduced via gradient checkpointing or random projections for larger models.

@@ -56,8 +56,8 @@ class Config:
         n_test = 3000
         shortcut_ratio = 0.70
 
-        score_max_samples = 2000
-        score_batch_size = 16
+        score_max_samples = 10000   # score all training samples for better weight estimates
+        score_batch_size = 64       # larger batches for throughput on H100
 
         df_warmup_epochs = 5
         df_confidence_threshold = 0.90
