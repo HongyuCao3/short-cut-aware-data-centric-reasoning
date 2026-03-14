@@ -1,5 +1,27 @@
+# Core deep learning
+# Install PyTorch separately with CUDA 12.1 support (compatible with CUDA 12.2 driver):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 torch
+torchvision
+
+# Scientific computing
 numpy
+scipy
+
+# Visualization
 matplotlib
+
+# HuggingFace ecosystem
 datasets
 transformers
+tokenizers
+accelerate
+
+# Hyperparameter search
+optuna
+
+# Experiment tracking (optional, used by hp_optuna.py)
+mlflow
+
+# Utilities
+tqdm
