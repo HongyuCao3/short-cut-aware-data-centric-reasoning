@@ -1,7 +1,8 @@
 """Core methods: ShortcutScore computation, Reweighting, and Gradient Surgery.
 
 Supports both single-sample and batched per-sample gradient computation.
-On CUDA with large models, uses torch.func.vmap for vectorized gradients.
+Server mode uses random projection sketches (Direction 2) to avoid VRAM OOM
+during ShortcutScore computation. Memory reduction: ~36,000x vs full gradients.
 """
 import torch
 import torch.nn.functional as F
@@ -47,6 +48,221 @@ def masked_ce_loss(logits, targets, mask):
     masked_loss = loss_per_token * mask
     denom = mask.sum().clamp(min=1.0)
     return masked_loss.sum() / denom
+
+
+def _per_sample_masked_ce_loss(logits, targets, mask):
+    """Compute per-sample masked cross-entropy loss without reduction.
+
+    Args:
+        logits:  (B, T, V)
+        targets: (B, T)
+        mask:    (B, T) — 1 where loss is computed
+    Returns:
+        losses: (B,) per-sample scalar losses
+    """
+    B, T, V = logits.shape
+    loss_per_token = F.cross_entropy(
+        logits.reshape(-1, V), targets.reshape(-1), reduction='none'
+    ).reshape(B, T)
+    masked = loss_per_token * mask                       # (B, T)
+    denom = mask.sum(dim=1).clamp(min=1.0)               # (B,)
+    return masked.sum(dim=1) / denom                     # (B,)
+
+
+def _apply_perturbation(model, epsilon, seed, direction=1):
+    """Perturb all trainable parameters in-place by direction * epsilon * z_j.
+
+    z_j is generated on-the-fly from CPU RNG seeded with `seed`, processing
+    parameters sequentially so the full d-dimensional vector is never stored.
+
+    Args:
+        model:     nn.Module whose parameters are perturbed in-place
+        epsilon:   perturbation magnitude
+        seed:      integer seed — same seed reproduces the same z_j
+        direction: +1 or -1 or -2 (multiplied into the perturbation)
+    """
+    rng = torch.Generator()          # CPU generator — portable & reproducible
+    rng.manual_seed(seed)
+    with torch.no_grad():
+        for p in model.parameters():
+            if p.requires_grad:
+                z = torch.randn(p.shape, generator=rng)   # CPU, shape of param
+                p.data.add_(direction * epsilon * z.to(p.device))
+
+
+def sketch_gradient_vector(g_V, model, k, base_seed, device=C.device):
+    """Project gradient vector g_V into a k-dimensional sketch.
+
+    Computes s_V[j] = z_j^T g_V for j = 0..k-1, where z_j uses the same
+    RNG scheme as _apply_perturbation, making s_V directly compatible with
+    the perturbation-based per-sample sketches.
+
+    By the FD (finite difference) identity:
+        (L(θ + ε·z) - L(θ - ε·z)) / 2ε  ≈  z^T ∇L(θ) = z^T g
+
+    so projecting g_V directly is equivalent to running 2k forward passes on
+    the validation set, but uses the already-computed gradient (zero extra cost).
+
+    Args:
+        g_V:      (D,) concatenated validation gradient (already on device)
+        model:    nn.Module — used only to iterate parameter shapes/ordering
+        k:        sketch dimension
+        base_seed: base random seed (s_V[j] uses seed base_seed + j)
+        device:   torch device
+
+    Returns:
+        s_V: (k,) sketch tensor on device
+    """
+    s_V = torch.zeros(k, device=device)
+    g_V = g_V.to(device)
+
+    for j in range(k):
+        rng = torch.Generator()
+        rng.manual_seed(base_seed + j)
+
+        dot = torch.tensor(0.0, device=device)
+        g_offset = 0
+        for p in model.parameters():
+            if p.requires_grad:
+                numel = p.numel()
+                z_chunk = torch.randn(p.shape, generator=rng).to(device)  # CPU→device
+                g_chunk = g_V[g_offset:g_offset + numel]
+                dot += (z_chunk.flatten() * g_chunk).sum()
+                g_offset += numel
+
+        s_V[j] = dot
+
+    return s_V
+
+
+@torch.no_grad()
+def compute_sample_sketches_batched(model, batch, k, epsilon, base_seed, device=C.device):
+    """Compute gradient sketches for a batch without storing full gradients.
+
+    For each projection direction z_j (j = 0..k-1):
+      1. Perturb model by +ε·z_j  (in-place, no extra VRAM)
+      2. One batched forward pass  → per-sample losses L+_full, L+_ans, L+_reason
+      3. Perturb by -2ε·z_j       (model now at -ε·z_j from original)
+      4. One batched forward pass  → per-sample losses L-_*
+      5. Restore model by +ε·z_j  (back to original)
+      6. s_*[:,j] = (L+_* - L-_*) / (2ε)   — k scalars per sample per type
+
+    Total forward passes: 2k (independent of batch size B).
+    Peak VRAM from gradient storage: 0 (no backprop, no gradient tensors).
+
+    Args:
+        model:     nn.Module (weights must equal the checkpoint to score)
+        batch:     dict with input_ids (B,T), target_ids (B,T), *_mask (B,T)
+        k:         sketch dimension
+        epsilon:   finite-difference step size
+        base_seed: seed offset; projection j uses seed base_seed + j
+        device:    torch device
+
+    Returns:
+        s_fulls:   (B, k) — sketch of per-sample full-sequence gradients
+        s_anss:    (B, k) — sketch of per-sample answer-token gradients
+        s_reasons: (B, k) — sketch of per-sample reasoning-token gradients
+    """
+    input_ids      = batch['input_ids'].to(device)
+    target_ids     = batch['target_ids'].to(device)
+    loss_mask      = batch['loss_mask'].to(device)
+    answer_mask    = batch['answer_mask'].to(device)
+    reasoning_mask = batch['reasoning_mask'].to(device)
+
+    B = input_ids.size(0)
+    s_fulls   = torch.zeros(B, k, device=device)
+    s_anss    = torch.zeros(B, k, device=device)
+    s_reasons = torch.zeros(B, k, device=device)
+
+    was_training = model.training
+    model.eval()
+
+    for j in range(k):
+        seed = base_seed + j
+
+        # --- positive perturbation: θ → θ + ε·z_j ---
+        _apply_perturbation(model, epsilon, seed, direction=1)
+        logits_plus = model(input_ids)
+        L_full_plus   = _per_sample_masked_ce_loss(logits_plus, target_ids, loss_mask)
+        L_ans_plus    = _per_sample_masked_ce_loss(logits_plus, target_ids, answer_mask)
+        L_reason_plus = _per_sample_masked_ce_loss(logits_plus, target_ids, reasoning_mask)
+        del logits_plus
+
+        # --- negative perturbation: θ + ε·z_j → θ - ε·z_j  (step = -2ε·z_j) ---
+        _apply_perturbation(model, epsilon, seed, direction=-2)
+        logits_minus = model(input_ids)
+        L_full_minus   = _per_sample_masked_ce_loss(logits_minus, target_ids, loss_mask)
+        L_ans_minus    = _per_sample_masked_ce_loss(logits_minus, target_ids, answer_mask)
+        L_reason_minus = _per_sample_masked_ce_loss(logits_minus, target_ids, reasoning_mask)
+        del logits_minus
+
+        # --- restore: θ - ε·z_j → θ ---
+        _apply_perturbation(model, epsilon, seed, direction=1)
+
+        # --- update sketches ---
+        inv2eps = 1.0 / (2.0 * epsilon)
+        s_fulls[:, j]   = (L_full_plus   - L_full_minus)   * inv2eps
+        s_anss[:, j]    = (L_ans_plus    - L_ans_minus)    * inv2eps
+        s_reasons[:, j] = (L_reason_plus - L_reason_minus) * inv2eps
+
+    if was_training:
+        model.train()
+
+    return s_fulls, s_anss, s_reasons
+
+
+def compute_shortcut_scores_from_sketches(s_fulls, s_anss, s_reasons, s_V,
+                                          alpha=None, beta=None,
+                                          tau_A=None, tau_R=None):
+    """Compute ShortcutScores from random-projection sketches.
+
+    Approximates cosine similarities via the Johnson-Lindenstrauss lemma:
+        cos(g_full_i, g_V) ≈ cos(s_full_i, s_V)
+        R(s_i)             ≈ ||s_ans_i|| / (||s_ans_i|| + ||s_reason_i||)
+
+    Args:
+        s_fulls:   (B, k) sketches of per-sample full gradients
+        s_anss:    (B, k) sketches of per-sample answer gradients
+        s_reasons: (B, k) sketches of per-sample reasoning gradients
+        s_V:       (k,)   sketch of validation gradient
+        alpha, beta, tau_A, tau_R: optional overrides (default: from Config)
+
+    Returns:
+        scores, B_vals, C_vals, A_vals, R_vals  (same interface as
+        compute_shortcut_scores_batched)
+    """
+    _alpha = alpha if alpha is not None else C.alpha
+    _beta  = beta  if beta  is not None else C.beta
+    _tau_A = tau_A if tau_A is not None else C.tau_A
+    _tau_R = tau_R if tau_R is not None else C.tau_R
+
+    # Alignment A(s) = cos(s_full, s_V)  →  approximates cos(g_full, g_V)
+    norm_fulls = s_fulls.norm(dim=1)                              # (B,)
+    norm_V     = s_V.norm()                                       # scalar
+    dots       = s_fulls @ s_V                                    # (B,)
+    denoms     = (norm_fulls * norm_V).clamp(min=1e-10)           # (B,)
+    A_vals_t   = dots / denoms                                    # (B,)
+
+    # Concentration R(s) = ||s_ans|| / (||s_ans|| + ||s_reason||)
+    norm_anss    = s_anss.norm(dim=1)                             # (B,)
+    norm_reasons = s_reasons.norm(dim=1)                          # (B,)
+    conc_denoms  = (norm_anss + norm_reasons).clamp(min=1e-10)    # (B,)
+    R_vals_t     = norm_anss / conc_denoms                        # (B,)
+
+    scores, B_vals, C_vals, A_vals, R_vals = [], [], [], [], []
+    for i in range(s_fulls.size(0)):
+        A_val = A_vals_t[i].item()
+        R_val = R_vals_t[i].item()
+        B_val = max(0.0, _tau_A - A_val)
+        C_val = max(0.0, R_val - _tau_R)
+        S = _alpha * B_val + _beta * C_val
+        scores.append(S)
+        B_vals.append(B_val)
+        C_vals.append(C_val)
+        A_vals.append(A_val)
+        R_vals.append(R_val)
+
+    return scores, B_vals, C_vals, A_vals, R_vals
 
 
 def compute_validation_gradient(model, val_loader, device=C.device):

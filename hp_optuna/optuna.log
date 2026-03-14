@@ -154,3 +154,9 @@ Train size: 10000
 Starting Optuna optimisation (100 trials)...
 
 No completed trials — nothing to report.
+Traceback (most recent call last):
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/hp_optuna.py", line 44, in <module>
+    import numpy as np
+ModuleNotFoundError: No module named 'numpy'
+/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/nn/modules/transformer.py:379: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(

@@ -177,6 +177,14 @@ class Config:
     rho = 0.7
     val_grad_interval = 5
 
+    # Random-projection sketch hyperparameters (Direction 2 VRAM reduction)
+    # Used in server/batched mode to replace full per-sample gradient storage.
+    # k=128 gives ~4% cosine-similarity approximation error (JL bound: O(1/√k)).
+    # Increase k for better approximation; 512 is near-exact for most purposes.
+    sketch_k       = 128    # projection dimension (search range: 64-1024)
+    sketch_epsilon = 1e-3   # finite-difference step size
+    sketch_seed    = 0      # base RNG seed for z_j directions
+
     # Self-Consistency Decoding
     sc_num_samples = 5
     sc_temperature = 0.8

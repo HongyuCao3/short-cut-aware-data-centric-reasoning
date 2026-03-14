@@ -13,7 +13,9 @@ from src.methods import (
     masked_ce_loss, compute_validation_gradient, compute_sample_gradients,
     compute_sample_gradients_batched, compute_shortcut_score,
     compute_shortcut_scores_batched, compute_sample_weight,
-    apply_gradient_surgery, get_grad_vector, set_grad_vector
+    apply_gradient_surgery, get_grad_vector, set_grad_vector,
+    sketch_gradient_vector, compute_sample_sketches_batched,
+    compute_shortcut_scores_from_sketches,
 )
 
 
@@ -853,7 +855,18 @@ def _compute_sample_scores(model, dataset, device=C.device, cfg=None):
     hp_tau_R = _c.get('tau_R', None)
 
     if score_bs > 1:
-        # --- Batched per-sample gradient computation (server mode) ---
+        # --- Sketch-based per-sample scoring (server mode, Direction 2) ---
+        # Replaces full per-sample gradient storage (up to 14.6 GB) with
+        # random-projection sketches (< 1 MB).  g_V is still computed above
+        # via backprop (single vector, 76 MB) — it is needed for gradient
+        # surgery in Phase 3 and to build s_V cheaply via dot products.
+        sketch_k    = _c.get('sketch_k',       C.sketch_k)
+        sketch_eps  = _c.get('sketch_epsilon',  C.sketch_epsilon)
+        sketch_seed = _c.get('sketch_seed',     C.sketch_seed)
+
+        # Project already-computed g_V into sketch space (no extra fwd passes)
+        s_V = sketch_gradient_vector(g_V, model, sketch_k, sketch_seed, device)
+
         score_loader = get_dataloader(dataset['train'], shuffle=False, batch_size=score_bs)
         n_scored = 0
         for batch in score_loader:
@@ -866,11 +879,13 @@ def _compute_sample_scores(model, dataset, device=C.device, cfg=None):
                 batch = {k: v[:remaining] for k, v in batch.items()}
                 actual_bs = remaining
 
-            g_fulls, g_anss, g_reasons = compute_sample_gradients_batched(
-                model, batch, device)
+            # 2k forward passes total (independent of batch size B)
+            # Peak VRAM from this call: O(B·T·V) activations only — no gradient tensors
+            s_fulls, s_anss, s_reasons = compute_sample_sketches_batched(
+                model, batch, sketch_k, sketch_eps, sketch_seed, device)
 
-            batch_scores, _, _, batch_A, batch_R = compute_shortcut_scores_batched(
-                g_fulls, g_anss, g_reasons, g_V,
+            batch_scores, _, _, batch_A, batch_R = compute_shortcut_scores_from_sketches(
+                s_fulls, s_anss, s_reasons, s_V,
                 alpha=hp_alpha, beta=hp_beta, tau_A=hp_tau_A, tau_R=hp_tau_R)
 
             is_sc_list = batch['is_shortcut'].tolist()
@@ -885,7 +900,7 @@ def _compute_sample_scores(model, dataset, device=C.device, cfg=None):
 
             # Free GPU memory periodically
             if device == 'cuda':
-                del g_fulls, g_anss, g_reasons
+                del s_fulls, s_anss, s_reasons
                 torch.cuda.empty_cache()
     else:
         # --- Single-sample gradient computation (local mode) ---
