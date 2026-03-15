@@ -6,5 +6,5 @@ __pycache__/
 .claude/
 .vscode/
 mlruns/
-hp/optuna/
+hp_optuna/
 mlflow.db

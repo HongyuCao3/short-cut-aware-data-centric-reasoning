@@ -162,3 +162,123 @@ ModuleNotFoundError: No module named 'numpy'
   warnings.warn(
 /home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/nn/modules/transformer.py:379: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
   warnings.warn(
+[W 2026-03-15 09:12:38,448] Trial 16 failed with parameters: {'lambda_': 2.8183968163565543, 'gamma': 0.6428793508137469, 'rho': 0.4108698204732432, 'tau_A': 0.05169591251201573, 'tau_R': 0.6362092836040486, 'phase3_lr_factor': 0.3436694242547931} because of the following error: KeyboardInterrupt().
+Traceback (most recent call last):
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/optuna/study/_optimize.py", line 206, in _run_trial
+    value_or_values = func(trial)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/hp_optuna.py", line 505, in objective_logged
+    value = _objective(trial)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/hp_optuna.py", line 267, in objective
+    model = train_our_method(
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/src/trainer.py", line 957, in train_our_method
+    sample_scores, collected_data, g_V = _compute_sample_scores(model, dataset, device, cfg=cfg)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/src/trainer.py", line 884, in _compute_sample_scores
+    s_fulls, s_anss, s_reasons = compute_sample_sketches_batched(
+  File "/home/local/ASURITE/hongyuca/miniconda3/envs/sart/lib/python3.10/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+    return func(*args, **kwargs)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/src/methods.py", line 192, in compute_sample_sketches_batched
+    _apply_perturbation(model, epsilon, seed, direction=-2)
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/src/methods.py", line 89, in _apply_perturbation
+    z = torch.randn(p.shape, generator=rng)   # CPU, shape of param
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/hp_optuna.py", line 526, in _sigterm_handler
+    raise KeyboardInterrupt
+KeyboardInterrupt
+[W 2026-03-15 09:12:38,449] Trial 16 failed with value None.
+Profile  : server
+Device   : cuda:0  (GPUs: 2)
+Trials   : 100  |  Jobs: 1
+Sampler  : TPE
+
+MLflow tracking URI : sqlite:////home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/mlflow.db
+MLflow experiment   : SART-HP-Search
+Parent run ID       : 2598fa28d7ca401aa221a151c24748bc
+View UI             : mlflow ui --backend-store-uri sqlite:////home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/mlflow.db  (then open http://127.0.0.1:5000)
+
+Generating datasets...
+Datasets  : ['Math-Arithmetic', 'Financial-Analysis', 'Causal-Reasoning']
+Train size: 10000
+
+Starting Optuna optimisation (100 trials)...
+
+  [MLflow] Logging failed for trial 5: Run with UUID 2598fa28d7ca401aa221a151c24748bc is already active. To start a new run, first end the current run with mlflow.end_run(). To start a nested run, call start_run with nested=True
+[  1/100] Trial #   5  acc=0.733 rob=0.588 combined=0.6457  (13712s)  [lambda_=0.357, gamma=0.953, rho=0.745, tau_A=0.319, tau_R=0.225, phase3_lr_factor=0.24]
+  [MLflow] Logging failed for trial 6: Run with UUID 2598fa28d7ca401aa221a151c24748bc is already active. To start a new run, first end the current run with mlflow.end_run(). To start a nested run, call start_run with nested=True
+[  2/100] Trial #   6  acc=0.758 rob=0.551 combined=0.6337  (13791s)  [lambda_=0.122, gamma=0.873, rho=0.621, tau_A=0.369, tau_R=0.116, phase3_lr_factor=0.973]
+  [MLflow] Logging failed for trial 7: Run with UUID 2598fa28d7ca401aa221a151c24748bc is already active. To start a new run, first end the current run with mlflow.end_run(). To start a nested run, call start_run with nested=True
+[  3/100] Trial #   7  acc=0.804 rob=0.511 combined=0.6284  (13756s)  [lambda_=1.7, gamma=0.252, rho=0.223, tau_A=0.133, tau_R=0.343, phase3_lr_factor=0.572]
+  [MLflow] Logging failed for trial 8: Run with UUID 2598fa28d7ca401aa221a151c24748bc is already active. To start a new run, first end the current run with mlflow.end_run(). To start a nested run, call start_run with nested=True
+[  4/100] Trial #   8  acc=0.654 rob=0.134 combined=0.3423  (13757s)  [lambda_=0.435, gamma=0.327, rho=0.631, tau_A=0.113, tau_R=0.334, phase3_lr_factor=0.43]
+  [MLflow] Logging failed for trial 9: Run with UUID 2598fa28d7ca401aa221a151c24748bc is already active. To start a new run, first end the current run with mlflow.end_run(). To start a nested run, call start_run with nested=True
+[  5/100] Trial #   9  acc=0.804 rob=0.450 combined=0.5912  (12115s)  [lambda_=0.472, gamma=0.796, rho=0.24, tau_A=0.281, tau_R=0.574, phase3_lr_factor=0.142]
+  [MLflow] Logging failed for trial 10: Run with UUID 2598fa28d7ca401aa221a151c24748bc is already active. To start a new run, first end the current run with mlflow.end_run(). To start a nested run, call start_run with nested=True
+[  6/100] Trial #  10  acc=0.751 rob=0.382 combined=0.5294  (11549s)  [lambda_=0.79, gamma=0.212, rho=0.112, tau_A=0.477, tau_R=0.873, phase3_lr_factor=0.828]
+  [MLflow] Logging failed for trial 11: Run with UUID 2598fa28d7ca401aa221a151c24748bc is already active. To start a new run, first end the current run with mlflow.end_run(). To start a nested run, call start_run with nested=True
+[  7/100] Trial #  11  acc=0.601 rob=0.032 combined=0.2594  (11554s)  [lambda_=0.282, gamma=0.143, rho=0.7, tau_A=0.248, tau_R=0.198, phase3_lr_factor=0.546]
+  [MLflow] Logging failed for trial 12: Run with UUID 2598fa28d7ca401aa221a151c24748bc is already active. To start a new run, first end the current run with mlflow.end_run(). To start a nested run, call start_run with nested=True
+[  8/100] Trial #  12  acc=0.798 rob=0.576 combined=0.6646  (11563s)  [lambda_=0.112, gamma=0.914, rho=0.296, tau_A=0.348, tau_R=0.349, phase3_lr_factor=0.568]
+  [MLflow] Logging failed for trial 13: Run with UUID 2598fa28d7ca401aa221a151c24748bc is already active. To start a new run, first end the current run with mlflow.end_run(). To start a nested run, call start_run with nested=True
+[  9/100] Trial #  13  acc=0.715 rob=0.299 combined=0.4653  (11568s)  [lambda_=0.642, gamma=0.226, rho=0.971, tau_A=0.399, tau_R=0.852, phase3_lr_factor=0.905]
+  [MLflow] Logging failed for trial 14: Run with UUID 2598fa28d7ca401aa221a151c24748bc is already active. To start a new run, first end the current run with mlflow.end_run(). To start a nested run, call start_run with nested=True
+[ 10/100] Trial #  14  acc=0.824 rob=0.627 combined=0.7056  (11560s)  [lambda_=0.764, gamma=0.926, rho=0.134, tau_A=0.138, tau_R=0.136, phase3_lr_factor=0.393]
+  [MLflow] Logging failed for trial 15: Run with UUID 2598fa28d7ca401aa221a151c24748bc is already active. To start a new run, first end the current run with mlflow.end_run(). To start a nested run, call start_run with nested=True
+[ 11/100] Trial #  15  acc=0.883 rob=0.667 combined=0.7531  (11581s)  [lambda_=2.56, gamma=0.588, rho=0.4, tau_A=0.0581, tau_R=0.61, phase3_lr_factor=0.361]
+
+[SIGTERM] Graceful shutdown requested — finishing current trial...
+
+[Interrupted] Saving partial results and closing MLflow runs...
+
+======================================================================
+OPTUNA SEARCH COMPLETE — 11 successful trials
+======================================================================
+
+Best trial  : #15
+Combined    : 0.7531
+Avg acc     : 0.8827
+Avg rob     : 0.6667
+
+Best hyperparameters:
+  lambda_                   = 2.561
+  gamma                     = 0.5876
+  rho                       = 0.4003
+  tau_A                     = 0.05808
+  tau_R                     = 0.6097
+  phase3_lr_factor          = 0.3605
+
+Top-5 trials:
+  #  15  combined=0.7531  [lambda_=2.56, gamma=0.588, rho=0.4, tau_A=0.0581, tau_R=0.61, phase3_lr_factor=0.361]
+  #  14  combined=0.7056  [lambda_=0.764, gamma=0.926, rho=0.134, tau_A=0.138, tau_R=0.136, phase3_lr_factor=0.393]
+  #  12  combined=0.6646  [lambda_=0.112, gamma=0.914, rho=0.296, tau_A=0.348, tau_R=0.349, phase3_lr_factor=0.568]
+  #   5  combined=0.6457  [lambda_=0.357, gamma=0.953, rho=0.745, tau_A=0.319, tau_R=0.225, phase3_lr_factor=0.24]
+  #   6  combined=0.6337  [lambda_=0.122, gamma=0.873, rho=0.621, tau_A=0.369, tau_R=0.116, phase3_lr_factor=0.973]
+
+======================================================================
+COMPARISON WITH BASELINES
+======================================================================
+  Best Optuna SART : Acc=88.3%, Rob=66.7%
+  Grid-search best : Acc=75.8%, Rob=39.9%  (λ=2.0, γ=0.8, ρ=0.7)
+  GS Only          : Acc=81.0%, Rob=51.3%
+  Group DRO        : Acc=78.2%, Rob=48.2%
+  Δ vs Grid Best   : Acc=+12.5%, Rob=+26.8%
+
+Best config saved to /home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/hp_optuna/best_config_optuna.json
+
+Hyperparameter importances:
+  rho                       0.374  ##############
+  gamma                     0.343  #############
+  tau_R                     0.113  ####
+  tau_A                     0.078  ###
+  phase3_lr_factor          0.063  ##
+  lambda_                   0.029  #
+[MLflow] Failed to finalize parent run: Run with UUID 2598fa28d7ca401aa221a151c24748bc is already active. To start a new run, first end the current run with mlflow.end_run(). To start a nested run, call start_run with nested=True
+
+All trial results recorded in MLflow experiment 'SART-HP-Search'.
+Launch UI with:  mlflow ui
+
+Resume this study with more trials:
+  bash run_hp_search.sh resume  --n-trials 50
+  # or directly:
+  python3 hp_optuna.py --storage sqlite:////home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/hp_optuna/study.db --study-name sart_optuna --n-trials 50
+Traceback (most recent call last):
+  File "/home/local/ASURITE/hongyuca/short-cut-aware-data-centric-reasoning/hp_optuna.py", line 44, in <module>
+    import numpy as np
+ModuleNotFoundError: No module named 'numpy'
