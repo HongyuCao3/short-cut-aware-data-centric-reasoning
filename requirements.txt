@@ -17,6 +17,14 @@ transformers
 tokenizers
 accelerate
 
+# PEFT (Parameter-Efficient Fine-Tuning)
+# 提供 LoRA 等适配器方法，使 7B 级模型可在有限显存下微调
+peft
+
+# bitsandbytes: 4-bit / 8-bit 量化支持（QLoRA 必需）
+# 仅支持 Linux + CUDA，macOS 用户跳过
+bitsandbytes
+
 # Hyperparameter search
 optuna
 
