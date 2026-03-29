@@ -79,26 +79,26 @@ class Config:
 
     else:
         vocab_size = 35
-        d_model = 128
-        nhead = 4
-        num_layers = 2
-        d_ff = 256
+        d_model = 256
+        nhead = 8
+        num_layers = 4
+        d_ff = 1024
         max_seq_len = 24
         dropout = 0.0
 
-        batch_size = 32
-        lr = 3e-3
-        epochs = 30
+        batch_size = 64
+        lr = 1e-3
+        epochs = 40
         seed = 42
-        weight_decay = 1e-5
+        weight_decay = 1e-4
 
-        n_train = 500
-        n_val = 200
-        n_test = 300
+        n_train = 2000
+        n_val = 500
+        n_test = 1000
         shortcut_ratio = 0.70
 
-        score_max_samples = 200
-        score_batch_size = 1
+        score_max_samples = 10000   # score all training samples
+        score_batch_size = 8
 
         df_warmup_epochs = 3
         df_confidence_threshold = 0.90
@@ -167,14 +167,14 @@ class Config:
     # Shared settings (profile-independent)
     # ================================================================
 
-    # ShortcutScore hyperparameters
+    # ShortcutScore hyperparameters (tuned via grid search over 80 configs)
     alpha = 1.0
     beta = 1.0
     tau_A = 0.3
     tau_R = 0.5
-    lambda_ = 2.0
-    gamma = 0.8
-    rho = 0.7
+    lambda_ = 3.0     # was 2.0 — stronger reweighting of shortcut samples
+    gamma = 1.0       # was 0.8 — full gradient projection strength
+    rho = 0.5         # was 0.7 — moderate answer suppression
     val_grad_interval = 5
 
     # Self-Consistency Decoding
