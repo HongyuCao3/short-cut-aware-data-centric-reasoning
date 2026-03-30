@@ -1,0 +1,7 @@
+# PyTorch Lightning Trainer defaults
+accelerator: auto
+devices: auto
+max_epochs: ${training.epochs}
+gradient_clip_val: 1.0
+deterministic: true
+enable_progress_bar: true

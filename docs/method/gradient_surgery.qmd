@@ -1,0 +1,82 @@
+---
+title: "Gradient Surgery"
+---
+
+## What — Correction Mechanism
+
+Gradient Surgery modifies the gradient of shortcut-promoting samples by removing harmful directional components while preserving genuine reasoning signals. Two operations:
+
+1. **Alignment Projection**: Remove gradient components aligned with non-transferable directions
+2. **Answer Suppression**: Reduce the dominance of answer-token gradients over reasoning-token gradients
+
+## Why — Reweighting Is Not Enough
+
+- Reweighting reduces the *magnitude* of shortcut gradients but does not correct their *direction*
+- Even a downweighted gradient can nudge parameters away from genuine reasoning
+- Surgery ensures that only constructive reasoning signals drive parameter updates
+
+<details>
+<summary><strong>How — Step 1: Alignment Projection</strong></summary>
+
+For samples with low alignment $A(s) < \tau_A$, project out the component along $\mathbf{g}_V$:
+
+$$\mathbf{g}'_s = \mathbf{g}_s - \gamma \frac{\mathbf{g}_s^\top \mathbf{g}_V}{\|\mathbf{g}_V\|^2} \mathbf{g}_V$$
+
+where $\gamma \in [0, 1]$ controls projection strength. Setting $\gamma = 1$ fully removes the non-transferable component.
+
+**Key finding**: $\gamma = 1.0$ (full projection) is optimal. Intermediate values ($\gamma = 0.8$) create unstable gradient dynamics — a phase transition effect.
+
+</details>
+
+<details>
+<summary><strong>How — Step 2: Answer Suppression</strong></summary>
+
+For samples with high concentration $R(s) > \tau_R$, suppress the answer-dominant component:
+
+$$\mathbf{g}''_s = (1 - \rho) \mathbf{g}^{\text{ans}}_s + \mathbf{g}^{\text{reason}}_s$$
+
+Equivalently in practice:
+
+$$\mathbf{g}''_s = \mathbf{g}_s - \rho \cdot \mathbf{g}^{\text{ans}}_s$$
+
+where $\rho \in [0, 1]$ is the suppression coefficient. $\rho = 0.5$ balances accuracy and robustness.
+
+</details>
+
+<details>
+<summary><strong>How — Minimax Formulation</strong></summary>
+
+The optimal surgery direction is formulated as a minimax game:
+
+$$\min_\theta \max_\xi \sum_{s \in \mathcal{D}} w(s) \cdot \ell(\theta + \xi; s) \quad \text{s.t.} \quad \xi \in \mathcal{M}$$
+
+- **Inner max**: Finds the most harmful gradient direction $\xi$ within a constrained subspace $\mathcal{M}$
+- **Outer min**: Updates parameters along directions orthogonal to harmful ones
+
+Solved via alternating gradient projection:
+
+$$\xi \leftarrow \xi + \eta_1 \operatorname{proj}_{\mathcal{M}} \left( \nabla_\theta \sum_{s} w(s) \cdot \ell(\theta + \xi; s) \right)$$
+
+$$\theta \leftarrow \theta - \eta_2 (I - \operatorname{proj}_{\mathcal{M}}) \left( \nabla_\theta \sum_{s} w(s) \cdot \ell(\theta + \xi; s) \right)$$
+
+</details>
+
+<details>
+<summary><strong>How — Hyperparameters</strong></summary>
+
+| Parameter | Default | Range | Effect |
+|-----------|---------|-------|--------|
+| $\gamma$ | 0.8 | [0.3, 1.0] | Projection strength; 1.0 = full removal |
+| $\rho$ | 0.7 | [0.1, 0.7] | Answer suppression; 0.5 balances acc/rob |
+
+</details>
+
+<details>
+<summary><strong>How — Implementation</strong></summary>
+
+- Canonical location: `src/utils/gradient_ops.py`
+- Key function: `apply_gradient_surgery(g_full, g_ans, g_V, B_val, C_val, gamma, rho)`
+- Applied at batch level in `train_our_method()` after `loss.backward()` and before `optimizer.step()`
+- Uses `get_grad_vector()` / `set_grad_vector()` to read/write flattened gradients
+
+</details>

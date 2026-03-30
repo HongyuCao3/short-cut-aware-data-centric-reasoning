@@ -1,0 +1,10 @@
+# SmallGPT for real-world NL datasets (GPT-2 scale)
+_target_: src.methods.small_gpt.model.SmallGPT
+vocab_size: 50257
+d_model: 768
+nhead: 12
+num_layers: 12
+d_ff: 3072
+max_seq_len: 512
+dropout: 0.0
+padding_idx: null

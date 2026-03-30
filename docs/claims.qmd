@@ -1,0 +1,81 @@
+---
+title: "Claims"
+---
+
+## Main Hypothesis
+
+> **H1**: SART (ShortcutScore reweighting + gradient surgery) significantly outperforms all 11 baselines on robustness across three reasoning benchmarks.
+
+- **H0** (null): SART robustness ≤ best baseline robustness
+- **H1** (alternative): SART robustness > best baseline robustness by ≥ 10 pp
+
+```{dot}
+//| label: fig-hypothesis
+//| fig-cap: "Hypothesis structure: three supporting claims chain to experiments"
+//| fig-width: 7
+//| fig-height: 3.2
+digraph G {
+  bgcolor="transparent"
+  rankdir=LR
+  graph [ranksep=0.6, nodesep=0.45]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=1.6, height=0.42, margin="0.15,0.08"]
+  edge [color="#6c757d", penwidth=1.4]
+
+  C1 [label="Claim 1:\nDetection works", fillcolor="#375a7f"]
+  C2 [label="Claim 2:\nSuper-additive\nsynergy", fillcolor="#375a7f"]
+  C3 [label="Claim 3:\nScales with\ncomplexity", fillcolor="#375a7f"]
+
+  E1 [label="ShortcutScore\nValidation", fillcolor="#1a4a3a", color="#00bc8c"]
+  E2 [label="Ablation\nStudy", fillcolor="#1a4a3a", color="#00bc8c"]
+  E3 [label="Per-Dataset\nAnalysis", fillcolor="#1a4a3a", color="#00bc8c"]
+
+  V1 [label="r = 0.67\np < 0.001", fillcolor="#4a2040"]
+  V2 [label="+26.7pp\nsynergy bonus", fillcolor="#4a2040"]
+  V3 [label="Gap grows\n+11 → +17 → +20", fillcolor="#4a2040"]
+
+  C1 -> E1 -> V1
+  C2 -> E2 -> V2
+  C3 -> E3 -> V3
+}
+```
+
+---
+
+## Supporting Claims
+
+### Claim 1: ShortcutScore Correlates with True Shortcut Rate
+
+- **Evidence**: Pearson r = 0.67 (p < 0.001) between ShortcutScore $S(s)$ and the true shortcut rate across samples. Gradient alignment distribution shows clear separation: shortcut samples skew negative, non-shortcut cluster near zero.
+- **Falsification**: If r < 0.3 or p > 0.05, the gradient-based detection hypothesis fails.
+
+### Claim 2: Reweighting + Surgery Exhibit Super-Additive Synergy
+
+- **Evidence**: Individual robustness gains: Reweighting +20.7pp, Surgery +21.1pp. Sum = 41.8pp. Combined = +68.5pp. Synergy bonus = +26.7pp (64% more than the sum).
+- **Falsification**: If full SART ≤ sum of individual components, the synergy claim fails.
+
+### Claim 3: SART Advantage Scales with Task Complexity
+
+- **Evidence**: Accuracy gap between SART and best baseline: Math +11.2pp (single-feature shortcut) → Financial +16.8pp (two-feature) → Causal +20.0pp robustness (confounder adjustment).
+- **Falsification**: If the gap is constant or decreasing across tasks of increasing complexity.
+
+---
+
+## Assumptions and Risks
+
+| Assumption | Risk | Mitigation |
+|-----------|------|-----------|
+| Shortcut samples produce distinct gradient signatures | Gradient signatures may overlap in complex tasks | Validated empirically (Figure 2b: clear separation) |
+| Small validation set follows true rule | Val set may be biased or too small | Use 500+ samples; refresh $g_V$ periodically |
+| Synthetic datasets represent real-world shortcut patterns | Synthetic shortcuts may be too clean | Plan: extend to GSM8K and MATH benchmarks |
+
+---
+
+## Claim Status Tracker
+
+| Claim | Status | Experiment | Key Metric |
+|-------|--------|-----------|------------|
+| Detection (r = 0.67) | Confirmed | ShortcutScore Validation | Pearson r, F1 |
+| Super-additive synergy | Confirmed | Ablation Study | Robustness delta |
+| Complexity scaling | Confirmed | Per-Dataset Results | Accuracy/robustness gap |

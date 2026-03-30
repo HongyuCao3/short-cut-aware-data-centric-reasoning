@@ -1,0 +1,113 @@
+---
+title: "Task Definition"
+---
+
+## Problem Statement
+
+- **Domain**: Supervised training of language models on reasoning tasks (mathematical, financial, causal)
+- **Input**: Training dataset $\mathcal{D} = \{(x_i, y_i)\}_{i=1}^{N}$ where $x_i$ is a reasoning problem and $y_i$ comprises intermediate reasoning steps and a final answer
+- **Output**: Model parameters $\theta$ that minimize training loss while suppressing shortcut-promoting gradient directions
+- **Why it is hard**:
+  - Shortcut samples are often correctly labeled and efficiently reduce training loss, making them undetectable by conventional quality metrics
+  - Simply down-weighting detected shortcuts destabilizes training and discards useful signal
+
+```{dot}
+//| label: fig-problem
+//| fig-cap: "SART problem: training signal misalignment causes shortcut reliance"
+//| fig-width: 7
+//| fig-height: 3.2
+digraph G {
+  bgcolor="transparent"
+  rankdir=TB
+  graph [ranksep=0.5, nodesep=0.55]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=1.6, height=0.42, margin="0.15,0.08"]
+  edge [color="#6c757d", penwidth=1.4]
+
+  subgraph row1 {
+    rank=same
+    Train [label="Training Data\n(70% shortcuts)", fillcolor="#375a7f"]
+    Val   [label="Validation Data\n(true rule)", fillcolor="#375a7f"]
+    Test  [label="Test Data\n(perturbed)", fillcolor="#375a7f"]
+  }
+  subgraph row2 {
+    rank=same
+    Detect [label="Shortcut\nDetection"]
+    Suppress [label="Shortcut\nSuppression"]
+  }
+  subgraph row3 {
+    rank=same
+    Acc [label="Accuracy"]
+    Rob [label="Robustness"]
+    Reas [label="Reasoning"]
+  }
+
+  Train -> Detect
+  Val -> Detect
+  Detect -> Suppress
+  Suppress -> Acc
+  Suppress -> Rob
+  Suppress -> Reas
+  Test -> Rob [style=dashed]
+}
+```
+
+---
+
+## Research Questions
+
+- **RQ1**: Can shortcut-promoting samples be detected from gradient structure alone — specifically via non-transfer alignment and answer-gradient concentration?
+- **RQ2**: Does combining ShortcutScore reweighting with gradient surgery produce super-additive improvements over each component alone?
+- **RQ3**: Does SART's advantage scale with task complexity (single-feature vs. multi-feature shortcuts)?
+
+```{dot}
+//| label: fig-rq
+//| fig-cap: "Research questions mapped to experiments"
+//| fig-width: 7
+//| fig-height: 3.2
+digraph G {
+  bgcolor="transparent"
+  rankdir=LR
+  graph [ranksep=0.6, nodesep=0.45]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=1.5, height=0.42, margin="0.15,0.08"]
+  edge [color="#6c757d", penwidth=1.4]
+
+  RQ1 [label="RQ1: Detection", fillcolor="#375a7f"]
+  RQ2 [label="RQ2: Synergy", fillcolor="#375a7f"]
+  RQ3 [label="RQ3: Scaling", fillcolor="#375a7f"]
+
+  H1 [label="ShortcutScore\ncorrelates r=0.67"]
+  H2 [label="Super-additive\n+26.7pp synergy"]
+  H3 [label="Gap grows with\ncomplexity"]
+
+  E1 [label="ShortcutScore\nValidation", fillcolor="#1a4a3a", color="#00bc8c"]
+  E2 [label="Ablation\nStudy", fillcolor="#1a4a3a", color="#00bc8c"]
+  E3 [label="Per-Dataset\nResults", fillcolor="#1a4a3a", color="#00bc8c"]
+
+  RQ1 -> H1 -> E1
+  RQ2 -> H2 -> E2
+  RQ3 -> H3 -> E3
+}
+```
+
+---
+
+## Scope and Constraints
+
+- **In scope**: Synthetic reasoning tasks (Math-Arithmetic, Financial-Analysis, Causal-Reasoning) with controlled shortcut injection; gradient-level training dynamics modification
+- **Out of scope**: Architectural modifications; additional human annotations; pretraining changes
+- **Assumptions**: Shortcut samples exhibit distinct gradient signatures (low alignment with validation gradients, high answer-token concentration); a small held-out validation set following the true rule is available
+
+---
+
+## Evaluation Protocol
+
+- **Primary metric**: Clean accuracy (test set following true rule)
+- **Robustness metric**: Perturbed accuracy (test set where shortcut contradicts correct answer) — the key differentiator
+- **Reasoning consistency**: Generated reasoning tokens match ground truth reasoning
+- **Shortcut detection F1**: Ability to identify known shortcut samples via ShortcutScore thresholding
+- **Baselines**: 11 methods spanning data-centric, loss-based, distributionally robust, and invariant learning
+- **Dataset split**: 2,000 train (70% shortcut) / 500 val (true rule) / 1,000 test (500 clean + 500 perturbed) per dataset

@@ -1,0 +1,68 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "SART — Shortcut-Aware Reasoning Training"
+  page-navigation: true
+  navbar:
+    background: dark
+    foreground: light
+    left:
+      - text: "Home"
+        href: index.qmd
+    right:
+      - icon: github
+        href: https://github.com/fuyanjie/short-cut-aware-data-centric-reasoning
+  sidebar:
+    style: docked
+    search: true
+    collapse-level: 1
+    background: dark
+    contents:
+      - text: "Dashboard"
+        href: index.qmd
+      - section: "Research"
+        contents:
+          - text: "Task Definition"
+            href: task_definition.qmd
+          - text: "Literature Review"
+            href: literature_review.qmd
+          - text: "Claims"
+            href: claims.qmd
+      - section: "Method"
+        contents:
+          - text: "Overview"
+            href: method/overview.qmd
+          - text: "ShortcutScore"
+            href: method/shortcut_score.qmd
+          - text: "Gradient Surgery"
+            href: method/gradient_surgery.qmd
+          - text: "VRAM Reduction"
+            href: method/vram_reduction.qmd
+      - section: "Experiments"
+        contents:
+          - text: "Dashboard"
+            href: experiments/overview.qmd
+          - text: "Main Results"
+            href: experiments/main.qmd
+          - text: "Ablation Study"
+            href: experiments/ablation.qmd
+          - text: "HP Sensitivity"
+            href: experiments/hyperparam.qmd
+      - section: "Guides"
+        contents:
+          - text: "Server Guide"
+            href: guides/server_guide.qmd
+          - text: "SLURM Guide"
+            href: guides/slurm_guide.qmd
+
+format:
+  html:
+    theme: darkly
+    toc: true
+    toc-depth: 3
+    toc-title: "On this page"
+    css: styles/custom.css
+    highlight-style: github-dark
+    fig-align: center

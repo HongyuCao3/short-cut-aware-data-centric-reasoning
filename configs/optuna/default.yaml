@@ -1,0 +1,28 @@
+study_name: sart_hp_search
+direction: maximize
+metric: combined_score
+n_trials: 100
+storage: null
+load_if_exists: true
+
+search_space:
+  method.lambda_:
+    type: float
+    low: 0.5
+    high: 5.0
+  method.gamma:
+    type: float
+    low: 0.3
+    high: 1.0
+  method.rho:
+    type: float
+    low: 0.1
+    high: 0.7
+  method.tau_A:
+    type: float
+    low: 0.1
+    high: 0.5
+  method.tau_R:
+    type: float
+    low: 0.3
+    high: 0.7

@@ -1,0 +1,126 @@
+---
+title: "SART — Research Dashboard"
+---
+
+## Project Overview
+
+> **Mitigating Shortcut Reasoning in Language Models: A Gradient-Aware Training Approach**
+
+- **Problem**: LLMs exploit reasoning shortcuts — surface pattern matching, answer memorization, keyword correlations — rather than genuine logical inference, causing catastrophic failure under distribution shift
+- **Approach**: ShortcutScore detects shortcut samples via gradient signatures (low validation alignment + high answer-token concentration); Gradient Surgery projects out harmful gradient components during training
+- **Outcome**: 92.5% accuracy / 87.9% robustness — surpassing the best baseline by +16.5 pp accuracy and +40.2 pp robustness across 3 reasoning benchmarks
+
+```{dot}
+//| label: fig-pipeline
+//| fig-cap: "SART pipeline: gradient diagnostics → detection → correction → robust model"
+//| fig-width: 7
+//| fig-height: 3.5
+digraph G {
+  bgcolor="transparent"
+  rankdir=TB
+  graph [ranksep=0.55, nodesep=0.55]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=1.6, height=0.45, margin="0.15,0.08"]
+  edge [color="#6c757d", penwidth=1.4]
+
+  subgraph row1 {
+    rank=same
+    Data [label="Training Data\n(with shortcuts)", fillcolor="#375a7f"]
+    Val  [label="Validation Set\n(true rule)", fillcolor="#375a7f"]
+  }
+  subgraph row2 {
+    rank=same
+    Diag [label="Gradient\nDiagnostics"]
+    Score [label="ShortcutScore\nComputation"]
+  }
+  subgraph row3 {
+    rank=same
+    Reweight [label="Sample\nReweighting", fillcolor="#1a4a3a", color="#00bc8c"]
+    Surgery  [label="Gradient\nSurgery", fillcolor="#1a4a3a", color="#00bc8c"]
+  }
+  subgraph row4 {
+    rank=same
+    Model [label="Robust Model", fillcolor="#4a2040"]
+  }
+
+  Data -> Diag
+  Val  -> Diag
+  Diag -> Score
+  Score -> Reweight
+  Score -> Surgery
+  Reweight -> Model
+  Surgery  -> Model
+}
+```
+
+---
+
+## Navigation
+
+::: {.card-grid}
+<div class="nav-card">
+<a href="task_definition.qmd">Task Definition</a>
+<p>SART problem formulation, RQs, evaluation protocol</p>
+</div>
+<div class="nav-card">
+<a href="literature_review.qmd">Literature Review</a>
+<p>11 baselines, gap analysis, positioning</p>
+</div>
+<div class="nav-card">
+<a href="claims.qmd">Claims</a>
+<p>Hypotheses, evidence chain, validation</p>
+</div>
+<div class="nav-card">
+<a href="method/overview.qmd">Method</a>
+<p>ShortcutScore + Gradient Surgery architecture</p>
+</div>
+<div class="nav-card">
+<a href="experiments/overview.qmd">Experiments</a>
+<p>3 benchmarks, 13 methods, results</p>
+</div>
+:::
+
+---
+
+## Key Results at a Glance
+
+::: {.metric-row}
+<div class="metric-badge">
+<div class="value">92.5%</div>
+<div class="label">Accuracy</div>
+</div>
+<div class="metric-badge">
+<div class="value">87.9%</div>
+<div class="label">Robustness</div>
+</div>
+<div class="metric-badge">
+<div class="value">85.5%</div>
+<div class="label">Reasoning</div>
+</div>
+<div class="metric-badge">
+<div class="value">3.2M</div>
+<div class="label">Model Params</div>
+</div>
+:::
+
+---
+
+## Reproduction Quickstart
+
+```bash
+# 1. Setup
+pip install -r requirements.txt
+
+# 2. Debug run (local profile, fast)
+EXPERIMENT_SCALE=local python3 run_all.py
+
+# 3. Full training (server profile, all 13 methods × 3 datasets)
+EXPERIMENT_SCALE=server python3 run_all.py
+
+# 4. Hyperparameter search (Optuna + MLflow)
+EXPERIMENT_SCALE=server python3 hp_optuna.py --n-trials 100
+
+# 5. Hydra entry point (after refactoring)
+python -m src.main mode=train method=sart dataset=math_synthetic scale=server
+```

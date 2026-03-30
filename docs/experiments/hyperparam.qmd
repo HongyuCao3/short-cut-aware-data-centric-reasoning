@@ -1,0 +1,76 @@
+---
+title: "Hyperparameter Sensitivity"
+---
+
+## What — Experiment Identity
+
+- **Experiment**: Exhaustive grid search over 80 configurations ($\lambda \times \gamma \times \rho$) to identify SART's operating regime
+
+## Why — Experiment Purpose
+
+- **Insight**: Determine which hyperparameters are most influential and whether SART is robust to reasonable choices
+
+---
+
+## Results — Table 4: Grid Search
+
+### Reweighting Strength $\lambda$ (most influential)
+
+| $\lambda$ | Accuracy | Robustness | Combined |
+|-----------|----------|------------|----------|
+| 1.0 | 75.8% | 44.0% | 56.7 |
+| 1.5 | 81.1% | 52.9% | 64.2 |
+| 2.0 | 86.9% | 69.6% | 76.5 |
+| **3.0** | **87.6%** | **74.2%** | **79.6** |
+| 5.0 | 86.4% | 73.6% | 78.7 |
+
+### Gradient Surgery Strength $\gamma$
+
+| $\gamma$ | Accuracy | Robustness | Combined |
+|----------|----------|------------|----------|
+| 0.3 | 84.0% | 68.4% | 74.7 |
+| 0.5 | 84.2% | 70.2% | 75.8 |
+| 0.8 | 82.2% | 56.4% | 66.8 |
+| **1.0** | **87.6%** | **74.2%** | **79.6** |
+
+### Answer Suppression $\rho$
+
+| $\rho$ | Accuracy | Robustness | Combined |
+|--------|----------|------------|----------|
+| 0.1 | 86.4% | 73.6% | 78.7 |
+| 0.3 | 88.0% | 68.0% | 76.0 |
+| **0.5** | **87.6%** | **74.2%** | **79.6** |
+| 0.7 | 86.9% | 69.6% | 76.5 |
+
+Combined score = $0.4 \times \text{Accuracy} + 0.6 \times \text{Robustness}$.
+
+---
+
+## Analysis
+
+<details>
+<summary><strong>Three Key Insights</strong></summary>
+
+1. **$\lambda$ is the most influential parameter.** Performance increases monotonically from $\lambda=1.0$ to $\lambda=3.0$ (+11.8pp accuracy, +30.2pp robustness), plateauing thereafter. This defines a "sweet spot" where shortcut samples are sufficiently downweighted without catastrophically distorting the training distribution.
+
+2. **Full-strength gradient surgery ($\gamma=1.0$) is optimal.** Performance at $\gamma=0.8$ (56.4% robustness) drops substantially compared to both $\gamma=0.5$ (70.2%) and $\gamma=1.0$ (74.2%). This non-monotonicity suggests a **phase transition**: partial projection creates unstable gradient dynamics, while complete projection cleanly eliminates the entire shortcut subspace.
+
+3. **Moderate answer suppression ($\rho=0.5$) balances accuracy-robustness.** Too-low $\rho$ (0.1) retains shortcut-correlated answer signals; too-high $\rho$ (0.7) discards useful reasoning information from the answer pathway.
+
+</details>
+
+<details>
+<summary><strong>How — Run HP Search</strong></summary>
+
+```bash
+# Optuna (recommended)
+EXPERIMENT_SCALE=server python3 hp_optuna.py --n-trials 100
+
+# Or via Hydra
+python -m src.main mode=optuna method=sart optuna.n_trials=100
+
+# Grid search (legacy)
+EXPERIMENT_SCALE=server python3 hp_search.py --output-dir hp_results
+```
+
+</details>

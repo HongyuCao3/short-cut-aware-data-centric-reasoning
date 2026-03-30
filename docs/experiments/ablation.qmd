@@ -1,0 +1,65 @@
+---
+title: "Ablation Study"
+---
+
+## What — Experiment Identity
+
+- **Experiment**: Isolate the contribution of each SART component (Reweighting vs. Gradient Surgery) by removing one at a time
+
+## Why — Experiment Purpose
+
+- **Claim addressed**: Claim 2 — Reweighting and Surgery are super-additive (+26.7pp synergy bonus on robustness)
+
+---
+
+## Results — Table 3: Component Ablation
+
+| Configuration | Accuracy | Robustness | Grad. Align. | SC Det. F1 |
+|--------------|----------|------------|-------------|------------|
+| SFT (Baseline) | 68.8% | 19.4% | -0.08 | — |
+| + Reweighting Only | 75.2% | 40.1% | -0.06 | 0.85 |
+| + Gradient Surgery Only | 73.5% | 40.5% | -0.14 | 0.82 |
+| **SART (Full)** | **92.5%** | **87.9%** | **-0.03** | **0.64** |
+
+---
+
+## Analysis
+
+<details>
+<summary><strong>Super-Additive Synergy</strong></summary>
+
+| Metric | Reweighting | Surgery | Sum | Full SART | Synergy |
+|--------|------------|---------|-----|-----------|---------|
+| Robustness gain | +20.7pp | +21.1pp | 41.8pp | **+68.5pp** | **+26.7pp** |
+| Accuracy gain | +6.4pp | +4.7pp | 11.1pp | **+23.7pp** | **+12.6pp** |
+
+The synergy arises because the two mechanisms operate on **complementary axes**:
+
+- Reweighting adjusts *how much* each sample contributes to the loss
+- Surgery adjusts *in which direction* each gradient update proceeds
+
+When combined, reweighted gradients are more amenable to precise surgical correction, and surgery amplifies the effect of reweighting by eliminating residual shortcut directions.
+
+</details>
+
+<details>
+<summary><strong>Gradient Alignment Improvement</strong></summary>
+
+The full method achieves near-zero gradient misalignment (-0.03), a **2.7x improvement** over SFT (-0.08).
+
+Removing either component causes catastrophic degradation:
+
+- Without Reweighting: -19.0pp accuracy, -47.4pp robustness
+- Without Surgery: -17.3pp accuracy, -47.7pp robustness
+
+Both components are essential and contribute approximately equally.
+
+</details>
+
+<details>
+<summary><strong>Claim Status</strong></summary>
+
+- **Claim 2 status**: Confirmed — synergy bonus of +26.7pp (64% more than the sum of parts)
+- Both components are independently beneficial but dramatically better together
+
+</details>

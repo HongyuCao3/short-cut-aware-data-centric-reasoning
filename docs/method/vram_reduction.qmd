@@ -1,0 +1,74 @@
+---
+title: "VRAM Reduction"
+---
+
+## What — Random Projection Sketch
+
+Per-sample gradient storage for ShortcutScore computation causes CUDA OOM on GPU servers (14.6 GB for 64 samples). Random projection sketches compress each gradient from $\mathbb{R}^d$ to $\mathbb{R}^k$ ($k \ll d$), reducing VRAM by ~36,000x.
+
+## Why — The OOM Bottleneck
+
+| Component | Size | VRAM |
+|-----------|------|------|
+| Model parameters | ~19M params | 76 MB |
+| Single gradient vector | 19M floats x 4 bytes | 76 MB |
+| Batch of 64 x 3 types | 64 x 3 x 76 MB | **14.6 GB** |
+| + model + activations | — | **~25-28 GB** |
+
+The NL config (163M params) is worse: 652 MB per gradient vector.
+
+<details>
+<summary><strong>How — Johnson-Lindenstrauss Sketch Algorithm</strong></summary>
+
+For each projection direction $z_j$ ($j = 0, \ldots, k-1$):
+
+1. Generate random vector $z_j \sim N(0, I_d)$ via CPU RNG (never stored on GPU)
+2. Perturb model: $\theta \leftarrow \theta + \varepsilon z_j$
+3. Forward pass on batch: get per-sample losses $L^+_{\text{full}}, L^+_{\text{ans}}, L^+_{\text{reason}}$
+4. Perturb model: $\theta \leftarrow \theta - 2\varepsilon z_j$
+5. Forward pass: get $L^-_{\text{full}}, L^-_{\text{ans}}, L^-_{\text{reason}}$
+6. Restore: $\theta \leftarrow \theta + \varepsilon z_j$
+7. Compute sketch: $s_{\text{full}}[:,j] = (L^+_{\text{full}} - L^-_{\text{full}}) / (2\varepsilon)$
+
+**Total**: $2k$ forward passes per batch (independent of batch size $B$).
+
+**Memory savings**:
+
+| Component | Current | With Sketch (k=128) |
+|-----------|---------|---------------------|
+| Per-sample gradient | 76 MB | 0.5 KB |
+| Batch of 64 x 3 types | 14.6 GB | ~0.1 MB |
+| **Reduction factor** | — | **~36,000x** |
+
+</details>
+
+<details>
+<summary><strong>How — Approximation Quality</strong></summary>
+
+By the Johnson-Lindenstrauss Lemma, cosine similarities are preserved:
+
+$$\cos(g_{\text{full},i}, g_V) \approx \cos(s_{\text{full},i}, s_V)$$
+
+with error $O(1/\sqrt{k})$:
+
+- $k = 128$: ~4% error
+- $k = 512$: ~2% error
+- $k = 1024$: ~1.5% error
+
+The downstream task (binary shortcut classification) tolerates this approximation well.
+
+</details>
+
+<details>
+<summary><strong>How — Configuration</strong></summary>
+
+| Parameter | Default | Range | Effect |
+|-----------|---------|-------|--------|
+| `sketch_k` | 128 | [64, 1024] | Projection dimension |
+| `sketch_epsilon` | 1e-3 | [1e-4, 1e-2] | Finite-difference step |
+| `sketch_seed` | 0 | — | Base RNG seed for reproducibility |
+
+- Canonical location: `src/utils/gradient_ops.py`
+- Key functions: `_apply_perturbation()`, `compute_sample_sketches_batched()`, `sketch_gradient_vector()`
+
+</details>

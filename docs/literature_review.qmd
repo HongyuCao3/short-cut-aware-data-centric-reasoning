@@ -1,0 +1,168 @@
+---
+title: "Literature Review"
+---
+
+## Research Landscape
+
+```{dot}
+//| label: fig-landscape
+//| fig-cap: "Research landscape: three method clusters converge on gradient-aware training gap"
+//| fig-width: 7
+//| fig-height: 3.5
+digraph G {
+  bgcolor="transparent"
+  rankdir=TB
+  graph [ranksep=0.55, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=1.6, height=0.42]
+  edge [color="#6c757d", penwidth=1.4]
+
+  subgraph row1 {
+    rank=same
+    A [label="Cluster A:\nData/Loss-Centric", fillcolor="#375a7f"]
+    B [label="Cluster B:\nDistributional\nRobustness", fillcolor="#375a7f"]
+    C [label="Cluster C:\nDebiasing/Meta", fillcolor="#375a7f"]
+  }
+  subgraph row2 {
+    rank=same
+    Gap [label="Gap: No method jointly\ndetects + corrects\nshortcut gradients", fillcolor="#4a2040", color="#e74c3c"]
+  }
+  subgraph row3 {
+    rank=same
+    Ours [label="SART:\nShortcutScore +\nGradient Surgery", fillcolor="#1a4a3a", color="#00bc8c"]
+  }
+
+  A -> Gap
+  B -> Gap
+  C -> Gap
+  Gap -> Ours
+}
+```
+
+---
+
+## Cluster A: Data-Centric and Loss-Based Methods
+
+Methods that modify which samples contribute or how much each sample's loss matters.
+
+<details>
+<summary><strong>SFT — Standard Fine-Tuning</strong></summary>
+
+- **What**: Vanilla cross-entropy on all training samples equally
+- **Why insufficient**: Does not distinguish shortcut from genuine reasoning samples; shortcuts dominate gradients
+- **Performance**: 68.8% accuracy, 19.4% robustness (baseline)
+
+</details>
+
+<details>
+<summary><strong>Data Filtering — Remove high-confidence samples</strong></summary>
+
+- **What**: Train a warmup model, remove samples with high confidence (>0.90), retrain on filtered data
+- **Why insufficient**: Shortcut samples are correctly labeled — confidence-based filtering has high variance across tasks
+- **Performance**: 74.7% accuracy, 54.6% robustness — but collapses on Financial (68.4% rob) while failing on Math (26.6% rob)
+
+</details>
+
+<details>
+<summary><strong>JTT — Just Train Twice</strong></summary>
+
+- **What**: Warmup, identify misclassified samples, upsample them, retrain
+- **Why insufficient**: Shortcut samples are correctly classified during warmup; JTT upsamples the wrong subset
+- **Performance**: 67.9% accuracy, 19.0% robustness — near SFT baseline
+
+</details>
+
+<details>
+<summary><strong>Focal Loss</strong></summary>
+
+- **What**: $(1 - p_t)^\gamma$ modulated cross-entropy — downweights easy (high-confidence) samples
+- **Why insufficient**: Shortcuts produce high confidence but are not "easy" in the generalisation sense
+- **Performance**: 68.2% accuracy, 18.2% robustness
+
+</details>
+
+<details>
+<summary><strong>Influence Filtering</strong></summary>
+
+- **What**: Compute influence functions to identify harmful training samples, remove them
+- **Why insufficient**: Discards training data entirely; exhibits extreme cross-task variance (83.2% on Causal, 63.4% on Financial)
+- **Performance**: 76.0% accuracy, 47.7% robustness — best non-SART method overall
+
+</details>
+
+---
+
+## Cluster B: Distributionally Robust and Invariant Methods
+
+Methods that optimise worst-case or invariant objectives across groups/environments.
+
+<details>
+<summary><strong>Group DRO — Distributionally Robust Optimization</strong></summary>
+
+- **What**: Worst-group optimization using exponentiated gradient on group weights
+- **Why insufficient**: Requires explicit group annotations (shortcut vs. non-shortcut labels) unavailable in practice
+- **Performance**: 73.5% accuracy, 36.0% robustness
+
+</details>
+
+<details>
+<summary><strong>IRM — Invariant Risk Minimization</strong></summary>
+
+- **What**: Penalise gradient-based invariance violation across environments
+- **Why insufficient**: Requires multiple training environments; gradient penalty is insufficient to remove shortcut directions
+- **Performance**: 73.3% accuracy, 34.4% robustness
+
+</details>
+
+<details>
+<summary><strong>V-REx — Variance of Risks Extrapolation</strong></summary>
+
+- **What**: Penalise variance of per-environment risks
+- **Why insufficient**: Same environment requirement as IRM; moderate gains
+- **Performance**: 72.1% accuracy, 34.9% robustness
+
+</details>
+
+<details>
+<summary><strong>Fishr — Gradient Variance Equalization</strong></summary>
+
+- **What**: Match gradient variances across groups via EMA
+- **Why insufficient**: Equalizing variance does not correct gradient direction; fails to detect which variance is harmful
+- **Performance**: 68.1% accuracy, 16.7% robustness — worse than SFT on robustness
+
+</details>
+
+---
+
+## Cluster C: Debiasing and Meta-Learning Methods
+
+Methods that learn from model failures or use meta-objectives.
+
+<details>
+<summary><strong>LfF — Learning from Failure</strong></summary>
+
+- **What**: Train a biased model and a debiased model simultaneously; reweight based on biased model's mistakes
+- **Why insufficient**: The biased model may not align with the actual shortcut in reasoning tasks
+- **Performance**: 69.0% accuracy, 19.4% robustness
+
+</details>
+
+<details>
+<summary><strong>Self-Consistency Decoding</strong></summary>
+
+- **What**: Sample multiple reasoning paths at inference, take majority vote
+- **Why insufficient**: Operates at inference time only — shortcut patterns remain encoded in model parameters
+- **Performance**: 69.1% accuracy, 23.3% robustness
+
+</details>
+
+---
+
+## Gap Synthesis
+
+| Gap | Consequence | SART Contribution |
+|-----|-------------|-------------------|
+| No method detects shortcuts from gradient structure | Shortcut samples invisible to label/loss-based filters | ShortcutScore: gradient alignment + answer concentration |
+| No method corrects gradient directions during training | Even downweighted shortcuts inject harmful gradient components | Gradient Surgery: projection + suppression |
+| Methods require group annotations or multiple environments | Impractical for real-world reasoning tasks | SART is annotation-free and single-environment |

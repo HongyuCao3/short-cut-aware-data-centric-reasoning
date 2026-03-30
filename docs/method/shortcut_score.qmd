@@ -1,0 +1,70 @@
+---
+title: "ShortcutScore"
+---
+
+## What — Detection Metric
+
+ShortcutScore $S(s)$ quantifies each training sample's tendency to promote shortcut learning by combining two gradient-based signals:
+
+- **Signal 1 — Non-Transfer Alignment** $A(s)$: cosine similarity between sample gradient and validation gradient
+- **Signal 2 — Answer-Gradient Concentration** $R(s)$: ratio of answer-token gradient norm to total gradient norm
+
+Samples with high $S(s)$ are flagged as shortcut-promoting and downweighted during training.
+
+## Why — Selection Rationale
+
+- Shortcut samples efficiently reduce training loss but their gradients point in directions inconsistent with improving validation reasoning
+- Loss-based or label-based detection cannot identify them (they are correctly labeled)
+- Gradient structure analysis is the only way to distinguish shortcut from genuine reasoning signals
+
+<details>
+<summary><strong>How — Mathematical Formulation</strong></summary>
+
+**Step 1: Non-Transfer Gradient Alignment**
+
+$$A(s) = \cos(\mathbf{g}_s, \mathbf{g}_V) = \frac{\mathbf{g}_s^\top \mathbf{g}_V}{\|\mathbf{g}_s\| \|\mathbf{g}_V\|}$$
+
+where $\mathbf{g}_s = \nabla_\theta \ell(\theta; s)$ is the per-sample gradient and $\mathbf{g}_V = \nabla_\theta \frac{1}{|\mathcal{V}|} \sum_{v \in \mathcal{V}} \ell(\theta; v)$ is the validation gradient.
+
+**Step 2: Answer-Gradient Concentration**
+
+$$R(s) = \frac{\sum_{t \in T_{\text{ans}}} \|\nabla_\theta \ell_t\|}{\sum_{t \in T_{\text{ans}} \cup T_{\text{reason}}} \|\nabla_\theta \ell_t\|}$$
+
+**Step 3: ShortcutScore**
+
+$$S(s) = \alpha \cdot \max(0, \tau_A - A(s)) + \beta \cdot \max(0, R(s) - \tau_R)$$
+
+**Sample Weight:**
+
+$$w(s) = \exp(-\lambda \cdot S(s))$$
+
+</details>
+
+<details>
+<summary><strong>How — Hyperparameters</strong></summary>
+
+| Parameter | Default | Range | Effect |
+|-----------|---------|-------|--------|
+| $\alpha$ | 1.0 | [0.5, 2.0] | Weight for alignment term |
+| $\beta$ | 1.0 | [0.5, 2.0] | Weight for concentration term |
+| $\tau_A$ | 0.3 | [0.1, 0.5] | Alignment threshold (below = shortcut) |
+| $\tau_R$ | 0.5 | [0.3, 0.7] | Concentration threshold (above = shortcut) |
+| $\lambda$ | 2.0 | [0.5, 5.0] | Reweighting strength (most influential) |
+
+Override via config:
+
+```bash
+python -m src.main method=sart method.lambda_=3.0 method.tau_A=0.2
+```
+
+</details>
+
+<details>
+<summary><strong>How — Implementation</strong></summary>
+
+- Canonical location: `src/utils/gradient_ops.py`
+- Key functions: `compute_shortcut_score()`, `compute_shortcut_scores_batched()`, `compute_sample_weight()`
+- Server mode uses `compute_shortcut_scores_from_sketches()` with random projection for VRAM efficiency
+- Validation gradient $g_V$ computed via `compute_validation_gradient()`, refreshed every 5 epochs
+
+</details>

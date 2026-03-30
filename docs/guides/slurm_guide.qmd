@@ -1,0 +1,73 @@
+---
+title: "SLURM Guide"
+---
+
+## Submitting Jobs via Hydra
+
+The project uses `hydra-submitit-launcher` to submit SLURM jobs directly from the command line.
+
+### Single Run
+
+```bash
+python -m src.main -m hydra/launcher=slurm \
+  method=sart dataset=math_synthetic scale=server
+```
+
+This creates an `sbatch` job with the settings from `configs/hydra/launcher/slurm.yaml`:
+
+- 1 GPU, 4 CPUs, 64 GB memory, 24-hour timeout
+- Partition: `gpu` (adjust in YAML for your cluster)
+
+### Multi-Method Sweep
+
+```bash
+# Compare all methods on all datasets (39 jobs)
+python -m src.main -m hydra/launcher=slurm \
+  method=sft,data_filtering,jtt,focal_loss,group_dro,irm,vrex,fishr,lff,influence_filtering,meta_reweight,self_consistency,sart \
+  dataset=math_synthetic,financial_synthetic,causal_synthetic
+```
+
+### Hyperparameter Search
+
+```bash
+# Optuna sweep via SLURM
+python -m src.main -m hydra/launcher=slurm \
+  mode=optuna method=sart optuna.n_trials=100
+```
+
+---
+
+## SLURM Configuration
+
+Edit `configs/hydra/launcher/slurm.yaml` to match your cluster:
+
+```yaml
+partition: gpu          # your SLURM partition name
+gpus_per_node: 1        # GPUs per job
+mem_gb: 64              # memory per job
+timeout_min: 1440       # 24 hours
+cpus_per_task: 4        # CPU cores
+```
+
+---
+
+## Monitoring
+
+```bash
+# Check job status
+squeue -u $USER
+
+# View job output
+cat outputs/<date>/<time>/.submitit/<job_id>/<job_id>_0_log.out
+
+# Cancel all jobs
+scancel -u $USER
+```
+
+---
+
+## Cluster-Specific Notes
+
+- Ensure `torch`, `hydra-core`, and `hydra-submitit-launcher` are available in the SLURM environment
+- Use `module load` commands in `setup` field of `slurm.yaml` if needed
+- For multi-GPU jobs, adjust `gpus_per_node` and `tasks_per_node`

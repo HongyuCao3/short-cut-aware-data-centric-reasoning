@@ -1,0 +1,3 @@
+# SmallGPT for synthetic datasets
+# Architecture params are overridden by scale config
+_target_: src.methods.small_gpt.model.SmallGPT

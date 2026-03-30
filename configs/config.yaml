@@ -1,0 +1,42 @@
+defaults:
+  - scale: server
+  - dataset: math_synthetic
+  - method: sft
+  - model: small_gpt
+  - trainer: default
+  - logger: mlflow
+  - mode: train
+  - optuna: default
+  - override hydra/launcher: basic
+  - _self_
+
+seed: 42
+
+# Synthetic token IDs (shared across all synthetic datasets)
+tokens:
+  PAD: 0
+  BOS: 1
+  EOS: 2
+  SEP: 3
+  EQ: 4
+  PLUS: 5
+  MINUS: 6
+  MULT: 7
+  COLON: 8
+  SAT: 9
+  VIO: 10
+  CAUS: 11
+  NCAUS: 12
+  DIGIT_OFFSET: 13
+  FEAT_R: 23
+  FEAT_C: 24
+  FEAT_M: 25
+  FEAT_D: 26
+  FEAT_X: 27
+  FEAT_Y: 28
+  FEAT_Z: 29
+  FEAT_COR: 30
+
+# Self-Consistency Decoding
+sc_num_samples: 5
+sc_temperature: 0.8

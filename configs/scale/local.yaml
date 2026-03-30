@@ -1,0 +1,42 @@
+# Local profile: small-scale for quick iteration without GPU
+model:
+  vocab_size: 35
+  d_model: 128
+  nhead: 4
+  num_layers: 2
+  d_ff: 256
+  max_seq_len: 24
+  dropout: 0.0
+
+training:
+  batch_size: 32
+  lr: 3.0e-3
+  epochs: 30
+  weight_decay: 1.0e-5
+
+data:
+  n_train: 500
+  n_val: 200
+  n_test: 300
+  shortcut_ratio: 0.70
+
+scoring:
+  score_max_samples: 200
+  score_batch_size: 1
+
+baselines:
+  df_warmup_epochs: 3
+  df_confidence_threshold: 0.90
+  jtt_warmup_epochs: 5
+  jtt_upweight_factor: 3
+  focal_gamma: 2.0
+  gdro_eta: 0.01
+  irm_lambda: 1.0
+  irm_anneal_epochs: 5
+  vrex_beta: 1.0
+  fishr_lambda: 1.0
+  fishr_ema_decay: 0.95
+  lff_q: 0.7
+  influence_warmup_epochs: 5
+  influence_remove_ratio: 0.3
+  meta_reweight_lr: 0.01

@@ -1,0 +1,8 @@
+# Debug trainer: fast_dev_run for quick testing
+accelerator: auto
+devices: auto
+max_epochs: 2
+fast_dev_run: true
+gradient_clip_val: 1.0
+deterministic: true
+enable_progress_bar: true

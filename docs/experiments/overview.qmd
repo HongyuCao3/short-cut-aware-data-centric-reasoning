@@ -1,0 +1,120 @@
+---
+title: "Experiment Dashboard"
+---
+
+## Experiment Suite
+
+| Experiment | Purpose | Claim Addressed |
+|-----------|---------|-----------------|
+| Main Results (Table 1-2) | Compare SART vs. 11 baselines | H1: SART outperforms all baselines |
+| Ablation Study (Table 3) | Isolate component contributions | Claim 2: super-additive synergy |
+| HP Sensitivity (Table 4) | Identify operating regime | Robustness of hyperparameters |
+
+```{dot}
+//| label: fig-experiment-suite
+//| fig-cap: "Validation strategy: three experiments confirm three claims"
+//| fig-width: 7
+//| fig-height: 3.0
+digraph G {
+  bgcolor="transparent"
+  rankdir=LR
+  graph [ranksep=0.6, nodesep=0.45]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=1.5, height=0.42]
+  edge [color="#6c757d", penwidth=1.4]
+
+  Main [label="Main Results", fillcolor="#4a2040"]
+  Abl  [label="Ablation", fillcolor="#4a2040"]
+  HP   [label="HP Sensitivity", fillcolor="#4a2040"]
+
+  C1 [label="SART > all\nbaselines", fillcolor="#1a4a3a", color="#00bc8c"]
+  C2 [label="Super-additive\nsynergy", fillcolor="#1a4a3a", color="#00bc8c"]
+  C3 [label="Robust to\nHP choices", fillcolor="#1a4a3a", color="#00bc8c"]
+
+  Main -> C1
+  Abl  -> C2
+  HP   -> C3
+}
+```
+
+<details>
+<summary><strong>How — Datasets</strong></summary>
+
+| Dataset | Task | True Rule | Shortcut | Samples |
+|---------|------|-----------|----------|---------|
+| Math-Arithmetic | $a + b \geq 10$? | Evaluate full sum | $a \geq 5$ | 2K/500/1K |
+| Financial-Analysis | Regulatory compliance | margin $\geq 5$ AND debt $< 5$ | revenue $\geq 5$ | 2K/500/1K |
+| Causal-Reasoning | Causal direction | $x \geq 5$ AND $z < 3$ | correlation $\geq 5$ | 2K/500/1K |
+
+- Training: 70% shortcut labels, 30% true-rule labels
+- Validation and test: exclusively true rule
+- Test split: 500 clean + 500 perturbed (shortcut contradicts answer)
+
+</details>
+
+<details>
+<summary><strong>How — Baselines (11 Methods)</strong></summary>
+
+| Method | Category | Requirements |
+|--------|----------|-------------|
+| SFT | Standard | None |
+| Self-Consistency | Inference | None |
+| Data Filtering | Data-centric | None |
+| JTT | Data-centric | None |
+| Focal Loss | Loss-based | None |
+| Group DRO | Robust | Group annotations |
+| IRM | Invariant | Multiple environments |
+| V-REx | Invariant | Multiple environments |
+| Fishr | Invariant | Multiple environments |
+| LfF | Debiasing | None |
+| Influence Filtering | Influence | None |
+
+</details>
+
+<details>
+<summary><strong>How — Evaluation Metrics</strong></summary>
+
+| Metric | What It Measures | Why Chosen |
+|--------|-----------------|------------|
+| Clean accuracy | Correct prediction on standard test | Overall performance |
+| Perturbed accuracy (robustness) | Correct when shortcut contradicts answer | Genuine reasoning ability |
+| Reasoning consistency | Generated reasoning matches ground truth | Quality of reasoning steps |
+| SC detection F1 | ShortcutScore identifies known shortcuts | Detection capability |
+
+</details>
+
+<details>
+<summary><strong>How — Run Commands</strong></summary>
+
+```bash
+# Full experiment (all 13 methods x 3 datasets)
+EXPERIMENT_SCALE=server python3 run_all.py
+
+# Single method
+python -m src.main method=sart dataset=math_synthetic
+
+# MLflow UI
+mlflow ui --backend-store-uri mlruns/ --port 5000
+```
+
+</details>
+
+---
+
+## Navigation
+
+::: {.card-grid}
+<div class="nav-card">
+<a href="main.qmd">Main Results</a>
+<p>Table 1-2: SART vs. 11 baselines</p>
+</div>
+<div class="nav-card">
+<a href="ablation.qmd">Ablation Study</a>
+<p>Table 3: Component contributions</p>
+</div>
+<div class="nav-card">
+<a href="hyperparam.qmd">HP Sensitivity</a>
+<p>Table 4: Grid search over 80 configs</p>
+</div>
+:::

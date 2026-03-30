@@ -1,0 +1,83 @@
+---
+title: "Server Guide"
+---
+
+## Running Experiments (SSH-safe)
+
+Use `nohup` or `tmux` to keep jobs alive after SSH disconnection.
+
+```bash
+# Option 1: nohup (simplest, survives SSH disconnect)
+nohup env EXPERIMENT_SCALE=server python3 run_all.py > run.log 2>&1 &
+
+# Option 2: tmux (recommended — reconnect to see live output)
+tmux new -s experiment
+EXPERIMENT_SCALE=server python3 run_all.py
+# Ctrl+B, D to detach; tmux attach -t experiment to reconnect
+```
+
+**Dataset variants:**
+
+```bash
+# Synthetic only (default)
+nohup env EXPERIMENT_SCALE=server DATASET_TYPE=synthetic python3 run_all.py > run_synthetic.log 2>&1 &
+
+# Real-world only (GSM8K + MATH)
+nohup env EXPERIMENT_SCALE=server DATASET_TYPE=realworld python3 run_all.py > run_realworld.log 2>&1 &
+
+# All 5 datasets
+nohup env EXPERIMENT_SCALE=server DATASET_TYPE=all python3 run_all.py > run_all.log 2>&1 &
+```
+
+---
+
+## Hyperparameter Search
+
+### Option A — Optuna + MLflow (recommended)
+
+`hp_optuna.py` uses Bayesian optimisation (TPE sampler) with every trial recorded in MLflow.
+
+```bash
+# Using the shell wrapper (handles nohup, PID, log, graceful stop)
+bash run_hp_search.sh start --n-trials 100
+bash run_hp_search.sh status
+bash run_hp_search.sh log
+bash run_hp_search.sh ui          # MLflow UI at http://<hostname>:5000
+bash run_hp_search.sh stop
+
+# Manual nohup
+nohup env EXPERIMENT_SCALE=server python3 hp_optuna.py \
+  --output-dir hp_optuna \
+  --n-trials 100 \
+  >> hp_optuna/optuna.log 2>&1 &
+```
+
+**Search space:**
+
+| Parameter | Range | Scale | Role |
+|-----------|-------|-------|------|
+| `lambda_` | 0.1 -- 3.0 | log | Reweighting strength |
+| `gamma` | 0.05 -- 1.0 | linear | Gradient projection |
+| `rho` | 0.05 -- 1.0 | linear | Answer suppression |
+| `tau_A` | 0.05 -- 0.5 | linear | Alignment threshold |
+| `tau_R` | 0.1 -- 0.9 | linear | Concentration threshold |
+
+### Option B — Grid Search (legacy)
+
+```bash
+# Phase 1: (lambda, gamma, rho) — 60 configs
+nohup env EXPERIMENT_SCALE=server python3 hp_search.py --output-dir hp_results > hp_search.log 2>&1 &
+
+# Phase 2: fine-tune (tau_A, tau_R) — 36 configs
+nohup env EXPERIMENT_SCALE=server python3 hp_search.py --phase 2 --output-dir hp_results > hp_search_p2.log 2>&1 &
+```
+
+---
+
+## After Hyperparameter Search
+
+Update `src/config.py` (or `configs/method/sart.yaml`) with the best parameters, then re-run:
+
+```bash
+nohup env EXPERIMENT_SCALE=server python3 run_all.py > run_final.log 2>&1 &
+```

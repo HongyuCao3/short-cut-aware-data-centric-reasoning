@@ -1,0 +1,86 @@
+---
+title: "Method Overview"
+---
+
+## What — Inputs, Outputs, and Modules
+
+- **Input**: Training dataset $\mathcal{D} = \{(x_i, y_i)\}_{i=1}^{N}$ with reasoning problems; validation set $\mathcal{V}$ following the true rule
+- **Output**: Model parameters $\theta$ that minimize training loss while suppressing shortcut-promoting gradient directions
+- **ShortcutScore** *(Component A)*: Detects shortcut samples via gradient alignment and answer-token concentration
+- **Gradient Surgery** *(Component B)*: Projects out harmful gradient components from detected shortcuts
+- **Supporting**: SmallGPT transformer provides the base model; DataModule supplies batches; MLflow records experiments
+
+## Why — Architectural Intuition
+
+- **Why this decomposition**: Detection (what to fix) is separated from correction (how to fix) — each is independently testable
+- **ShortcutScore is prerequisite**: Surgery operates on samples identified by ShortcutScore; without detection, surgery has no target
+- **Joint effect**: Reweighting adjusts *how much* each sample contributes; surgery adjusts *in which direction* each gradient update proceeds. Combined, they achieve super-additive gains (+26.7pp synergy)
+- **Without ShortcutScore**: Gradient surgery alone achieves only +21.1pp robustness (no targeting)
+- **Without Surgery**: Reweighting alone achieves only +20.7pp robustness (harmful directions persist)
+
+```{dot}
+//| label: fig-method-overview
+//| fig-cap: "SART pipeline: detection via ShortcutScore feeds correction via gradient surgery"
+//| fig-width: 7
+//| fig-height: 4.0
+digraph G {
+  bgcolor="transparent"
+  rankdir=TB
+  graph [ranksep=0.55, nodesep=0.48]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=1.6, height=0.42]
+  edge [color="#6c757d", penwidth=1.4]
+
+  subgraph row1 {
+    rank=same
+    DM  [label="DataModule\n(3 synthetic)", fillcolor="#375a7f"]
+    Cfg [label="Hydra Config\n(scale/method)", fillcolor="#375a7f"]
+  }
+  subgraph row2 {
+    rank=same
+    gV  [label="Validation\nGradient g_V"]
+    gs  [label="Per-Sample\nGradients g_s"]
+  }
+  subgraph row3 {
+    rank=same
+    SS [label="ShortcutScore\nS(s) = aB + bC"]
+    GS [label="Gradient Surgery\nprojection + suppression"]
+  }
+  subgraph row4 {
+    rank=same
+    Tr  [label="Trainer\n(3-phase)", fillcolor="#1a4a3a", color="#00bc8c"]
+    MLf [label="MLflow\nTracking", fillcolor="#1a4a3a", color="#00bc8c"]
+  }
+
+  DM  -> gV  DM  -> gs
+  Cfg -> SS  Cfg -> GS
+  gV  -> SS
+  gs  -> SS
+  SS  -> GS [label=" flags\n shortcuts", fontcolor="#adb5bd", fontsize=9]
+  GS  -> Tr
+  Tr  -> MLf
+}
+```
+
+<details>
+<summary><strong>How — Training Pipeline (3 Phases)</strong></summary>
+
+1. **Phase 1 — Warmup**: Standard fine-tuning for a few epochs to establish baseline gradients
+2. **Phase 2 — Scoring**: Compute validation gradient $g_V$; compute per-sample ShortcutScore $S(s)$ and weights $w(s) = \exp(-\lambda S(s))$
+3. **Phase 3 — Weighted Retraining**: Train with per-sample weights and apply batch-level gradient surgery at each step
+
+- Validation gradients $g_V$ are refreshed every $k=5$ epochs
+- In server mode, Phase 2 uses random projection sketches for VRAM efficiency (~36,000x reduction)
+
+</details>
+
+<details>
+<summary><strong>How — Inference Path</strong></summary>
+
+- Load trained checkpoint
+- Autoregressive generation: `model.generate(prefix, max_new_tokens=10, greedy=True)`
+- Extract answer tokens after SEP, compare with ground truth
+- Optional: Self-Consistency decoding (sample 5 paths, majority vote)
+
+</details>
