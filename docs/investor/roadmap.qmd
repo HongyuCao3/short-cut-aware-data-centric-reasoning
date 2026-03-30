@@ -1,0 +1,90 @@
+---
+title: "Roadmap & Defensibility"
+subtitle: "Where we are, what's defensible, what's risky"
+---
+
+## Validation Path
+
+```{dot}
+//| label: fig-roadmap
+//| fig-cap: "Current stage: research validated, moving toward integration and pilots"
+//| fig-width: 7.5
+//| fig-height: 3.5
+digraph G {
+  bgcolor="transparent"
+  rankdir=LR
+  graph [ranksep=0.5, nodesep=0.4]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
+        shape=box, width=1.5, height=0.55, margin="0.12,0.08"]
+  edge [color="#6c757d", penwidth=1.4, style=bold]
+
+  A [label="Algorithm\nDesign", fillcolor="#1a4a3a", color="#00bc8c"]
+  B [label="Benchmark\nValidation\n(3 synthetic)", fillcolor="#1a4a3a", color="#00bc8c"]
+  C [label="Real-World\nDatasets\n(GSM8K, MATH)", fillcolor="#375a7f", color="#f0ad4e"]
+  D [label="Framework\nIntegration\n(PL + Hydra)", fillcolor="#375a7f", color="#f0ad4e"]
+  E [label="External\nBenchmarks\n(HELM, BIG-Bench)", fillcolor="#2c3035", color="#495057"]
+  F [label="Enterprise\nPilot", fillcolor="#2c3035", color="#495057"]
+  G [label="NeurIPS\n2026", fillcolor="#375a7f", color="#f0ad4e"]
+
+  A -> B -> C -> E -> F
+  B -> D
+  B -> G
+
+  { rank=same; C; D; G }
+}
+```
+
+| Stage | Status |
+|-------|--------|
+| Core algorithm design | **Done** |
+| Controlled benchmark validation (3 synthetic datasets) | **Done** — reproducible |
+| Real-world dataset extension (GSM8K, MATH) | **In progress** |
+| Framework integration (PyTorch Lightning, Hydra) | **In progress** |
+| External benchmarks (HELM, BIG-Bench) | Not started |
+| Enterprise pilot | Not started |
+| Academic publication (NeurIPS 2026) | Submitted — review pending |
+
+---
+
+## Defensibility
+
+**What is defensible now:**
+
+- **Algorithmic novelty** — gradient-level shortcut detection is a new direction; ShortcutScore + gradient surgery are original contributions
+- **Benchmark depth** — 13 methods x 5 datasets x full ablation; hardest comparison set in this subfield
+- **Production-grade infra** — one-command reproduction, Optuna search, MLflow tracking, dual-scale profiles; not notebook-grade
+
+**What strengthens the moat over time:**
+
+- Proprietary shortcut taxonomy across domains
+- Integration partnerships with MLOps platforms
+- Enterprise deployment data → feedback loop (more failure modes → better detection)
+
+---
+
+## Engineering Stack = Business Value
+
+| Property | Implementation | Business Value |
+|----------|---------------|---------------|
+| **Reproducibility** | One-command runs, seed control, config-driven | Audit trail for compliance |
+| **Scalability** | Local / server profiles, SLURM support | Laptop to cluster, no rewrite |
+| **Tracking** | MLflow + Optuna Bayesian search | No lost experiments |
+| **Modularity** | 13 methods, common interface | New methods plug in via 1 function |
+| **Documentation** | Quarto site, method docs, guides | Engineer onboarding in days |
+
+---
+
+## Risks
+
+| Risk | Severity | Mitigation |
+|------|----------|-----------|
+| Gradient computation expensive at billion-param scale | **High** | Gradient sketching implemented; further approximations planned |
+| ShortcutScore may not generalize to all shortcut types | Medium | Validated on 5 datasets with different structures |
+| Buyers may prefer simpler approaches | Medium | Position as complementary — finds what simpler methods miss |
+| Foundation model providers solve robustness internally | Medium | Unlikely near-term; active open research problem |
+| Single-author dependency | **High** | Modular codebase, full docs, structured for team contribution |
+
+::: {.callout-warning}
+**Honest assessment:** The core algorithm is publishable and reproducible. A well-resourced team could re-implement it. The moat is in execution speed, benchmark depth, and domain-specific tuning — not secrecy.
+:::

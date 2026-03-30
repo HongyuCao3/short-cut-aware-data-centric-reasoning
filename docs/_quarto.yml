@@ -56,6 +56,18 @@ website:
             href: guides/server_guide.qmd
           - text: "SLURM Guide"
             href: guides/slurm_guide.qmd
+      - section: "Commercialization"
+        contents:
+          - text: "Investor Overview"
+            href: investor_story.qmd
+          - text: "Problem & Urgency"
+            href: investor/problem.qmd
+          - text: "Technology"
+            href: investor/technology.qmd
+          - text: "Market & Product"
+            href: investor/market.qmd
+          - text: "Roadmap & Risks"
+            href: investor/roadmap.qmd
 
 format:
   html:

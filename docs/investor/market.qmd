@@ -1,0 +1,72 @@
+---
+title: "Market & Product Directions"
+subtitle: "Who pays, how it ships, where it starts"
+---
+
+## Who Cares
+
+```{dot}
+//| label: fig-market-segments
+//| fig-cap: "Four buyer segments with distinct entry points"
+//| fig-width: 7.5
+//| fig-height: 3.5
+digraph G {
+  bgcolor="transparent"
+  rankdir=LR
+  graph [ranksep=0.8, nodesep=0.45]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
+        shape=box, width=2.0, height=0.5, margin="0.12,0.08"]
+  edge [color="#6c757d", penwidth=1.4]
+
+  SART [label="SART\nDiagnostic + Correction", fillcolor="#375a7f", shape=ellipse, width=2.2]
+
+  P1 [label="ML Platform Teams\n'models fail in prod'", fillcolor="#1a4a3a", color="#00bc8c"]
+  P2 [label="Compliance / Safety\n'prove robustness\nto auditors'", fillcolor="#1a4a3a", color="#00bc8c"]
+  P3 [label="Fine-Tuning Providers\n'customer models\ndegrade unpredictably'", fillcolor="#1a4a3a", color="#00bc8c"]
+  P4 [label="Vertical AI\n(legal, medical, finance)\n'domain tuning\namplifies errors'", fillcolor="#1a4a3a", color="#00bc8c"]
+
+  SART -> P1
+  SART -> P2
+  SART -> P3
+  SART -> P4
+}
+```
+
+---
+
+## Three Product Directions
+
+### 1. Training-Time Diagnostic API (B2B SaaS)
+
+- **Wedge:** `sart.diagnose(model, train_data, val_data)` → per-sample shortcut report
+- **Entry:** Free diagnostic tier → paid correction (reweighting + surgery)
+- **Expand:** CI/CD integration, per-model monitoring, compliance dashboards
+- **Comp:** Weights & Biases pricing model ($0 → $50/seat → enterprise)
+
+### 2. Robustness-Certified Fine-Tuning (Platform Play)
+
+- **Wedge:** Partner with fine-tuning providers (Together AI, Anyscale, Fireworks)
+- **Value:** "Your fine-tuned model, guaranteed X% robustness on shifted inputs"
+- **Moat:** Proprietary benchmark suite + gradient diagnostics in the tuning loop
+
+### 3. Compliance & Audit Tooling (Regulated Industries)
+
+- **Wedge:** Quantitative robustness metrics → audit-ready reports
+- **Entry:** Financial institutions, healthcare AI companies
+- **Driver:** EU AI Act, FDA AI/ML guidance require demonstrable robustness
+
+::: {.callout-note}
+**Speculative.** These directions are informed by market observation but have not been validated with customer discovery. The technology is at the research stage with reproducible experimental results.
+:::
+
+---
+
+## Market Pain Points
+
+| Pain Point | Current Workaround | Why It Fails |
+|-----------|-------------------|-------------|
+| Models fail on edge cases post-deployment | Manual red-teaming | Expensive, incomplete, doesn't scale |
+| No robustness metrics for auditors | Ad hoc evaluation suites | Not standardized, not training-integrated |
+| Fine-tuning degrades model quality | Conservative hyperparameters | Sacrifices adaptation quality |
+| Domain data contains unknown shortcuts | Data cleaning / filtering | Requires knowing shortcuts in advance |

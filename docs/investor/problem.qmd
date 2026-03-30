@@ -1,0 +1,84 @@
+---
+title: "Problem & Urgency"
+subtitle: "Why shortcut learning is the #1 blocker for LLM deployment"
+---
+
+## The Core Problem
+
+- LLMs **memorize surface patterns** (keyword co-occurrence, number magnitude, answer position) instead of learning genuine reasoning
+- Models score high on benchmarks — then **fail silently** on real-world inputs that differ even slightly from training data
+- Enterprise evaluations routinely show **20–40pp accuracy drops** between clean benchmarks and distribution-shifted test sets
+- **This is not a minor quality issue — it is a deployment blocker**
+
+```{dot}
+//| label: fig-shortcut-problem
+//| fig-cap: "Shortcut learning: high benchmark scores mask production failures"
+//| fig-width: 7.5
+//| fig-height: 3
+digraph G {
+  bgcolor="transparent"
+  rankdir=LR
+  graph [ranksep=0.7, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=1.8, height=0.5, margin="0.15,0.08"]
+  edge [color="#6c757d", penwidth=1.4]
+
+  LLM [label="Fine-Tuned\nLLM", fillcolor="#375a7f"]
+
+  subgraph cluster_train {
+    label="Training"
+    labeljust=l
+    fontcolor="#adb5bd"
+    fontname="Arial"
+    fontsize=10
+    color="#495057"
+    style=dashed
+
+    Data [label="Domain Data\n(shortcuts embedded)"]
+    Short [label="Learns Shortcuts\n'revenue >= 5 => good'", fillcolor="#4a2040", color="#e74c3c"]
+  }
+
+  subgraph cluster_eval {
+    label="Evaluation"
+    labeljust=l
+    fontcolor="#adb5bd"
+    fontname="Arial"
+    fontsize=10
+    color="#495057"
+    style=dashed
+
+    Bench [label="Benchmark\n95% accuracy", fillcolor="#1a4a3a", color="#00bc8c"]
+    Prod  [label="Production\n57% accuracy", fillcolor="#4a2040", color="#e74c3c"]
+  }
+
+  LLM -> Data
+  Data -> Short
+  Short -> Bench [label="same\ndistribution", fontcolor="#adb5bd", fontsize=9]
+  Short -> Prod  [label="shifted\ndistribution", fontcolor="#e74c3c", fontsize=9]
+}
+```
+
+---
+
+## Why Now
+
+- **Regulated domains adopting LLMs** — finance, healthcare, legal now require robustness evidence; silent failure is unacceptable
+- **Fine-tuning is the standard adaptation path** — and it *amplifies* shortcut reliance (smaller domain corpora are more pattern-rich)
+- **No production tooling exists** — current mitigations (data augmentation, manual red-teaming) are expensive, ad hoc, and incomplete
+- **EU AI Act & FDA AI/ML guidance** increasingly mandate demonstrable robustness for high-risk AI systems
+
+---
+
+## Real-World Impact
+
+| Domain | Shortcut Failure Mode | Consequence |
+|--------|----------------------|-------------|
+| **Finance** | Keys on revenue alone, ignores margin + debt | Confident wrong credit decisions |
+| **Medical** | Memorizes symptom-diagnosis co-occurrence | Fails on novel presentations |
+| **Legal** | Pattern-matches jurisdiction keywords | Misapplies precedent under new facts |
+| **Any adversarial setting** | Surface patterns exploited by adversaries | Systematic evasion of model checks |
+
+::: {.callout-important}
+**Trust is the bottleneck, not capability.** Buyers need proof that models reason correctly — not just that they score well.
+:::

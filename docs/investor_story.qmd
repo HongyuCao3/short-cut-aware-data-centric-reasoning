@@ -1,0 +1,111 @@
+---
+title: "SART — Investor Overview"
+subtitle: "Making AI Reasoning Reliable Enough to Deploy"
+---
+
+## One-Liner
+
+> **SART detects and corrects shortcut learning in LLMs at training time — no prior knowledge of shortcut types required, no retraining, plugs into existing pipelines.**
+
+```{dot}
+//| label: fig-investor-overview
+//| fig-cap: "From research breakthrough to deployable product"
+//| fig-width: 7.5
+//| fig-height: 4
+digraph G {
+  bgcolor="transparent"
+  rankdir=TB
+  graph [ranksep=0.6, nodesep=0.55]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=2.2, height=0.5, margin="0.15,0.08"]
+  edge [color="#6c757d", penwidth=1.4]
+
+  Problem [label="LLMs fail silently in production\ndue to shortcut learning", fillcolor="#4a2040", color="#e74c3c", width=4]
+
+  subgraph cluster_solution {
+    label="  SART Framework"
+    labeljust=l
+    fontcolor="#4a9eda"
+    fontname="Arial Bold"
+    fontsize=11
+    color="#4a9eda"
+    style=dashed
+
+    Detect [label="Detect\nShortcutScore per sample"]
+    Fix1 [label="Correct\nSample Reweighting", fillcolor="#1a4a3a", color="#00bc8c"]
+    Fix2 [label="Correct\nGradient Surgery", fillcolor="#1a4a3a", color="#00bc8c"]
+  }
+
+  Result [label="+16pp accuracy  |  +38pp robustness\nover standard fine-tuning", fillcolor="#1a4a3a", color="#00bc8c", width=4]
+
+  Market [label="ML Platforms  |  Compliance  |  Vertical AI\nFine-Tuning Providers", fillcolor="#375a7f", width=4]
+
+  Problem -> Detect
+  Detect -> Fix1
+  Detect -> Fix2
+  Fix1 -> Result
+  Fix2 -> Result
+  Result -> Market
+}
+```
+
+---
+
+## At a Glance
+
+::: {.metric-row}
+<div class="metric-badge">
+<div class="value">+38pp</div>
+<div class="label">Robustness</div>
+</div>
+<div class="metric-badge">
+<div class="value">13</div>
+<div class="label">Methods Compared</div>
+</div>
+<div class="metric-badge">
+<div class="value">5</div>
+<div class="label">Datasets</div>
+</div>
+<div class="metric-badge">
+<div class="value">1-cmd</div>
+<div class="label">Reproduction</div>
+</div>
+:::
+
+---
+
+## Navigate
+
+::: {.card-grid}
+<div class="nav-card">
+<a href="investor/problem.qmd">Problem & Urgency</a>
+<p>Why shortcut learning blocks LLM deployment</p>
+</div>
+<div class="nav-card">
+<a href="investor/technology.qmd">Technology</a>
+<p>What SART does and why it's different</p>
+</div>
+<div class="nav-card">
+<a href="investor/market.qmd">Market & Product</a>
+<p>Who pays, how it ships, where it starts</p>
+</div>
+<div class="nav-card">
+<a href="investor/roadmap.qmd">Roadmap & Risks</a>
+<p>Validation path, defensibility, open questions</p>
+</div>
+:::
+
+---
+
+## Summary Table
+
+| Dimension | Assessment |
+|-----------|-----------|
+| **Problem** | LLMs fail silently in production due to shortcut learning |
+| **Solution** | Gradient-level detection + correction, single pass, no prior shortcut knowledge |
+| **Differentiation** | Per-sample granularity; composable; no "train twice" |
+| **Stage** | Research validated; NeurIPS 2026 submitted; real-world extension in progress |
+| **Market entry** | Diagnostic API for ML teams; compliance tooling for regulated industries |
+| **Key risk** | Compute cost at full scale; single-author dependency |
+| **Key strength** | Production-grade codebase; 13-method benchmark; original algorithm |

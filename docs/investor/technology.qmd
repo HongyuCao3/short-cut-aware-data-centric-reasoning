@@ -1,0 +1,103 @@
+---
+title: "Technology & Differentiation"
+subtitle: "Gradient-level detection and correction in a single training pass"
+---
+
+## What SART Does
+
+- **Detects** which training samples teach shortcuts — using gradient signatures, not manual labels
+- **Corrects** training in real-time — down-weights bad samples and projects out harmful gradient directions
+- **No prior knowledge of shortcut types required** — the gradient signal reveals them automatically
+- **Plugs into existing pipelines** — works as a training callback, not a pipeline replacement
+
+```{dot}
+//| label: fig-sart-components
+//| fig-cap: "Three composable components, each independently useful"
+//| fig-width: 7.5
+//| fig-height: 4
+digraph G {
+  bgcolor="transparent"
+  rankdir=TB
+  graph [ranksep=0.55, nodesep=0.6]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=2.0, height=0.5, margin="0.15,0.08"]
+  edge [color="#6c757d", penwidth=1.4]
+
+  Input [label="Training Batch + Validation Set", fillcolor="#375a7f", width=3.5]
+
+  subgraph cluster_detect {
+    label="  1. Detect"
+    labeljust=l
+    fontcolor="#4a9eda"
+    fontname="Arial Bold"
+    fontsize=11
+    color="#4a9eda"
+    style=dashed
+    SS [label="ShortcutScore\nper-sample shortcut metric\nvia gradient alignment", fillcolor="#2c3035"]
+  }
+
+  subgraph cluster_correct {
+    label="  2. Correct"
+    labeljust=l
+    fontcolor="#00bc8c"
+    fontname="Arial Bold"
+    fontsize=11
+    color="#00bc8c"
+    style=dashed
+
+    RW [label="Sample Reweighting\ndown-weight shortcut samples\nw(s) = exp(-lambda * S(s))", fillcolor="#1a4a3a", color="#00bc8c"]
+    GS [label="Gradient Surgery\nproject out shortcut directions\nfrom gradient updates", fillcolor="#1a4a3a", color="#00bc8c"]
+  }
+
+  Output [label="Robust Model\n+38pp robustness over baseline", fillcolor="#4a2040", color="#e74c3c", width=3.5]
+
+  Input -> SS
+  SS -> RW
+  SS -> GS
+  RW -> Output
+  GS -> Output
+}
+```
+
+---
+
+## Key Results
+
+::: {.metric-row}
+<div class="metric-badge">
+<div class="value">+16.2pp</div>
+<div class="label">Accuracy gain</div>
+</div>
+<div class="metric-badge">
+<div class="value">+38.0pp</div>
+<div class="label">Robustness gain</div>
+</div>
+<div class="metric-badge">
+<div class="value">13</div>
+<div class="label">Methods compared</div>
+</div>
+<div class="metric-badge">
+<div class="value">5</div>
+<div class="label">Datasets</div>
+</div>
+:::
+
+- Benchmarked against **12 baseline methods** (DRO, IRM, JTT, Focal Loss, etc.)
+- **Beats best baseline** on hardest benchmark (Financial-Analysis: +4.2pp robustness over Group DRO)
+- **Super-additive synergy**: reweighting + surgery together yield +26.7pp more than the sum of each alone
+
+---
+
+## Why Gradient-Level Is Different
+
+| Existing Approach | Limitation | SART Advantage |
+|-------------------|-----------|----------------|
+| **Data augmentation / filtering** | Must know shortcuts in advance | Gradient signatures reveal shortcuts automatically |
+| **Group DRO / Focal Loss** | Group-level, not per-sample | Per-sample granularity |
+| **JTT (train twice)** | Requires two full training passes | Single-pass detection + correction |
+| **IRM / invariant learning** | Assumes environment labels exist | No environment labels needed |
+
+::: {.callout-tip}
+**One-line pitch:** SART is a blood test for training data — it finds which samples are teaching your model the wrong thing, then fixes the training in real-time.
+:::
