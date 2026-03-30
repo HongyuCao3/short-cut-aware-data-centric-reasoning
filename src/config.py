@@ -121,6 +121,10 @@ class Config:
     # ================================================================
     # Real-world dataset config (GSM8K / MATH)
     # ================================================================
+    # Whether to use pretrained GPT-2 (set via USE_PRETRAINED=1 env var)
+    use_pretrained = os.environ.get('USE_PRETRAINED', '0') == '1'
+    pretrained_model_name = os.environ.get('PRETRAINED_MODEL', 'gpt2')
+
     class NL:
         """Config for real-world NL reasoning datasets."""
         vocab_size = 50257      # GPT-2 tokenizer
@@ -131,15 +135,18 @@ class Config:
         d_ff = 3072
         dropout = 0.0
 
-        batch_size = 32
-        lr = 5e-4
-        epochs = 20
+        batch_size = 16 if os.environ.get('USE_PRETRAINED', '0') == '1' else 32
+        lr = 2e-5 if os.environ.get('USE_PRETRAINED', '0') == '1' else 5e-4
+        epochs = 10 if os.environ.get('USE_PRETRAINED', '0') == '1' else 20
         weight_decay = 1e-4
 
         shortcut_ratio = 0.70
 
-        score_max_samples = 1000
-        score_batch_size = 4
+        # For pretrained: use single-sample gradient (bs=1) since full grads
+        # fit in memory (~500MB for 124M params). Sketch approach (bs>1) is
+        # slower due to 2*k forward passes with random perturbations.
+        score_max_samples = 500 if os.environ.get('USE_PRETRAINED', '0') == '1' else 1000
+        score_batch_size = 1 if os.environ.get('USE_PRETRAINED', '0') == '1' else 4
 
         df_warmup_epochs = 3
         df_confidence_threshold = 0.90

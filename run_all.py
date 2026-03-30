@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from src.config import Config as C, PROFILE, DATASET_TYPE
 from src.data import (generate_math_dataset, generate_financial_dataset,
                       generate_causal_dataset, get_dataloader)
-from src.model import create_model, create_model_nl, count_parameters
+from src.model import create_model, create_model_nl, create_model_pretrained, count_parameters
 from src.trainer import (train_standard, train_data_filtering, train_our_method,
                          train_jtt, train_focal_loss, train_group_dro,
                          train_irm, train_vrex, train_fishr,
@@ -335,6 +335,11 @@ def run_realworld_experiments(all_results, collected_data_all, dataset_names):
     tokenizer = AutoTokenizer.from_pretrained('gpt2')
     tokenizer.pad_token = tokenizer.eos_token
 
+    def _create_nl_model(device=C.device):
+        if C.use_pretrained:
+            return create_model_pretrained(device, C.pretrained_model_name)
+        return create_model_nl(device)
+
     # NL training config
     nl_cfg = {
         'batch_size': C.NL.batch_size,
@@ -361,10 +366,13 @@ def run_realworld_experiments(all_results, collected_data_all, dataset_names):
     }
 
     # Check NL model size
-    tmp_model = create_model_nl('cpu')
+    tmp_model = _create_nl_model('cpu')
     print(f'NL model parameters: {count_parameters(tmp_model):,}')
-    print(f'NL config: d={C.NL.d_model}, layers={C.NL.num_layers}, '
-          f'heads={C.NL.nhead}, ff={C.NL.d_ff}')
+    if C.use_pretrained:
+        print(f'NL model: pretrained {C.pretrained_model_name}')
+    else:
+        print(f'NL config: d={C.NL.d_model}, layers={C.NL.num_layers}, '
+              f'heads={C.NL.nhead}, ff={C.NL.d_ff}')
     print(f'NL training: bs={C.NL.batch_size}, lr={C.NL.lr}, epochs={C.NL.epochs}')
     del tmp_model
 
@@ -391,7 +399,7 @@ def run_realworld_experiments(all_results, collected_data_all, dataset_names):
         # (a) Standard Fine-Tuning
         print('\n[1/13] Training: Standard Fine-Tuning...')
         set_seed()
-        model_ft = create_model_nl()
+        model_ft = _create_nl_model()
         t0 = time.time()
         train_standard(model_ft, ds, cfg=nl_cfg)
         print(f'  Training time: {time.time()-t0:.1f}s')
@@ -413,7 +421,7 @@ def run_realworld_experiments(all_results, collected_data_all, dataset_names):
         # (c) Data Filtering
         print('\n[3/13] Training: Data Filtering...')
         set_seed()
-        model_df = create_model_nl()
+        model_df = _create_nl_model()
         t0 = time.time()
         train_data_filtering(model_df, ds, cfg=nl_cfg)
         print(f'  Training time: {time.time()-t0:.1f}s')
@@ -428,7 +436,7 @@ def run_realworld_experiments(all_results, collected_data_all, dataset_names):
         # (d) JTT
         print('\n[4/13] Training: JTT (Just Train Twice)...')
         set_seed()
-        model_jtt = create_model_nl()
+        model_jtt = _create_nl_model()
         t0 = time.time()
         train_jtt(model_jtt, ds, cfg=nl_cfg)
         print(f'  Training time: {time.time()-t0:.1f}s')
@@ -442,7 +450,7 @@ def run_realworld_experiments(all_results, collected_data_all, dataset_names):
         # (e) Focal Loss
         print('\n[5/13] Training: Focal Loss...')
         set_seed()
-        model_fl = create_model_nl()
+        model_fl = _create_nl_model()
         t0 = time.time()
         train_focal_loss(model_fl, ds, cfg=nl_cfg)
         print(f'  Training time: {time.time()-t0:.1f}s')
@@ -456,7 +464,7 @@ def run_realworld_experiments(all_results, collected_data_all, dataset_names):
         # (f) Group DRO
         print('\n[6/13] Training: Group DRO...')
         set_seed()
-        model_gdro = create_model_nl()
+        model_gdro = _create_nl_model()
         t0 = time.time()
         train_group_dro(model_gdro, ds, cfg=nl_cfg)
         print(f'  Training time: {time.time()-t0:.1f}s')
@@ -470,7 +478,7 @@ def run_realworld_experiments(all_results, collected_data_all, dataset_names):
         # (g) IRM
         print('\n[7/13] Training: IRM...')
         set_seed()
-        model_irm = create_model_nl()
+        model_irm = _create_nl_model()
         t0 = time.time()
         train_irm(model_irm, ds, cfg=nl_cfg)
         print(f'  Training time: {time.time()-t0:.1f}s')
@@ -484,7 +492,7 @@ def run_realworld_experiments(all_results, collected_data_all, dataset_names):
         # (h) V-REx
         print('\n[8/13] Training: V-REx...')
         set_seed()
-        model_vrex = create_model_nl()
+        model_vrex = _create_nl_model()
         t0 = time.time()
         train_vrex(model_vrex, ds, cfg=nl_cfg)
         print(f'  Training time: {time.time()-t0:.1f}s')
@@ -498,7 +506,7 @@ def run_realworld_experiments(all_results, collected_data_all, dataset_names):
         # (i) Fishr
         print('\n[9/13] Training: Fishr...')
         set_seed()
-        model_fishr = create_model_nl()
+        model_fishr = _create_nl_model()
         t0 = time.time()
         train_fishr(model_fishr, ds, cfg=nl_cfg)
         print(f'  Training time: {time.time()-t0:.1f}s')
@@ -512,7 +520,7 @@ def run_realworld_experiments(all_results, collected_data_all, dataset_names):
         # (j) LfF
         print('\n[10/13] Training: LfF...')
         set_seed()
-        model_lff = create_model_nl()
+        model_lff = _create_nl_model()
         t0 = time.time()
         train_lff(model_lff, ds, cfg=nl_cfg)
         print(f'  Training time: {time.time()-t0:.1f}s')
@@ -526,7 +534,7 @@ def run_realworld_experiments(all_results, collected_data_all, dataset_names):
         # (k) Influence Filtering
         print('\n[11/13] Training: Influence Filtering...')
         set_seed()
-        model_inf = create_model_nl()
+        model_inf = _create_nl_model()
         t0 = time.time()
         train_influence_filtering(model_inf, ds, cfg=nl_cfg)
         print(f'  Training time: {time.time()-t0:.1f}s')
@@ -540,7 +548,7 @@ def run_realworld_experiments(all_results, collected_data_all, dataset_names):
         # (l) Meta-Reweighting
         print('\n[12/13] Training: Meta-Reweighting...')
         set_seed()
-        model_meta = create_model_nl()
+        model_meta = _create_nl_model()
         t0 = time.time()
         train_meta_reweight(model_meta, ds, cfg=nl_cfg)
         print(f'  Training time: {time.time()-t0:.1f}s')
@@ -554,7 +562,7 @@ def run_realworld_experiments(all_results, collected_data_all, dataset_names):
         # (m) Our Full Method
         print('\n[13/13] Training: Our Method (Reweighting + Gradient Surgery)...')
         set_seed()
-        model_ours = create_model_nl()
+        model_ours = _create_nl_model()
         t0 = time.time()
         model_ours, collected = train_our_method(
             model_ours, ds, use_reweighting=True, use_gradient_surgery=True,
@@ -590,7 +598,7 @@ def run_realworld_experiments(all_results, collected_data_all, dataset_names):
 
         print('\n[1/2] Training: Reweighting Only...')
         set_seed()
-        model_rw = create_model_nl()
+        model_rw = _create_nl_model()
         t0 = time.time()
         train_our_method(model_rw, ds, use_reweighting=True,
                          use_gradient_surgery=False, cfg=nl_cfg)
@@ -606,7 +614,7 @@ def run_realworld_experiments(all_results, collected_data_all, dataset_names):
 
         print('\n[2/2] Training: Gradient Surgery Only...')
         set_seed()
-        model_gs = create_model_nl()
+        model_gs = _create_nl_model()
         t0 = time.time()
         train_our_method(model_gs, ds, use_reweighting=False,
                          use_gradient_surgery=True, cfg=nl_cfg)
@@ -627,7 +635,7 @@ def run_realworld_experiments(all_results, collected_data_all, dataset_names):
     print('\n--- Computing gradient alignment for Standard FT baseline (NL) ---')
     for ds_name, ds in nl_datasets.items():
         set_seed()
-        model_ft_align = create_model_nl()
+        model_ft_align = _create_nl_model()
         train_standard(model_ft_align, ds, verbose=False, cfg=nl_cfg)
         val_loader = get_dataloader(ds['val'], batch_size=C.NL.batch_size, shuffle=False)
         alignment = evaluate_gradient_alignment(model_ft_align, ds['train'], val_loader)
