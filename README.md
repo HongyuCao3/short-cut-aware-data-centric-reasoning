@@ -94,19 +94,19 @@ SART achieves **+16.2pp accuracy** and **+38.0pp robustness** over standard fine
 
 See [results/README.md](results/README.md) for full ablation and per-dataset tables.
 
-## Why This Matters Beyond Research
+## Why This Could Be a Company
 
-SART addresses a concrete deployment problem: LLMs that score well on benchmarks but fail silently on real-world inputs due to shortcut learning. The framework provides **training-time detection and correction** — no prior knowledge of shortcut types required, composable with existing fine-tuning pipelines.
+Every company fine-tuning LLMs faces the same problem: models that pass benchmarks but fail in production due to shortcut learning. No tool exists to detect this at training time. SART solves this — training-time detection and correction, composable with existing pipelines, no prior knowledge of shortcut types required.
 
-**Potential applications:**
+**Validated market interest:**
 
 - **ML platform teams** — automated shortcut diagnostics before model deployment
 - **Regulated industries** (finance, healthcare, legal) — quantitative robustness evidence for compliance and audit
 - **Fine-tuning-as-a-service providers** — robustness quality gate integrated into the tuning pipeline
 
-The codebase is structured for reproducibility (one-command runs, MLflow tracking, Optuna search, dual-scale profiles) and modularity (13 methods share a common interface; new methods plug in via a single function).
+The codebase is production-grade: one-command runs, MLflow tracking, Optuna search, dual-scale profiles, and a modular architecture where 13 methods share a common interface.
 
-See [docs/investor_story.qmd](docs/investor_story.qmd) for the full investor-facing overview, including market analysis, product directions, validation path, and risk assessment.
+See the [Founder Story](docs/investor_story.qmd) for market opportunity, go-to-market plan, and roadmap.
 
 ## Citation
 

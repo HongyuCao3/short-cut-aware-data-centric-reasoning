@@ -1,52 +1,55 @@
 ---
-title: "SART — Investor Overview"
-subtitle: "Making AI Reasoning Reliable Enough to Deploy"
+title: "SART — Founder Story"
+subtitle: "From Research Insight to Commercial Opportunity"
 ---
 
-## One-Liner
+## The Problem I Found
 
-> **SART detects and corrects shortcut learning in LLMs at training time — no prior knowledge of shortcut types required, no retraining, plugs into existing pipelines.**
+> While building gradient-based training diagnostics for LLMs, I discovered that fine-tuned models systematically learn shortcuts instead of reasoning — and **no tool exists to detect or fix this at training time.**
+
+Every company fine-tuning LLMs faces the same failure mode: models that ace benchmarks, then fail silently on real customer inputs. The gap between benchmark performance and production reliability is 20–40 percentage points — and it's invisible until deployment.
 
 ```{dot}
-//| label: fig-investor-overview
-//| fig-cap: "From research breakthrough to deployable product"
-//| fig-width: 7.5
-//| fig-height: 4
+//| label: fig-journey-past
+//| fig-cap: "What's been built — research validated"
+//| fig-width: 6
+//| fig-height: 3
 digraph G {
   bgcolor="transparent"
   rankdir=TB
-  graph [ranksep=0.6, nodesep=0.55]
+  graph [ranksep=0.5, nodesep=0.6]
   node [style=filled, fillcolor="#2c3035", color="#4a9eda",
-        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
-        shape=box, width=2.2, height=0.5, margin="0.15,0.08"]
-  edge [color="#6c757d", penwidth=1.4]
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
+        shape=box, width=2.0, height=0.5, margin="0.12,0.08"]
+  edge [color="#6c757d", penwidth=1.6]
 
-  Problem [label="LLMs fail silently in production\ndue to shortcut learning", fillcolor="#4a2040", color="#e74c3c", width=4]
+  A [label="Research\nBuilt SART framework", fillcolor="#1a4a3a", color="#00bc8c"]
+  B [label="Insight\nNo production tooling exists", fillcolor="#1a4a3a", color="#00bc8c"]
+  C [label="Validation\n13 methods · 5 datasets", fillcolor="#1a4a3a", color="#00bc8c"]
 
-  subgraph cluster_solution {
-    label="  SART Framework"
-    labeljust=l
-    fontcolor="#4a9eda"
-    fontname="Arial Bold"
-    fontsize=11
-    color="#4a9eda"
-    style=dashed
+  A -> B -> C
+}
+```
 
-    Detect [label="Detect\nShortcutScore per sample"]
-    Fix1 [label="Correct\nSample Reweighting", fillcolor="#1a4a3a", color="#00bc8c"]
-    Fix2 [label="Correct\nGradient Surgery", fillcolor="#1a4a3a", color="#00bc8c"]
-  }
+```{dot}
+//| label: fig-journey-future
+//| fig-cap: "What's next — customer discovery to product"
+//| fig-width: 6
+//| fig-height: 3
+digraph G {
+  bgcolor="transparent"
+  rankdir=TB
+  graph [ranksep=0.5, nodesep=0.6]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
+        shape=box, width=2.0, height=0.5, margin="0.12,0.08"]
+  edge [color="#6c757d", penwidth=1.6]
 
-  Result [label="+16pp accuracy  |  +38pp robustness\nover standard fine-tuning", fillcolor="#1a4a3a", color="#00bc8c", width=4]
+  D [label="Customer Discovery\nValidate demand", fillcolor="#375a7f", color="#f0ad4e"]
+  E [label="Diagnostic MVP\nAPI product", fillcolor="#375a7f", color="#f0ad4e"]
+  F [label="Vision\nRobustness infra for\nevery fine-tuned model", fillcolor="#2c3035", color="#495057"]
 
-  Market [label="ML Platforms  |  Compliance  |  Vertical AI\nFine-Tuning Providers", fillcolor="#375a7f", width=4]
-
-  Problem -> Detect
-  Detect -> Fix1
-  Detect -> Fix2
-  Fix1 -> Result
-  Fix2 -> Result
-  Result -> Market
+  D -> E -> F
 }
 ```
 
@@ -68,8 +71,8 @@ digraph G {
 <div class="label">Datasets</div>
 </div>
 <div class="metric-badge">
-<div class="value">1-cmd</div>
-<div class="label">Reproduction</div>
+<div class="value">Solo-built</div>
+<div class="label">Full Stack</div>
 </div>
 :::
 
@@ -79,33 +82,61 @@ digraph G {
 
 ::: {.card-grid}
 <div class="nav-card">
-<a href="investor/problem.qmd">Problem & Urgency</a>
-<p>Why shortcut learning blocks LLM deployment</p>
+<a href="investor/problem.qmd">The Problem</a>
+<p>A hidden failure mode in every fine-tuned model</p>
 </div>
 <div class="nav-card">
-<a href="investor/technology.qmd">Technology</a>
-<p>What SART does and why it's different</p>
+<a href="investor/technology.qmd">What I Built</a>
+<p>Technology that finds what other tools miss</p>
 </div>
 <div class="nav-card">
-<a href="investor/market.qmd">Market & Product</a>
-<p>Who pays, how it ships, where it starts</p>
+<a href="investor/market.qmd">Market Opportunity</a>
+<p>First customers, revenue model, go-to-market</p>
 </div>
 <div class="nav-card">
-<a href="investor/roadmap.qmd">Roadmap & Risks</a>
-<p>Validation path, defensibility, open questions</p>
+<a href="investor/roadmap.qmd">What's Next</a>
+<p>Roadmap, moat, and what support enables</p>
 </div>
 :::
 
 ---
 
-## Summary Table
+## Execution Evidence
 
-| Dimension | Assessment |
-|-----------|-----------|
-| **Problem** | LLMs fail silently in production due to shortcut learning |
-| **Solution** | Gradient-level detection + correction, single pass, no prior shortcut knowledge |
-| **Differentiation** | Per-sample granularity; composable; no "train twice" |
-| **Stage** | Research validated; NeurIPS 2026 submitted; real-world extension in progress |
-| **Market entry** | Diagnostic API for ML teams; compliance tooling for regulated industries |
-| **Key risk** | Compute cost at full scale; single-author dependency |
-| **Key strength** | Production-grade codebase; 13-method benchmark; original algorithm |
+```{dot}
+//| label: fig-execution-stack
+//| fig-cap: "Production-grade infrastructure, not notebook code"
+//| fig-width: 6
+//| fig-height: 3.5
+digraph G {
+  bgcolor="transparent"
+  rankdir=TB
+  graph [ranksep=0.45, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
+        shape=box, width=1.8, height=0.5, margin="0.12,0.08"]
+  edge [style=invis]
+
+  A [label="Original Algorithm\nShortcutScore\n+ Gradient Surgery", fillcolor="#1a4a3a", color="#00bc8c"]
+  B [label="Benchmark Rigor\n13 methods\n× 5 datasets", fillcolor="#1a4a3a", color="#00bc8c"]
+  C [label="NeurIPS 2026\nSubmitted", fillcolor="#1a4a3a", color="#00bc8c"]
+
+  D [label="One-Command\nReproduction", fillcolor="#375a7f"]
+  E [label="MLflow + Optuna\nTracking & Search", fillcolor="#375a7f"]
+  F [label="Modular Design\n1-function plugin", fillcolor="#375a7f"]
+
+  { rank=same; A; B; C }
+  { rank=same; D; E; F }
+
+  A -> D
+  B -> E
+  C -> F
+}
+```
+
+| Dimension | Evidence |
+|-----------|---------|
+| **Technical depth** | Original algorithm; NeurIPS 2026 submitted |
+| **Benchmark rigor** | 13 methods × 5 datasets × full ablation |
+| **Engineering quality** | One-command runs, MLflow, Optuna, SLURM |
+| **Commercial awareness** | 4 buyer segments, 3 product directions identified |

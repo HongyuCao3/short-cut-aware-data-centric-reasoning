@@ -1,61 +1,57 @@
 ---
-title: "Problem & Urgency"
-subtitle: "Why shortcut learning is the #1 blocker for LLM deployment"
+title: "The Problem"
+subtitle: "A hidden failure mode in every fine-tuned model"
 ---
 
 ## The Core Problem
 
-- LLMs **memorize surface patterns** (keyword co-occurrence, number magnitude, answer position) instead of learning genuine reasoning
-- Models score high on benchmarks — then **fail silently** on real-world inputs that differ even slightly from training data
-- Enterprise evaluations routinely show **20–40pp accuracy drops** between clean benchmarks and distribution-shifted test sets
-- **This is not a minor quality issue — it is a deployment blocker**
+- Companies spend significant resources fine-tuning LLMs for domain tasks — and **have no way to know** if the model learned real reasoning or just memorized surface patterns
+- The result: models that ace internal benchmarks, then **fail silently** on real customer inputs — 20–40pp accuracy drops are routine
+- This is not a research curiosity — it is a **deployment blocker** in any domain where errors have consequences
+- **No production tooling exists** to detect or fix this during training
 
 ```{dot}
-//| label: fig-shortcut-problem
-//| fig-cap: "Shortcut learning: high benchmark scores mask production failures"
-//| fig-width: 7.5
-//| fig-height: 3
+//| label: fig-shortcut-training
+//| fig-cap: "Training: models memorize patterns hidden in data"
+//| fig-width: 5.5
+//| fig-height: 2.5
 digraph G {
   bgcolor="transparent"
   rankdir=LR
-  graph [ranksep=0.7, nodesep=0.5]
+  graph [ranksep=0.6, nodesep=0.5]
   node [style=filled, fillcolor="#2c3035", color="#4a9eda",
-        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
-        shape=box, width=1.8, height=0.5, margin="0.15,0.08"]
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
+        shape=box, width=2.0, height=0.5, margin="0.12,0.08"]
   edge [color="#6c757d", penwidth=1.4]
 
   LLM [label="Fine-Tuned\nLLM", fillcolor="#375a7f"]
+  Data [label="Training Data\n(hidden patterns)"]
+  Short [label="Memorizes patterns\nnot reasoning", fillcolor="#4a2040", color="#e74c3c"]
 
-  subgraph cluster_train {
-    label="Training"
-    labeljust=l
-    fontcolor="#adb5bd"
-    fontname="Arial"
-    fontsize=10
-    color="#495057"
-    style=dashed
+  LLM -> Data -> Short
+}
+```
 
-    Data [label="Domain Data\n(shortcuts embedded)"]
-    Short [label="Learns Shortcuts\n'revenue >= 5 => good'", fillcolor="#4a2040", color="#e74c3c"]
-  }
+```{dot}
+//| label: fig-shortcut-eval
+//| fig-cap: "Result: benchmark pass, production fail"
+//| fig-width: 5.5
+//| fig-height: 2.5
+digraph G {
+  bgcolor="transparent"
+  rankdir=LR
+  graph [ranksep=0.6, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
+        shape=box, width=2.0, height=0.5, margin="0.12,0.08"]
+  edge [color="#6c757d", penwidth=1.4]
 
-  subgraph cluster_eval {
-    label="Evaluation"
-    labeljust=l
-    fontcolor="#adb5bd"
-    fontname="Arial"
-    fontsize=10
-    color="#495057"
-    style=dashed
+  Short [label="Shortcut Model\n(looks correct)", fillcolor="#4a2040", color="#e74c3c"]
+  Bench [label="Internal Test\n95% pass rate", fillcolor="#1a4a3a", color="#00bc8c"]
+  Prod  [label="Real Customers\n57% pass rate", fillcolor="#4a2040", color="#e74c3c"]
 
-    Bench [label="Benchmark\n95% accuracy", fillcolor="#1a4a3a", color="#00bc8c"]
-    Prod  [label="Production\n57% accuracy", fillcolor="#4a2040", color="#e74c3c"]
-  }
-
-  LLM -> Data
-  Data -> Short
-  Short -> Bench [label="same\ndistribution", fontcolor="#adb5bd", fontsize=9]
-  Short -> Prod  [label="shifted\ndistribution", fontcolor="#e74c3c", fontsize=9]
+  Short -> Bench [label="  same dist.", fontcolor="#adb5bd", fontsize=9]
+  Short -> Prod  [label="  shifted dist.", fontcolor="#e74c3c", fontsize=9]
 }
 ```
 
@@ -63,21 +59,77 @@ digraph G {
 
 ## Why Now
 
-- **Regulated domains adopting LLMs** — finance, healthcare, legal now require robustness evidence; silent failure is unacceptable
-- **Fine-tuning is the standard adaptation path** — and it *amplifies* shortcut reliance (smaller domain corpora are more pattern-rich)
-- **No production tooling exists** — current mitigations (data augmentation, manual red-teaming) are expensive, ad hoc, and incomplete
-- **EU AI Act & FDA AI/ML guidance** increasingly mandate demonstrable robustness for high-risk AI systems
+```{dot}
+//| label: fig-why-now
+//| fig-cap: "Four converging forces create urgency"
+//| fig-width: 6
+//| fig-height: 3.5
+digraph G {
+  bgcolor="transparent"
+  rankdir=TB
+  graph [ranksep=0.4, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
+        shape=box, width=2.0, height=0.5, margin="0.12,0.08"]
+  edge [style=invis]
+
+  A [label="Regulated Domains\nAdopting LLMs", fillcolor="#375a7f", color="#f0ad4e"]
+  B [label="Fine-Tuning\nAmplifies Shortcuts", fillcolor="#375a7f", color="#f0ad4e"]
+
+  C [label="No Production\nTooling Exists", fillcolor="#4a2040", color="#e74c3c"]
+  D [label="EU AI Act / FDA\nMandate Robustness", fillcolor="#375a7f", color="#f0ad4e"]
+
+  { rank=same; A; B }
+  { rank=same; C; D }
+
+  A -> C
+  B -> D
+}
+```
+
+- **Regulated domains adopting LLMs** — finance, healthcare, legal now require robustness evidence
+- **Fine-tuning amplifies shortcuts** — smaller domain corpora are more pattern-rich
+- **No production tooling exists** — current mitigations are expensive, ad hoc, incomplete
+- **Regulatory pressure is real** — EU AI Act and FDA AI/ML guidance mandate demonstrable robustness
 
 ---
 
-## Real-World Impact
+## Where This Hurts Most
 
-| Domain | Shortcut Failure Mode | Consequence |
-|--------|----------------------|-------------|
-| **Finance** | Keys on revenue alone, ignores margin + debt | Confident wrong credit decisions |
-| **Medical** | Memorizes symptom-diagnosis co-occurrence | Fails on novel presentations |
-| **Legal** | Pattern-matches jurisdiction keywords | Misapplies precedent under new facts |
-| **Any adversarial setting** | Surface patterns exploited by adversaries | Systematic evasion of model checks |
+```{dot}
+//| label: fig-domains
+//| fig-cap: "Every regulated domain faces the same failure pattern"
+//| fig-width: 6
+//| fig-height: 3.5
+digraph G {
+  bgcolor="transparent"
+  rankdir=TB
+  graph [ranksep=0.4, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
+        shape=box, width=1.8, height=0.5, margin="0.12,0.08"]
+  edge [style=invis]
+
+  A [label="Finance\nWrong credit decisions", fillcolor="#4a2040", color="#e74c3c"]
+  B [label="Medical\nFails novel cases", fillcolor="#4a2040", color="#e74c3c"]
+
+  C [label="Legal\nMisapplied precedent", fillcolor="#4a2040", color="#e74c3c"]
+  D [label="Adversarial\nSystematic evasion", fillcolor="#4a2040", color="#e74c3c"]
+
+  { rank=same; A; B }
+  { rank=same; C; D }
+
+  A -> C
+  B -> D
+}
+```
+
+| Domain | Shortcut Failure Mode | Business Consequence |
+|--------|----------------------|---------------------|
+| **Finance** | Keys on revenue alone, ignores margin + debt | Wrong credit decisions; regulatory exposure |
+| **Medical** | Memorizes symptom-diagnosis co-occurrence | Fails on novel presentations; patient safety risk |
+| **Legal** | Pattern-matches jurisdiction keywords | Misapplies precedent; liability |
+| **Adversarial** | Surface patterns exploited by adversaries | Systematic evasion of model checks |
 
 ::: {.callout-important}
 **Trust is the bottleneck, not capability.** Buyers need proof that models reason correctly — not just that they score well.

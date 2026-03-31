@@ -1,33 +1,51 @@
 ---
-title: "Market & Product Directions"
-subtitle: "Who pays, how it ships, where it starts"
+title: "Market Opportunity"
+subtitle: "First customers, revenue model, and go-to-market"
 ---
 
-## Who Cares
+## Who Needs This
 
 ```{dot}
-//| label: fig-market-segments
-//| fig-cap: "Four buyer segments with distinct entry points"
-//| fig-width: 7.5
-//| fig-height: 3.5
+//| label: fig-segment-top
+//| fig-cap: "Buyer segment 1 & 2: platform teams and compliance"
+//| fig-width: 6
+//| fig-height: 2.5
 digraph G {
   bgcolor="transparent"
   rankdir=LR
-  graph [ranksep=0.8, nodesep=0.45]
+  graph [ranksep=0.8, nodesep=0.5]
   node [style=filled, fillcolor="#2c3035", color="#4a9eda",
         fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
-        shape=box, width=2.0, height=0.5, margin="0.12,0.08"]
+        shape=box, width=2.2, height=0.55, margin="0.12,0.08"]
   edge [color="#6c757d", penwidth=1.4]
 
-  SART [label="SART\nDiagnostic + Correction", fillcolor="#375a7f", shape=ellipse, width=2.2]
-
+  SART [label="SART", fillcolor="#375a7f", shape=ellipse, width=1.2]
   P1 [label="ML Platform Teams\n'models fail in prod'", fillcolor="#1a4a3a", color="#00bc8c"]
   P2 [label="Compliance / Safety\n'prove robustness\nto auditors'", fillcolor="#1a4a3a", color="#00bc8c"]
-  P3 [label="Fine-Tuning Providers\n'customer models\ndegrade unpredictably'", fillcolor="#1a4a3a", color="#00bc8c"]
-  P4 [label="Vertical AI\n(legal, medical, finance)\n'domain tuning\namplifies errors'", fillcolor="#1a4a3a", color="#00bc8c"]
 
   SART -> P1
   SART -> P2
+}
+```
+
+```{dot}
+//| label: fig-segment-bottom
+//| fig-cap: "Buyer segment 3 & 4: fine-tuning providers and vertical AI"
+//| fig-width: 6
+//| fig-height: 2.5
+digraph G {
+  bgcolor="transparent"
+  rankdir=LR
+  graph [ranksep=0.8, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
+        shape=box, width=2.2, height=0.55, margin="0.12,0.08"]
+  edge [color="#6c757d", penwidth=1.4]
+
+  SART [label="SART", fillcolor="#375a7f", shape=ellipse, width=1.2]
+  P3 [label="Fine-Tuning Providers\n'customer models\ndegrade unpredictably'", fillcolor="#1a4a3a", color="#00bc8c"]
+  P4 [label="Vertical AI\n(legal, medical, finance)\n'domain tuning\namplifies errors'", fillcolor="#1a4a3a", color="#00bc8c"]
+
   SART -> P3
   SART -> P4
 }
@@ -37,36 +55,144 @@ digraph G {
 
 ## Three Product Directions
 
+```{dot}
+//| label: fig-products
+//| fig-cap: "Three paths to market — each builds on the previous"
+//| fig-width: 6
+//| fig-height: 3
+digraph G {
+  bgcolor="transparent"
+  rankdir=TB
+  graph [ranksep=0.45, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
+        shape=box, width=2.0, height=0.5, margin="0.12,0.08"]
+  edge [color="#6c757d", penwidth=1.4]
+
+  A [label="Diagnostic API\nB2B SaaS\nFree → Paid", fillcolor="#1a4a3a", color="#00bc8c"]
+  B [label="Certified Fine-Tuning\nPlatform partnerships\nGuaranteed robustness", fillcolor="#375a7f", color="#f0ad4e"]
+  C [label="Compliance Tooling\nAudit-ready reports\nRegulated industries", fillcolor="#375a7f", color="#f0ad4e"]
+
+  A -> B -> C
+}
+```
+
 ### 1. Training-Time Diagnostic API (B2B SaaS)
 
 - **Wedge:** `sart.diagnose(model, train_data, val_data)` → per-sample shortcut report
 - **Entry:** Free diagnostic tier → paid correction (reweighting + surgery)
-- **Expand:** CI/CD integration, per-model monitoring, compliance dashboards
-- **Comp:** Weights & Biases pricing model ($0 → $50/seat → enterprise)
+- **First customer profile:** ML teams at Series B+ startups who fine-tune and have experienced production failures
 
 ### 2. Robustness-Certified Fine-Tuning (Platform Play)
 
 - **Wedge:** Partner with fine-tuning providers (Together AI, Anyscale, Fireworks)
 - **Value:** "Your fine-tuned model, guaranteed X% robustness on shifted inputs"
-- **Moat:** Proprietary benchmark suite + gradient diagnostics in the tuning loop
 
 ### 3. Compliance & Audit Tooling (Regulated Industries)
 
 - **Wedge:** Quantitative robustness metrics → audit-ready reports
-- **Entry:** Financial institutions, healthcare AI companies
+- **Entry point:** Fintech companies needing SR 11-7 compliance evidence
 - **Driver:** EU AI Act, FDA AI/ML guidance require demonstrable robustness
 
-::: {.callout-note}
-**Speculative.** These directions are informed by market observation but have not been validated with customer discovery. The technology is at the research stage with reproducible experimental results.
-:::
+---
+
+## Go-to-Market: First 90 Days
+
+```{dot}
+//| label: fig-gtm
+//| fig-cap: "90-day plan: discovery → MVP → design partners"
+//| fig-width: 6
+//| fig-height: 2.5
+digraph G {
+  bgcolor="transparent"
+  rankdir=LR
+  graph [ranksep=0.6, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
+        shape=box, width=1.8, height=0.55, margin="0.12,0.08"]
+  edge [color="#6c757d", penwidth=1.4]
+
+  W1 [label="Weeks 1–4\n20 discovery\ninterviews", fillcolor="#1a4a3a", color="#00bc8c"]
+  W2 [label="Weeks 5–8\nDiagnostic\nMVP built", fillcolor="#375a7f", color="#f0ad4e"]
+  W3 [label="Weeks 9–12\n3 design partners\nrunning pilots", fillcolor="#375a7f", color="#f0ad4e"]
+
+  W1 -> W2 -> W3
+}
+```
+
+| Weeks | Action | Outcome |
+|-------|--------|---------|
+| **1–4** | 20 customer discovery interviews with ML platform leads | Validated pain points, willingness to pay |
+| **5–8** | Build diagnostic-only MVP (API wrapper around ShortcutScore) | Working product for design partners |
+| **9–12** | 3 design partners running diagnostics on their pipelines | Real usage data, testimonials, iteration |
+
+---
+
+## Revenue Model Sketch
+
+```{dot}
+//| label: fig-revenue
+//| fig-cap: "Three-tier pricing: free → pro → enterprise"
+//| fig-width: 6
+//| fig-height: 2.5
+digraph G {
+  bgcolor="transparent"
+  rankdir=LR
+  graph [ranksep=0.6, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
+        shape=box, width=1.8, height=0.55, margin="0.12,0.08"]
+  edge [color="#6c757d", penwidth=1.4]
+
+  Free [label="Free Tier\nDiagnostic API\nSmall models", fillcolor="#2c3035", color="#495057"]
+  Pro [label="Pro\nFull diagnostic\n+ correction", fillcolor="#375a7f", color="#f0ad4e"]
+  Ent [label="Enterprise\nAnnual contract\nSLA + support", fillcolor="#1a4a3a", color="#00bc8c"]
+
+  Free -> Pro -> Ent
+}
+```
+
+| Tier | Model | Target |
+|------|-------|--------|
+| **Free** | Diagnostic API, limited model size | Individual ML engineers, small teams |
+| **Pro** | Full diagnostic + correction, usage-based | Growth-stage ML teams |
+| **Enterprise** | Annual contract, SLA, dedicated support | Regulated industries, large platforms |
 
 ---
 
 ## Market Pain Points
 
+```{dot}
+//| label: fig-pain
+//| fig-cap: "Current workarounds all share the same flaw: they don't scale"
+//| fig-width: 6
+//| fig-height: 3.5
+digraph G {
+  bgcolor="transparent"
+  rankdir=TB
+  graph [ranksep=0.4, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
+        shape=box, width=2.0, height=0.5, margin="0.12,0.08"]
+  edge [style=invis]
+
+  A [label="Manual Red-Teaming\nExpensive\n& incomplete", fillcolor="#4a2040", color="#e74c3c"]
+  B [label="Ad Hoc Eval Suites\nNot standardized\nnot training-integrated", fillcolor="#4a2040", color="#e74c3c"]
+
+  C [label="Conservative HPs\nSacrifices\nadaptation quality", fillcolor="#4a2040", color="#e74c3c"]
+  D [label="Data Filtering\nRequires knowing\nshortcuts in advance", fillcolor="#4a2040", color="#e74c3c"]
+
+  { rank=same; A; B }
+  { rank=same; C; D }
+
+  A -> C
+  B -> D
+}
+```
+
 | Pain Point | Current Workaround | Why It Fails |
 |-----------|-------------------|-------------|
-| Models fail on edge cases post-deployment | Manual red-teaming | Expensive, incomplete, doesn't scale |
+| Models fail on edge cases | Manual red-teaming | Expensive, incomplete, doesn't scale |
 | No robustness metrics for auditors | Ad hoc evaluation suites | Not standardized, not training-integrated |
-| Fine-tuning degrades model quality | Conservative hyperparameters | Sacrifices adaptation quality |
-| Domain data contains unknown shortcuts | Data cleaning / filtering | Requires knowing shortcuts in advance |
+| Fine-tuning degrades quality | Conservative hyperparameters | Sacrifices adaptation quality |
+| Unknown shortcuts in data | Data cleaning / filtering | Requires knowing shortcuts in advance |

@@ -1,90 +1,254 @@
 ---
-title: "Roadmap & Defensibility"
-subtitle: "Where we are, what's defensible, what's risky"
+title: "What's Next"
+subtitle: "Execution roadmap, moat, and what support enables"
 ---
 
 ## Validation Path
 
 ```{dot}
-//| label: fig-roadmap
-//| fig-cap: "Current stage: research validated, moving toward integration and pilots"
-//| fig-width: 7.5
-//| fig-height: 3.5
+//| label: fig-roadmap-done
+//| fig-cap: "Completed: algorithm → benchmark → framework"
+//| fig-width: 6
+//| fig-height: 2.5
 digraph G {
   bgcolor="transparent"
   rankdir=LR
-  graph [ranksep=0.5, nodesep=0.4]
-  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+  graph [ranksep=0.6, nodesep=0.5]
+  node [style=filled, fillcolor="#1a4a3a", color="#00bc8c",
         fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
-        shape=box, width=1.5, height=0.55, margin="0.12,0.08"]
+        shape=box, width=1.8, height=0.55, margin="0.12,0.08"]
   edge [color="#6c757d", penwidth=1.4, style=bold]
 
-  A [label="Algorithm\nDesign", fillcolor="#1a4a3a", color="#00bc8c"]
-  B [label="Benchmark\nValidation\n(3 synthetic)", fillcolor="#1a4a3a", color="#00bc8c"]
-  C [label="Real-World\nDatasets\n(GSM8K, MATH)", fillcolor="#375a7f", color="#f0ad4e"]
-  D [label="Framework\nIntegration\n(PL + Hydra)", fillcolor="#375a7f", color="#f0ad4e"]
-  E [label="External\nBenchmarks\n(HELM, BIG-Bench)", fillcolor="#2c3035", color="#495057"]
-  F [label="Enterprise\nPilot", fillcolor="#2c3035", color="#495057"]
-  G [label="NeurIPS\n2026", fillcolor="#375a7f", color="#f0ad4e"]
+  A [label="Algorithm\nDesign"]
+  B [label="Benchmark\nValidation\n(5 datasets)"]
+  C [label="NeurIPS 2026\nSubmitted"]
 
-  A -> B -> C -> E -> F
-  B -> D
-  B -> G
+  A -> B -> C
+}
+```
 
-  { rank=same; C; D; G }
+```{dot}
+//| label: fig-roadmap-next
+//| fig-cap: "Next: customer discovery → MVP → design partners"
+//| fig-width: 6
+//| fig-height: 2.5
+digraph G {
+  bgcolor="transparent"
+  rankdir=LR
+  graph [ranksep=0.6, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
+        shape=box, width=1.8, height=0.55, margin="0.12,0.08"]
+  edge [color="#6c757d", penwidth=1.4, style=bold]
+
+  D [label="Customer\nDiscovery", fillcolor="#375a7f", color="#f0ad4e"]
+  E [label="Diagnostic\nMVP", fillcolor="#375a7f", color="#f0ad4e"]
+  F [label="Design Partners\n& Product Launch", fillcolor="#2c3035", color="#495057"]
+
+  D -> E -> F
 }
 ```
 
 | Stage | Status |
 |-------|--------|
 | Core algorithm design | **Done** |
-| Controlled benchmark validation (3 synthetic datasets) | **Done** — reproducible |
-| Real-world dataset extension (GSM8K, MATH) | **In progress** |
-| Framework integration (PyTorch Lightning, Hydra) | **In progress** |
-| External benchmarks (HELM, BIG-Bench) | Not started |
-| Enterprise pilot | Not started |
+| Benchmark validation (13 methods × 5 datasets) | **Done** — reproducible |
+| Framework integration (PyTorch Lightning, Hydra) | **Done** |
 | Academic publication (NeurIPS 2026) | Submitted — review pending |
+| Customer discovery interviews | **Starting** |
+| Diagnostic MVP (API wrapper) | Planned |
+| Design partner pilots | Planned |
 
 ---
 
-## Defensibility
+## Why Execution Is the Moat
 
-**What is defensible now:**
+```{dot}
+//| label: fig-moat-today
+//| fig-cap: "Built today: three pillars of defensibility"
+//| fig-width: 6
+//| fig-height: 2.5
+digraph G {
+  bgcolor="transparent"
+  rankdir=LR
+  graph [ranksep=0.5, nodesep=0.5]
+  node [style=filled, fillcolor="#1a4a3a", color="#00bc8c",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
+        shape=box, width=1.8, height=0.55, margin="0.12,0.08"]
+  edge [style=invis]
 
-- **Algorithmic novelty** — gradient-level shortcut detection is a new direction; ShortcutScore + gradient surgery are original contributions
-- **Benchmark depth** — 13 methods x 5 datasets x full ablation; hardest comparison set in this subfield
-- **Production-grade infra** — one-command reproduction, Optuna search, MLflow tracking, dual-scale profiles; not notebook-grade
+  A [label="Algorithmic Novelty\nNo competing product\nin this space"]
+  B [label="Benchmark Depth\n13 methods × 5 datasets\nfull ablation"]
+  C [label="Production Infra\nOne-command runs\nnot notebook code"]
 
-**What strengthens the moat over time:**
+  A -> B -> C
+}
+```
 
-- Proprietary shortcut taxonomy across domains
+**Built today:**
+
+- **Algorithmic novelty** — gradient-level shortcut detection is a new direction; no competing product exists
+- **Benchmark depth** — 13 methods × 5 datasets × full ablation; hardest comparison set in this subfield
+- **Production-grade infra** — one-command reproduction, Optuna search, MLflow tracking
+
+```{dot}
+//| label: fig-moat-future
+//| fig-cap: "Compounds over time: data flywheel effect"
+//| fig-width: 6
+//| fig-height: 3
+digraph G {
+  bgcolor="transparent"
+  rankdir=TB
+  graph [ranksep=0.4, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
+        shape=box, width=2.0, height=0.5, margin="0.12,0.08"]
+  edge [color="#6c757d", penwidth=1.4]
+
+  A [label="First-Mover\nNo competitor ships\nthis capability", fillcolor="#375a7f", color="#f0ad4e"]
+  B [label="Deployment Data\nMore failure modes\ndiscovered", fillcolor="#375a7f", color="#f0ad4e"]
+  C [label="Better Detection\nFlywheel effect\nwider moat", fillcolor="#1a4a3a", color="#00bc8c"]
+
+  A -> B -> C
+}
+```
+
+**Compounds over time:**
+
+- First-mover advantage in gradient-based shortcut diagnostics
+- Proprietary shortcut taxonomy across domains (built from deployment data)
 - Integration partnerships with MLOps platforms
-- Enterprise deployment data → feedback loop (more failure modes → better detection)
+- Enterprise deployment data → feedback loop → better detection
 
 ---
 
 ## Engineering Stack = Business Value
 
+```{dot}
+//| label: fig-stack
+//| fig-cap: "Every engineering choice maps to business value"
+//| fig-width: 6
+//| fig-height: 3.5
+digraph G {
+  bgcolor="transparent"
+  rankdir=TB
+  graph [ranksep=0.4, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
+        shape=box, width=1.8, height=0.5, margin="0.12,0.08"]
+  edge [color="#6c757d", penwidth=1.4]
+
+  A1 [label="One-Command Runs\nSeed Control", fillcolor="#375a7f"]
+  A2 [label="→ Audit Trail\nfor Compliance", fillcolor="#1a4a3a", color="#00bc8c"]
+
+  B1 [label="MLflow + Optuna\nBayesian Search", fillcolor="#375a7f"]
+  B2 [label="→ No Lost\nExperiments", fillcolor="#1a4a3a", color="#00bc8c"]
+
+  C1 [label="13 Methods\nCommon Interface", fillcolor="#375a7f"]
+  C2 [label="→ 1-Function\nPlugin System", fillcolor="#1a4a3a", color="#00bc8c"]
+
+  { rank=same; A1; A2 }
+  { rank=same; B1; B2 }
+  { rank=same; C1; C2 }
+
+  A1 -> A2
+  B1 -> B2
+  C1 -> C2
+
+  A1 -> B1 [style=invis]
+  A2 -> B2 [style=invis]
+}
+```
+
 | Property | Implementation | Business Value |
 |----------|---------------|---------------|
-| **Reproducibility** | One-command runs, seed control, config-driven | Audit trail for compliance |
-| **Scalability** | Local / server profiles, SLURM support | Laptop to cluster, no rewrite |
+| **Reproducibility** | One-command runs, seed control | Audit trail for compliance |
+| **Scalability** | Local / server profiles, SLURM | Laptop to cluster, no rewrite |
 | **Tracking** | MLflow + Optuna Bayesian search | No lost experiments |
 | **Modularity** | 13 methods, common interface | New methods plug in via 1 function |
 | **Documentation** | Quarto site, method docs, guides | Engineer onboarding in days |
 
 ---
 
-## Risks
+## Challenges I'm Already Solving
 
-| Risk | Severity | Mitigation |
-|------|----------|-----------|
-| Gradient computation expensive at billion-param scale | **High** | Gradient sketching implemented; further approximations planned |
-| ShortcutScore may not generalize to all shortcut types | Medium | Validated on 5 datasets with different structures |
-| Buyers may prefer simpler approaches | Medium | Position as complementary — finds what simpler methods miss |
-| Foundation model providers solve robustness internally | Medium | Unlikely near-term; active open research problem |
-| Single-author dependency | **High** | Modular codebase, full docs, structured for team contribution |
+```{dot}
+//| label: fig-challenges
+//| fig-cap: "Every challenge has an active mitigation"
+//| fig-width: 6
+//| fig-height: 3.5
+digraph G {
+  bgcolor="transparent"
+  rankdir=TB
+  graph [ranksep=0.4, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
+        shape=box, width=1.8, height=0.5, margin="0.12,0.08"]
+  edge [color="#6c757d", penwidth=1.4]
 
-::: {.callout-warning}
-**Honest assessment:** The core algorithm is publishable and reproducible. A well-resourced team could re-implement it. The moat is in execution speed, benchmark depth, and domain-specific tuning — not secrecy.
-:::
+  A1 [label="Scale Cost\nGradient at\nbillion params", fillcolor="#4a2040", color="#e74c3c"]
+  A2 [label="Gradient Sketching\nImplemented\nbenchmarking 7B", fillcolor="#1a4a3a", color="#00bc8c"]
+
+  B1 [label="Generalization\nNew shortcut types", fillcolor="#375a7f", color="#f0ad4e"]
+  B2 [label="5 Datasets Validated\nExtending to\nreal-world benchmarks", fillcolor="#1a4a3a", color="#00bc8c"]
+
+  C1 [label="Solo Codebase\nTeam dependency", fillcolor="#375a7f", color="#f0ad4e"]
+  C2 [label="Modular Design\nFull docs\none-cmd onboarding", fillcolor="#1a4a3a", color="#00bc8c"]
+
+  { rank=same; A1; A2 }
+  { rank=same; B1; B2 }
+  { rank=same; C1; C2 }
+
+  A1 -> A2
+  B1 -> B2
+  C1 -> C2
+
+  A1 -> B1 [style=invis]
+  A2 -> B2 [style=invis]
+}
+```
+
+| Challenge | Status | Plan |
+|-----------|--------|------|
+| Gradient at billion-param scale | In progress | Gradient sketching implemented; benchmarking at 7B next |
+| ShortcutScore generalization | Validated | 5 structurally different datasets; extending further |
+| Buyers prefer simpler tools | Addressed | Diagnostic alone adds value; complementary positioning |
+| Providers solve internally | Monitored | No provider has shipped this; first-mover window is now |
+| Single-author codebase | Mitigated | Modular architecture, full docs, one-command onboarding |
+
+---
+
+## What I Need
+
+```{dot}
+//| label: fig-needs
+//| fig-cap: "Four types of support to reach product-market fit"
+//| fig-width: 6
+//| fig-height: 3.5
+digraph G {
+  bgcolor="transparent"
+  rankdir=TB
+  graph [ranksep=0.4, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=10,
+        shape=box, width=2.0, height=0.5, margin="0.12,0.08"]
+  edge [style=invis]
+
+  A [label="Co-Founder\nGTM experience in\ndev tools / MLOps", fillcolor="#375a7f", color="#f0ad4e"]
+  B [label="Runway\n3–6 months for\ndiscovery + MVP", fillcolor="#375a7f", color="#f0ad4e"]
+
+  C [label="Introductions\nML platform teams\nfine-tuning LLMs", fillcolor="#375a7f", color="#f0ad4e"]
+  D [label="Mentorship\nCompany formation\npricing · sales", fillcolor="#375a7f", color="#f0ad4e"]
+
+  { rank=same; A; B }
+  { rank=same; C; D }
+
+  A -> C
+  B -> D
+}
+```
+
+- **Co-founder** with go-to-market experience in developer tools or MLOps
+- **3–6 months of runway** to complete customer discovery and build diagnostic MVP
+- **Introductions** to ML platform teams at companies actively fine-tuning LLMs
+- **Mentorship** on company formation, pricing, and early enterprise sales
