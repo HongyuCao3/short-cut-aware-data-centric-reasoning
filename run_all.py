@@ -329,7 +329,9 @@ def run_synthetic_experiments(all_results, collected_data_all, dataset_names):
 def run_realworld_experiments(all_results, collected_data_all, dataset_names):
     """Run experiments on GSM8K and MATH real-world datasets."""
     from transformers import AutoTokenizer
-    from src.data_realworld import generate_gsm8k_dataset, generate_math_dataset_realworld
+    from src.data_realworld import (generate_gsm8k_dataset, generate_math_dataset_realworld,
+                                     generate_aqua_dataset, generate_svamp_dataset,
+                                     generate_strategyqa_dataset)
 
     print('\n--- Initializing NL Environment ---')
     tokenizer = AutoTokenizer.from_pretrained('gpt2')
@@ -380,6 +382,9 @@ def run_realworld_experiments(all_results, collected_data_all, dataset_names):
     nl_datasets = {
         'GSM8K': generate_gsm8k_dataset(tokenizer, seed=42),
         'MATH': generate_math_dataset_realworld(tokenizer, seed=43),
+        'AQuA': generate_aqua_dataset(tokenizer, seed=44),
+        'SVAMP': generate_svamp_dataset(tokenizer, seed=45),
+        'StrategyQA': generate_strategyqa_dataset(tokenizer, seed=46),
     }
     for name, ds in nl_datasets.items():
         dataset_names.append(name)

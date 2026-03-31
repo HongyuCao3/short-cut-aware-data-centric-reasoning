@@ -118,7 +118,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--debug', action='store_true',
                         help='Quick debug: SFT + SART only, 2 epochs')
-    parser.add_argument('--dataset', choices=['gsm8k', 'math', 'both'],
+    parser.add_argument('--dataset', choices=['gsm8k', 'math', 'aqua', 'svamp',
+                                              'strategyqa', 'both', 'all'],
                         default='gsm8k', help='Which dataset(s) to run')
     parser.add_argument('--methods', type=str, default=None,
                         help='Comma-separated methods to run (e.g., sft,sart,data_filtering)')
@@ -146,15 +147,26 @@ def main():
     del tmp
 
     # Load datasets
-    from src.data_realworld import generate_gsm8k_dataset, generate_math_dataset_realworld
+    from src.data_realworld import (generate_gsm8k_dataset, generate_math_dataset_realworld,
+                                     generate_aqua_dataset, generate_svamp_dataset,
+                                     generate_strategyqa_dataset)
 
     nl_datasets = {}
-    if args.dataset in ('gsm8k', 'both'):
+    if args.dataset in ('gsm8k', 'both', 'all'):
         print('\n--- Loading GSM8K ---')
         nl_datasets['GSM8K'] = generate_gsm8k_dataset(tokenizer, seed=42)
-    if args.dataset in ('math', 'both'):
+    if args.dataset in ('math', 'both', 'all'):
         print('\n--- Loading MATH ---')
         nl_datasets['MATH'] = generate_math_dataset_realworld(tokenizer, seed=43)
+    if args.dataset in ('aqua', 'all'):
+        print('\n--- Loading AQuA-RAT ---')
+        nl_datasets['AQuA'] = generate_aqua_dataset(tokenizer, seed=44)
+    if args.dataset in ('svamp', 'all'):
+        print('\n--- Loading SVAMP ---')
+        nl_datasets['SVAMP'] = generate_svamp_dataset(tokenizer, seed=45)
+    if args.dataset in ('strategyqa', 'all'):
+        print('\n--- Loading StrategyQA ---')
+        nl_datasets['StrategyQA'] = generate_strategyqa_dataset(tokenizer, seed=46)
 
     nl_cfg = get_nl_cfg()
 

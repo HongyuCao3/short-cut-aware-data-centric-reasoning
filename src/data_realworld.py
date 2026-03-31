@@ -1,6 +1,6 @@
 """Real-world dataset loading with controlled shortcut injection.
 
-Supports GSM8K (grade school math) and MATH (competition math).
+Supports GSM8K, MATH, AQuA-RAT, SVAMP, and StrategyQA.
 
 Shortcut injection follows the same principle as synthetic datasets:
   - Training: 70% shortcut labels, 30% true labels
@@ -440,6 +440,417 @@ def generate_math_dataset_realworld(tokenizer, seed=42):
     pad_id = tokenizer.eos_token_id
     return {
         'name': 'MATH',
+        'train': ReasoningDataset(train_samples, pad_id=pad_id),
+        'val': ReasoningDataset(val_samples, pad_id=pad_id),
+        'test_clean': ReasoningDataset(test_clean_samples, pad_id=pad_id),
+        'test_perturbed': ReasoningDataset(test_perturbed_samples, pad_id=pad_id),
+    }
+
+
+# ============================================================================
+# AQuA-RAT dataset
+# ============================================================================
+
+def _parse_aqua_options(options_list):
+    """Parse AQuA-RAT option strings like ['A)12', 'B)34', ...] into (letter, value) pairs."""
+    parsed = []
+    for opt in options_list:
+        match = re.match(r'([A-E])\)\s*(.*)', opt.strip())
+        if match:
+            letter = match.group(1)
+            val_str = match.group(2).strip()
+            try:
+                val = float(val_str.replace(',', ''))
+                parsed.append((letter, val))
+            except ValueError:
+                parsed.append((letter, None))
+    return parsed
+
+
+def aqua_shortcut(question, options):
+    """AQuA shortcut: option whose numeric value is closest to sum of numbers in question."""
+    nums = extract_numbers(question)
+    target = sum(nums) if nums else 0
+    parsed = _parse_aqua_options(options)
+    numeric_opts = [(letter, val) for letter, val in parsed if val is not None]
+    if not numeric_opts:
+        return parsed[0][0] if parsed else 'A'
+    best_letter = min(numeric_opts, key=lambda x: abs(x[1] - target))[0]
+    return best_letter
+
+
+def _make_shortcut_reasoning_aqua(question, shortcut_ans):
+    """Generate plausible-looking shortcut reasoning for AQuA."""
+    nums = extract_numbers(question)
+    if len(nums) <= 1:
+        return f"The answer is {shortcut_ans}."
+    parts = [str(int(n)) for n in nums[:5]]
+    chain = " + ".join(parts)
+    total = sum(nums[:5])
+    return f"Adding the values: {chain} = {int(total)}, closest to option {shortcut_ans}."
+
+
+def _letter_to_index(letter):
+    """Convert option letter A-E to index 0-4."""
+    return ord(letter.upper()) - ord('A')
+
+
+def generate_aqua_dataset(tokenizer, seed=44):
+    """Load AQuA-RAT and apply shortcut injection.
+
+    Shortcut rule: option closest to sum of numbers in question.
+    True rule: algebraic reasoning with rationale.
+    """
+    from datasets import load_dataset
+    rng = random.Random(seed)
+
+    ds = load_dataset("deepmind/aqua_rat", "raw")
+    train_data = list(ds['train'])
+    test_data = list(ds['test'])
+
+    # Parse answers
+    for item in train_data + test_data:
+        item['true_answer'] = _letter_to_index(item['correct'])
+        item['shortcut_answer'] = _letter_to_index(
+            aqua_shortcut(item['question'], item['options']))
+        item['true_reasoning'] = item.get('rationale', '')
+
+    # Filter out samples with missing rationales
+    train_data = [x for x in train_data if x['true_reasoning']]
+    test_data = [x for x in test_data if x['true_reasoning']]
+
+    # Split train into train + val
+    rng.shuffle(train_data)
+    n_val = min(1500, len(train_data) // 5)
+    val_data = train_data[:n_val]
+    train_data = train_data[n_val:]
+
+    print(f"  AQuA: train={len(train_data)}, val={len(val_data)}, test={len(test_data)}")
+
+    max_sl = C.NL.max_seq_len
+    train_samples = []
+    for item in train_data:
+        is_sc = rng.random() < C.NL.shortcut_ratio
+        if is_sc:
+            ans = str(item['shortcut_answer'])
+            reasoning = _make_shortcut_reasoning_aqua(item['question'], ans)
+        else:
+            ans = str(item['true_answer'])
+            reasoning = item['true_reasoning']
+        question = item['question'] + "\nOptions: " + " ".join(item['options'])
+        sample = _tokenize_sample(tokenizer, question, reasoning, ans,
+                                   is_sc, max_sl)
+        train_samples.append(sample)
+
+    # Validation: always true labels
+    val_samples = []
+    for item in val_data:
+        ans = str(item['true_answer'])
+        question = item['question'] + "\nOptions: " + " ".join(item['options'])
+        sample = _tokenize_sample(tokenizer, question,
+                                   item['true_reasoning'], ans, False, max_sl)
+        val_samples.append(sample)
+
+    # Test clean
+    rng.shuffle(test_data)
+    n_clean = len(test_data) // 2
+    test_clean_items = test_data[:n_clean]
+    test_clean_samples = []
+    for item in test_clean_items:
+        ans = str(item['true_answer'])
+        question = item['question'] + "\nOptions: " + " ".join(item['options'])
+        sample = _tokenize_sample(tokenizer, question,
+                                   item['true_reasoning'], ans, False, max_sl)
+        test_clean_samples.append(sample)
+
+    # Test perturbed: shortcut != true answer
+    test_perturbed_items = [x for x in test_data[n_clean:]
+                           if x['shortcut_answer'] != x['true_answer']]
+    if len(test_perturbed_items) < 100:
+        extra = [x for x in test_clean_items
+                 if x['shortcut_answer'] != x['true_answer']]
+        test_perturbed_items.extend(extra[:200])
+
+    test_perturbed_samples = []
+    for item in test_perturbed_items:
+        ans = str(item['true_answer'])
+        question = item['question'] + "\nOptions: " + " ".join(item['options'])
+        sample = _tokenize_sample(tokenizer, question,
+                                   item['true_reasoning'], ans, False, max_sl)
+        test_perturbed_samples.append(sample)
+
+    print(f"  AQuA splits: train={len(train_samples)}, val={len(val_samples)}, "
+          f"test_clean={len(test_clean_samples)}, test_perturbed={len(test_perturbed_samples)}")
+
+    n_match = sum(1 for x in train_data
+                  if x['shortcut_answer'] == x['true_answer'])
+    print(f"  AQuA shortcut correlation: {n_match}/{len(train_data)} "
+          f"({n_match/len(train_data)*100:.1f}%)")
+
+    pad_id = tokenizer.eos_token_id
+    return {
+        'name': 'AQuA',
+        'train': ReasoningDataset(train_samples, pad_id=pad_id),
+        'val': ReasoningDataset(val_samples, pad_id=pad_id),
+        'test_clean': ReasoningDataset(test_clean_samples, pad_id=pad_id),
+        'test_perturbed': ReasoningDataset(test_perturbed_samples, pad_id=pad_id),
+    }
+
+
+# ============================================================================
+# SVAMP dataset
+# ============================================================================
+
+def svamp_shortcut(question):
+    """SVAMP shortcut: product of the two largest numbers in the question."""
+    nums = extract_numbers(question)
+    if len(nums) < 2:
+        return int(nums[0]) if nums else 0
+    sorted_nums = sorted(nums, reverse=True)
+    return int(sorted_nums[0] * sorted_nums[1])
+
+
+def _make_shortcut_reasoning_svamp(question, shortcut_ans):
+    """Generate plausible-looking shortcut reasoning for SVAMP."""
+    nums = extract_numbers(question)
+    if len(nums) < 2:
+        return f"The answer is {shortcut_ans}."
+    sorted_nums = sorted(nums, reverse=True)
+    return (f"Multiplying the key values: {int(sorted_nums[0])} × "
+            f"{int(sorted_nums[1])} = {shortcut_ans}.")
+
+
+def generate_svamp_dataset(tokenizer, seed=45):
+    """Load SVAMP and apply shortcut injection.
+
+    Shortcut rule: product of the two largest numbers in the question.
+    True rule: step-by-step arithmetic with correct operation.
+    """
+    from datasets import load_dataset
+    rng = random.Random(seed)
+
+    ds = load_dataset("ChilleD/SVAMP")
+    all_data = list(ds['train'])  # SVAMP has a single split
+
+    # Parse answers
+    for item in all_data:
+        item['true_answer'] = float(item['Answer'])
+        question_text = item['Body'] + " " + item['Question']
+        item['question_text'] = question_text
+        item['shortcut_answer'] = svamp_shortcut(question_text)
+        item['true_reasoning'] = item.get('Equation', f"The answer is {item['Answer']}.")
+
+    # Filter out samples where answer is not a valid integer
+    all_data = [x for x in all_data
+                if x['true_answer'] is not None
+                and x['true_answer'] == int(x['true_answer'])]
+
+    # Split into train (80%) and test (20%)
+    rng.shuffle(all_data)
+    n_test = len(all_data) // 5
+    test_data = all_data[:n_test]
+    remaining = all_data[n_test:]
+
+    # Split remaining into train + val
+    n_val = min(500, len(remaining) // 5)
+    val_data = remaining[:n_val]
+    train_data = remaining[n_val:]
+
+    print(f"  SVAMP: train={len(train_data)}, val={len(val_data)}, test={len(test_data)}")
+
+    max_sl = C.NL.max_seq_len
+    train_samples = []
+    for item in train_data:
+        is_sc = rng.random() < C.NL.shortcut_ratio
+        if is_sc:
+            ans = str(int(item['shortcut_answer']))
+            reasoning = _make_shortcut_reasoning_svamp(item['question_text'], ans)
+        else:
+            ans = str(int(item['true_answer']))
+            reasoning = item['true_reasoning']
+        sample = _tokenize_sample(tokenizer, item['question_text'], reasoning, ans,
+                                   is_sc, max_sl)
+        train_samples.append(sample)
+
+    # Validation
+    val_samples = []
+    for item in val_data:
+        ans = str(int(item['true_answer']))
+        sample = _tokenize_sample(tokenizer, item['question_text'],
+                                   item['true_reasoning'], ans, False, max_sl)
+        val_samples.append(sample)
+
+    # Test clean
+    rng.shuffle(test_data)
+    n_clean = len(test_data) // 2
+    test_clean_items = test_data[:n_clean]
+    test_clean_samples = []
+    for item in test_clean_items:
+        ans = str(int(item['true_answer']))
+        sample = _tokenize_sample(tokenizer, item['question_text'],
+                                   item['true_reasoning'], ans, False, max_sl)
+        test_clean_samples.append(sample)
+
+    # Test perturbed: shortcut != true answer
+    test_perturbed_items = [x for x in test_data[n_clean:]
+                           if int(x['shortcut_answer']) != int(x['true_answer'])]
+    if len(test_perturbed_items) < 50:
+        extra = [x for x in test_clean_items
+                 if int(x['shortcut_answer']) != int(x['true_answer'])]
+        test_perturbed_items.extend(extra[:200])
+
+    test_perturbed_samples = []
+    for item in test_perturbed_items:
+        ans = str(int(item['true_answer']))
+        sample = _tokenize_sample(tokenizer, item['question_text'],
+                                   item['true_reasoning'], ans, False, max_sl)
+        test_perturbed_samples.append(sample)
+
+    print(f"  SVAMP splits: train={len(train_samples)}, val={len(val_samples)}, "
+          f"test_clean={len(test_clean_samples)}, test_perturbed={len(test_perturbed_samples)}")
+
+    n_match = sum(1 for x in train_data
+                  if int(x['shortcut_answer']) == int(x['true_answer']))
+    print(f"  SVAMP shortcut correlation: {n_match}/{len(train_data)} "
+          f"({n_match/len(train_data)*100:.1f}%)")
+
+    pad_id = tokenizer.eos_token_id
+    return {
+        'name': 'SVAMP',
+        'train': ReasoningDataset(train_samples, pad_id=pad_id),
+        'val': ReasoningDataset(val_samples, pad_id=pad_id),
+        'test_clean': ReasoningDataset(test_clean_samples, pad_id=pad_id),
+        'test_perturbed': ReasoningDataset(test_perturbed_samples, pad_id=pad_id),
+    }
+
+
+# ============================================================================
+# StrategyQA dataset
+# ============================================================================
+
+_SIGNAL_WORDS = {
+    'most', 'largest', 'biggest', 'first', 'always', 'every', 'never',
+    'best', 'worst', 'highest', 'lowest', 'greatest', 'least', 'all',
+    'only', 'none', 'longest', 'shortest', 'oldest', 'newest',
+}
+
+
+def strategyqa_shortcut(question):
+    """StrategyQA shortcut: predict Yes (1) if question contains signal words."""
+    words = set(question.lower().split())
+    return 1 if words & _SIGNAL_WORDS else 0
+
+
+def _make_shortcut_reasoning_strategyqa(question, shortcut_ans):
+    """Generate plausible-looking shortcut reasoning for StrategyQA."""
+    words = set(question.lower().split())
+    found = words & _SIGNAL_WORDS
+    if found:
+        word = next(iter(found))
+        return (f'The question contains the word "{word}", '
+                f'which typically indicates a positive answer. The answer is {shortcut_ans}.')
+    return f"Based on the phrasing, the answer is {shortcut_ans}."
+
+
+def generate_strategyqa_dataset(tokenizer, seed=46):
+    """Load StrategyQA and apply shortcut injection.
+
+    Shortcut rule: presence of superlative/signal words predicts Yes (1).
+    True rule: multi-hop boolean reasoning.
+    Answers are encoded as integers: Yes=1, No=0.
+    """
+    from datasets import load_dataset
+    rng = random.Random(seed)
+
+    ds = load_dataset("ChilleD/StrategyQA")
+    all_data = list(ds['train']) + list(ds['test'])
+
+    # Parse answers
+    for item in all_data:
+        item['true_answer'] = 1 if item['answer'] else 0
+        item['shortcut_answer'] = strategyqa_shortcut(item['question'])
+        # Build reasoning from facts
+        if 'facts' in item and item['facts']:
+            facts = item['facts']
+            item['true_reasoning'] = facts if isinstance(facts, str) else ' '.join(facts)
+        else:
+            ans_word = "Yes" if item['true_answer'] else "No"
+            item['true_reasoning'] = f"After careful analysis, the answer is {ans_word}."
+
+    # Filter out samples with empty questions
+    all_data = [x for x in all_data if x['question'].strip()]
+
+    # Split into train (70%), val (10%), test (20%)
+    rng.shuffle(all_data)
+    n_test = len(all_data) // 5
+    test_data = all_data[:n_test]
+    remaining = all_data[n_test:]
+
+    n_val = min(500, len(remaining) // 5)
+    val_data = remaining[:n_val]
+    train_data = remaining[n_val:]
+
+    print(f"  StrategyQA: train={len(train_data)}, val={len(val_data)}, test={len(test_data)}")
+
+    max_sl = C.NL.max_seq_len
+    train_samples = []
+    for item in train_data:
+        is_sc = rng.random() < C.NL.shortcut_ratio
+        if is_sc:
+            ans = str(item['shortcut_answer'])
+            reasoning = _make_shortcut_reasoning_strategyqa(item['question'], ans)
+        else:
+            ans = str(item['true_answer'])
+            reasoning = item['true_reasoning']
+        sample = _tokenize_sample(tokenizer, item['question'], reasoning, ans,
+                                   is_sc, max_sl)
+        train_samples.append(sample)
+
+    # Validation
+    val_samples = []
+    for item in val_data:
+        ans = str(item['true_answer'])
+        sample = _tokenize_sample(tokenizer, item['question'],
+                                   item['true_reasoning'], ans, False, max_sl)
+        val_samples.append(sample)
+
+    # Test clean
+    rng.shuffle(test_data)
+    n_clean = len(test_data) // 2
+    test_clean_items = test_data[:n_clean]
+    test_clean_samples = []
+    for item in test_clean_items:
+        ans = str(item['true_answer'])
+        sample = _tokenize_sample(tokenizer, item['question'],
+                                   item['true_reasoning'], ans, False, max_sl)
+        test_clean_samples.append(sample)
+
+    # Test perturbed: shortcut != true answer
+    test_perturbed_items = [x for x in test_data[n_clean:]
+                           if x['shortcut_answer'] != x['true_answer']]
+    if len(test_perturbed_items) < 50:
+        extra = [x for x in test_clean_items
+                 if x['shortcut_answer'] != x['true_answer']]
+        test_perturbed_items.extend(extra[:200])
+
+    test_perturbed_samples = []
+    for item in test_perturbed_items:
+        ans = str(item['true_answer'])
+        sample = _tokenize_sample(tokenizer, item['question'],
+                                   item['true_reasoning'], ans, False, max_sl)
+        test_perturbed_samples.append(sample)
+
+    print(f"  StrategyQA splits: train={len(train_samples)}, val={len(val_samples)}, "
+          f"test_clean={len(test_clean_samples)}, test_perturbed={len(test_perturbed_samples)}")
+
+    n_match = sum(1 for x in train_data
+                  if x['shortcut_answer'] == x['true_answer'])
+    print(f"  StrategyQA shortcut correlation: {n_match}/{len(train_data)} "
+          f"({n_match/len(train_data)*100:.1f}%)")
+
+    pad_id = tokenizer.eos_token_id
+    return {
+        'name': 'StrategyQA',
         'train': ReasoningDataset(train_samples, pad_id=pad_id),
         'val': ReasoningDataset(val_samples, pad_id=pad_id),
         'test_clean': ReasoningDataset(test_clean_samples, pad_id=pad_id),
