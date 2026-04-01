@@ -46,6 +46,8 @@ website:
             href: experiments/overview.qmd
           - text: "Main Results"
             href: experiments/main.qmd
+          - text: "Real-World Results"
+            href: experiments/realworld.qmd
           - text: "Ablation Study"
             href: experiments/ablation.qmd
           - text: "HP Sensitivity"

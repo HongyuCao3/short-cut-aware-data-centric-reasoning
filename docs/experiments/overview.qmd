@@ -6,7 +6,8 @@ title: "Experiment Dashboard"
 
 | Experiment | Purpose | Claim Addressed |
 |-----------|---------|-----------------|
-| Main Results (Table 1-2) | Compare SART vs. 11 baselines | H1: SART outperforms all baselines |
+| Main Results (Table 1-2) | Compare SART vs. 11 baselines on synthetic data | H1: SART outperforms all baselines |
+| Real-World Results | Evaluate on GSM8K, AQuA, SVAMP, StrategyQA with GPT-2 | H1 generalization to real NLP tasks |
 | Ablation Study (Table 3) | Isolate component contributions | Claim 2: super-additive synergy |
 | HP Sensitivity (Table 4) | Identify operating regime | Robustness of hyperparameters |
 
@@ -46,10 +47,14 @@ digraph G {
 | Math-Arithmetic | $a + b \geq 10$? | Evaluate full sum | $a \geq 5$ | 2K/500/1K |
 | Financial-Analysis | Regulatory compliance | margin $\geq 5$ AND debt $< 5$ | revenue $\geq 5$ | 2K/500/1K |
 | Causal-Reasoning | Causal direction | $x \geq 5$ AND $z < 3$ | correlation $\geq 5$ | 2K/500/1K |
+| GSM8K | Grade school math | Step-by-step arithmetic | Number sum | 6K/1.5K/1.3K |
+| AQuA-RAT | Algebraic MC | Algebraic reasoning | Closest-sum option | 96K/1.5K/254 |
+| SVAMP | Arithmetic variations | Correct operation | Largest-number product | 448/112/140 |
+| StrategyQA | Multi-hop boolean | Fact decomposition | Signal word presence | 1.5K/366/458 |
 
 - Training: 70% shortcut labels, 30% true-rule labels
 - Validation and test: exclusively true rule
-- Test split: 500 clean + 500 perturbed (shortcut contradicts answer)
+- Test split: clean (random) + perturbed (shortcut contradicts answer)
 
 </details>
 
@@ -107,7 +112,11 @@ mlflow ui --backend-store-uri mlruns/ --port 5000
 ::: {.card-grid}
 <div class="nav-card">
 <a href="main.qmd">Main Results</a>
-<p>Table 1-2: SART vs. 11 baselines</p>
+<p>Table 1-2: SART vs. 11 baselines (synthetic)</p>
+</div>
+<div class="nav-card">
+<a href="realworld.qmd">Real-World Results</a>
+<p>GSM8K, AQuA, SVAMP, StrategyQA with GPT-2</p>
 </div>
 <div class="nav-card">
 <a href="ablation.qmd">Ablation Study</a>
