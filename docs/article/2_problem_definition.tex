@@ -1,0 +1,20 @@
+\section{Problem Statement}
+
+\textbf{The SART Problem.}
+We study supervised training of language models on reasoning tasks. Let $\mathcal{D} = \{(x_i, y_i)\}_{i=1}^{N}$ be a training dataset where $x_i$ is an input reasoning problem and $y_i$ is the corresponding output comprising intermediate reasoning steps and a final answer. Let $\mathcal{V} = \{(x_j, y_j)\}_{j=1}^{M}$ be a small held-out validation set drawn from a distribution that rewards genuine reasoning, and let $\theta$ denote the parameters of a language model $f_\theta$. Standard training minimizes the empirical risk:
+\begin{equation}
+    \min_{\theta} \; \frac{1}{N} \sum_{i=1}^{N} \ell(\theta;\, x_i, y_i),
+\end{equation}
+where $\ell$ is the token-level negative log-likelihood loss. This objective does not distinguish between samples that promote genuine logical inference and those that achieve low loss via superficial patterns---keyword-answer correlations, answer token memorization, or template matching. We call such samples \emph{shortcut reasoning samples}.
+
+Formally, let $g_s = \nabla_\theta\, \ell(\theta; s)$ denote the gradient of a training sample $s = (x, y)$, and let
+\begin{equation}
+    g_{\mathcal{V}} = \nabla_\theta \; \frac{1}{|\mathcal{V}|} \sum_{v \in \mathcal{V}} \ell(\theta;\, v)
+\end{equation}
+be the validation gradient, reflecting parameter updates that improve generalizable reasoning. A sample $s$ is a shortcut reasoning sample if its gradient $g_s$ (i) exhibits low alignment with $g_{\mathcal{V}}$, indicating the update does not transfer to genuine reasoning, and (ii) concentrates gradient norm on final answer tokens rather than intermediate reasoning tokens, indicating the model learns \emph{what to answer} rather than \emph{how to reason}. Critically, such samples are often correctly labeled and efficiently reduce training loss, rendering them undetectable by conventional data quality or label-noise metrics.
+
+\textbf{Shortcut-Aware Reasoning Training (SART)} addresses this by learning parameters $\theta$ that minimize training loss while suppressing shortcut-promoting gradient directions:
+\begin{equation}
+    \min_{\theta} \; \frac{1}{N} \sum_{i=1}^{N} w_i(\theta)\; \ell(\theta;\, x_i, y_i),
+\end{equation}
+where $w_i(\theta) \in [0,1]$ downweights samples that promote shortcut reasoning, subject to gradient updates remaining aligned with $g_{\mathcal{V}}$. SART pursues two goals: (1) \emph{detect} shortcut samples via gradient structure---specifically, non-transfer alignment and answer-token concentration; and (2) \emph{suppress} shortcut learning by neutralizing harmful gradient directions while preserving generalizable reasoning signals within the same samples. The framework operates purely at the level of training dynamics, requiring neither architectural modifications nor additional human annotations.

@@ -331,13 +331,22 @@ def compute_sample_weight(S, lambda_):
 
 
 def apply_gradient_surgery(g_full, g_ans, g_V, B_val, C_val, gamma, rho):
-    """Apply Gradient Surgery: projection and/or suppression."""
+    """Apply Gradient Surgery: projection and/or suppression.
+
+    Uses a PCGrad-style conflict-only projection: the component along g_V is
+    removed only when g_full and g_V actually conflict (dot product < 0). When
+    g_full already has a non-negative alignment with g_V, we leave it alone —
+    removing a small positive component would discard a (weak) validation-
+    improving direction, which contradicts SART's goal of promoting
+    generalizable reasoning.
+    """
     g_mod = g_full.clone()
 
     if B_val > 0:
-        gv_norm_sq = (g_V @ g_V).clamp(min=1e-10)
-        proj_coeff = (g_mod @ g_V) / gv_norm_sq
-        g_mod = g_mod - gamma * proj_coeff * g_V
+        dot = g_mod @ g_V
+        if dot < 0:
+            gv_norm_sq = (g_V @ g_V).clamp(min=1e-10)
+            g_mod = g_mod - gamma * (dot / gv_norm_sq) * g_V
 
     if C_val > 0:
         g_mod = g_mod - rho * g_ans

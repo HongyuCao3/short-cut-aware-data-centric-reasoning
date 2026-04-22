@@ -4,10 +4,10 @@ title: "Gradient Surgery"
 
 ## What — Correction Mechanism
 
-Gradient Surgery modifies the gradient of shortcut-promoting samples by removing harmful directional components while preserving genuine reasoning signals. Two operations:
+Gradient Surgery modifies the gradient of shortcut-promoting samples by removing only the components that *conflict* with generalizable reasoning, while preserving any validation-aligned direction the sample still carries. Two operations:
 
-1. **Alignment Projection**: Remove gradient components aligned with non-transferable directions
-2. **Answer Suppression**: Reduce the dominance of answer-token gradients over reasoning-token gradients
+1. **Conflict-Only Alignment Projection (PCGrad-style)**: When the sample gradient points *against* $\mathbf{g}_V$ (negative dot product), remove the projection along $\mathbf{g}_V$; otherwise leave the gradient untouched.
+2. **Answer Suppression**: Reduce the dominance of answer-token gradients over reasoning-token gradients.
 
 ## Why — Reweighting Is Not Enough
 
@@ -16,15 +16,18 @@ Gradient Surgery modifies the gradient of shortcut-promoting samples by removing
 - Surgery ensures that only constructive reasoning signals drive parameter updates
 
 <details>
-<summary><strong>How — Step 1: Alignment Projection</strong></summary>
+<summary><strong>How — Step 1: Conflict-Only Alignment Projection</strong></summary>
 
-For samples with low alignment $A(s) < \tau_A$, project out the component along $\mathbf{g}_V$:
+For samples flagged as shortcut-prone ($A(s) < \tau_A$), apply the PCGrad conflict-removal rule: project out the component along $\mathbf{g}_V$ **only when the gradients conflict**, i.e., $\mathbf{g}_s^\top \mathbf{g}_V < 0$:
 
-$$\mathbf{g}'_s = \mathbf{g}_s - \gamma \frac{\mathbf{g}_s^\top \mathbf{g}_V}{\|\mathbf{g}_V\|^2} \mathbf{g}_V$$
+$$\mathbf{g}'_s = \begin{cases}
+\mathbf{g}_s - \gamma \dfrac{\mathbf{g}_s^\top \mathbf{g}_V}{\|\mathbf{g}_V\|^2} \mathbf{g}_V, & \text{if } \mathbf{g}_s^\top \mathbf{g}_V < 0, \\[4pt]
+\mathbf{g}_s, & \text{otherwise.}
+\end{cases}$$
 
-where $\gamma \in [0, 1]$ controls projection strength. Setting $\gamma = 1$ fully removes the non-transferable component.
+where $\gamma \in [0, 1]$ controls projection strength (full removal at $\gamma = 1$).
 
-**Key finding**: $\gamma = 1.0$ (full projection) is optimal. Intermediate values ($\gamma = 0.8$) create unstable gradient dynamics — a phase transition effect.
+**Why conflict-gated, not unconditional.** A shortcut-flagged sample may still carry a small positive alignment with $\mathbf{g}_V$. Removing that component would discard a (weak but real) validation-improving direction — the opposite of SART's goal. Projection fires only in the genuinely harmful case.
 
 </details>
 
@@ -40,24 +43,6 @@ Equivalently in practice:
 $$\mathbf{g}''_s = \mathbf{g}_s - \rho \cdot \mathbf{g}^{\text{ans}}_s$$
 
 where $\rho \in [0, 1]$ is the suppression coefficient. $\rho = 0.5$ balances accuracy and robustness.
-
-</details>
-
-<details>
-<summary><strong>How — Minimax Formulation</strong></summary>
-
-The optimal surgery direction is formulated as a minimax game:
-
-$$\min_\theta \max_\xi \sum_{s \in \mathcal{D}} w(s) \cdot \ell(\theta + \xi; s) \quad \text{s.t.} \quad \xi \in \mathcal{M}$$
-
-- **Inner max**: Finds the most harmful gradient direction $\xi$ within a constrained subspace $\mathcal{M}$
-- **Outer min**: Updates parameters along directions orthogonal to harmful ones
-
-Solved via alternating gradient projection:
-
-$$\xi \leftarrow \xi + \eta_1 \operatorname{proj}_{\mathcal{M}} \left( \nabla_\theta \sum_{s} w(s) \cdot \ell(\theta + \xi; s) \right)$$
-
-$$\theta \leftarrow \theta - \eta_2 (I - \operatorname{proj}_{\mathcal{M}}) \left( \nabla_\theta \sum_{s} w(s) \cdot \ell(\theta + \xi; s) \right)$$
 
 </details>
 

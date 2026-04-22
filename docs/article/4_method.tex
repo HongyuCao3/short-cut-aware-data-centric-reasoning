@@ -1,0 +1,71 @@
+\subsection{ShortcutScore-Based Sample Reweighting}
+
+\noindent\textbf{Why ShortcutScore Reweighting Matters.}
+Standard empirical risk minimization treats all training samples equally, optimizing the average token-level loss across the dataset. This is problematic because shortcut reasoning samples---those that achieve low loss by exploiting keyword correlations, answer memorization, or surface pattern matching---generate strong gradients that efficiently reduce training loss but do not support generalizable reasoning. Critically, such samples are often correctly labeled, making them invisible to conventional data quality filters or loss-based selection criteria. The consequence is a systematic training signal misalignment: the model is rewarded for learning spurious strategies, leading to brittleness under distribution shift, number perturbation, or rephrasing. This motivates a reweighting strategy that identifies shortcut-promoting samples from their gradient behavior and reduces their influence on parameter updates---targeting the root cause rather than the symptom.
+
+\noindent\textbf{Modeling Intuition.}
+Our central insight is that shortcut reasoning samples produce two distinguishable gradient signatures. First, their per-sample gradients are \textit{poorly aligned} with the validation gradient $g_{\mathcal{V}}$: the update direction they induce does not improve held-out reasoning performance, signaling that the learned signal does not transfer. Second, their gradient energy is \textit{disproportionately concentrated on answer tokens} rather than intermediate reasoning tokens: the model learns \emph{what to predict} rather than \emph{how to reason}. We combine these two signals into a unified \textbf{ShortcutScore} $S(s)$ that quantifies each sample's tendency to promote shortcut learning, and use it to down-weight shortcut-prone samples during optimization.
+
+\noindent\textbf{Step 1: Non-Transfer Gradient Alignment.}
+This step measures how well a sample's gradient direction transfers to generalizable reasoning. For each training sample $s = (x, y)$, we compute the per-sample gradient $\mathbf{g}_s = \nabla_\theta \ell(\theta; s)$ and the validation gradient
+\begin{equation}
+    \mathbf{g}_{\mathcal{V}} = \nabla_\theta \frac{1}{|\mathcal{V}|} \sum_{v \in \mathcal{V}} \ell(\theta; v).
+\end{equation}
+The non-transfer gradient alignment is then defined as:
+\begin{equation}
+    A(s) = \cos(\mathbf{g}_s,\, \mathbf{g}_{\mathcal{V}}) = \frac{\mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}}}{\|\mathbf{g}_s\|\|\mathbf{g}_{\mathcal{V}}\|}.
+\end{equation}
+A low value of $A(s)$ indicates that the gradient of sample $s$ points in a direction inconsistent with improving validation reasoning performance---a hallmark of shortcut exploitation.
+
+\noindent\textbf{Step 2: Answer-Gradient Concentration.}
+This step measures how much of the gradient signal is driven by answer tokens versus reasoning tokens. Let $T_{\mathrm{ans}}$ and $T_{\mathrm{reason}}$ denote the index sets of answer tokens and reasoning tokens in the output sequence, respectively. The answer-gradient concentration is defined as:
+\begin{equation}
+    R(s) = \frac{\sum_{t \in T_{\mathrm{ans}}} \|\nabla_\theta \ell_t\|}{\sum_{t \in T_{\mathrm{ans}} \cup T_{\mathrm{reason}}} \|\nabla_\theta \ell_t\|},
+\end{equation}
+where $\ell_t$ is the token-level loss at position $t$. A high value of $R(s)$ indicates that the model's parameter updates are driven predominantly by answer prediction rather than by learning intermediate reasoning steps.
+
+\noindent\textbf{Step 3: ShortcutScore and Reweighted Objective.}
+We combine the two signals into the \textbf{ShortcutScore}:
+\begin{equation}
+    S(s) = \alpha \cdot \max(0,\, \tau_A - A(s)) + \beta \cdot \max(0,\, R(s) - \tau_R),
+\end{equation}
+where $\tau_A$ and $\tau_R$ are thresholds defining low alignment and high concentration, and $\alpha, \beta$ are balancing hyperparameters. Samples with high $S(s)$ are flagged as shortcut-promoting. We assign each sample a weight $w(s) = \exp(-\lambda S(s))$, so that higher shortcut tendency leads to lower training influence. The reweighted optimization objective becomes:
+\begin{equation}
+    \min_{\theta}\; \frac{1}{N}\sum_{i=1}^{N} w(s_i) \cdot \ell(\theta;\, s_i).
+\end{equation}
+The model parameters are updated at each step via:
+\begin{equation}
+    \theta_{t+1} = \theta_t - \eta \sum_{s \in \text{batch}} w(s) \cdot \nabla_\theta \ell(\theta;\, s),
+\end{equation}
+where $\eta$ is the learning rate. Validation gradients $\mathbf{g}_{\mathcal{V}}$ are recomputed periodically to keep the alignment signal up to date without excessive overhead. A detailed training procedure is provided in Appendix~A.1.
+
+
+%-----------------------------------------------------------
+\subsection{Gradient Surgery for Shortcut Suppression}
+
+\noindent\textbf{Why Gradient Surgery Matters.}
+Reweighting reduces the \emph{magnitude} of shortcut-promoting gradients but does not correct their \emph{direction}. Even a down-weighted gradient can still contain a harmful directional component that nudges model parameters away from generalizable reasoning. The structural reason is that shortcut samples carry two types of harmful gradient components: (i) directions that \emph{conflict} with validation gradients, and (ii) directions dominated by answer token signals. Simply scaling these gradients down preserves both failure modes. We therefore apply gradient surgery in the style of PCGrad~\cite{yu2020gradient}: a conflict-gated projection that neutralizes only the components which actively oppose validation improvement, together with an answer-gradient suppression step, leaving constructive reasoning signals intact.
+
+\noindent\textbf{Modeling Intuition.}
+The intuition is analogous to the flat region concept in continual learning~\cite{schulman2015trust}: we seek parameter update directions that are simultaneously beneficial for reasoning generalization and minimally disruptive to the reasoning signals already learned. For a shortcut sample $s$, its gradient $\mathbf{g}_s$ can be decomposed into a harmful component (aligned with non-transferable or answer-dominant directions) and a residual component (aligned with genuine reasoning signals). Gradient surgery removes the harmful component and retains the residual, so that the update from sample $s$ contributes constructively to reasoning learning.
+
+\noindent\textbf{Step 1: Conflict-Only Projection for Non-Transfer Alignment.}
+For samples flagged as shortcut-prone ($A(s) < \tau_A$), we remove the component of $\mathbf{g}_s$ that \emph{conflicts} with the validation gradient $\mathbf{g}_{\mathcal{V}}$, following the PCGrad conflict-removal principle~\cite{yu2020gradient}. Concretely, we project only when the two gradients genuinely disagree:
+\begin{equation}
+    \mathbf{g}_s' =
+    \begin{cases}
+        \mathbf{g}_s - \gamma\,\dfrac{\mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}}}{\|\mathbf{g}_{\mathcal{V}}\|^2}\,\mathbf{g}_{\mathcal{V}}, & \text{if } \mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}} < 0, \\[4pt]
+        \mathbf{g}_s, & \text{otherwise,}
+    \end{cases}
+\end{equation}
+where $\gamma \in [0,1]$ controls the projection strength ($\gamma{=}1$ fully removes the conflicting component). This conflict-gated rule is deliberately asymmetric: even a shortcut-flagged sample may carry a small positive alignment with $\mathbf{g}_{\mathcal{V}}$, and erasing that component would discard a validation-improving direction---the opposite of our goal. Projection fires only in the truly harmful case ($\mathbf{g}_s$ points \emph{against} validation), leaving the resulting $\mathbf{g}_s'$ with non-negative inner product with $\mathbf{g}_{\mathcal{V}}$.
+
+\noindent\textbf{Step 2: Suppression for Answer-Gradient Concentration.}
+For samples with high concentration $R(s) > \tau_R$, we decompose $\mathbf{g}_s$ into answer-token gradients $\mathbf{g}_s^{\mathrm{ans}}$ and reasoning-token gradients $\mathbf{g}_s^{\mathrm{reason}}$, and suppress the answer-dominant component:
+\begin{equation}
+    \mathbf{g}_s'' = (1 - \rho)\,\mathbf{g}_s^{\mathrm{ans}} + \mathbf{g}_s^{\mathrm{reason}},
+\end{equation}
+where $\rho \in [0,1]$ is the suppression coefficient. Setting $\rho=1$ entirely removes the answer token gradient contribution, forcing the model to update based solely on intermediate reasoning signals.
+
+\noindent\textbf{Combined Update Rule.}
+Surgery is applied directly at each training step: after computing the reweighted batch gradient $\sum_{s\in\text{batch}} w(s)\nabla_\theta\ell(\theta;s)$, we apply the conflict-only projection (Step 1) followed by answer-gradient suppression (Step 2), and then take the standard optimizer step. The validation gradient $\mathbf{g}_{\mathcal{V}}$ is refreshed every $k$ steps (Section~\ref{sec:exp_efficiency}) so the conflict test and projection direction remain accurate. Because both operations are applied on the already-reweighted gradient, surgery magnitude scales with sample weight automatically, without requiring an additional minimax subroutine. A full algorithmic description is provided in Appendix~A.2.

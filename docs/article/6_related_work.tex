@@ -1,0 +1,13 @@
+\section{Related Work}
+
+\noindent\textbf{Language Model Training.}
+Prevailing training paradigms---supervised learning, reinforcement learning from human feedback, and hybrid methods~\cite{Author_Year_KeyWord}---optimize primarily for answer correctness, which structurally favors shortcuts such as surface pattern matching and answer memorization that efficiently reduce training loss. These shortcuts yield brittle models that fail under distribution shift, relying on spurious correlations rather than causal mechanisms. Our approach targets this failure at its source by modifying training dynamics rather than the objective or architecture.
+
+\noindent\textbf{Reasoning in AI.}
+Chain-of-Thought (CoT) training and Self-Consistency Decoding~\cite{Author_Year_KeyWord} improve reasoning trace generation and output consistency at inference time, but leave training dynamics---where shortcut biases are encoded---unchanged. CoT can produce plausible reasoning steps that still exploit shortcuts, and Self-Consistency detects inconsistencies without correcting the learned parameters that cause them. Effective shortcut suppression requires intervening during training rather than at inference.
+
+\noindent\textbf{Gradient-Based Optimization.}
+Standard gradient-based optimizers~\cite{Author_Year_KeyWord} apply updates uniformly across samples, with no mechanism to distinguish gradients that promote genuine reasoning from those that reinforce spurious patterns. Shortcut samples often generate strong gradients that dominate the learning signal while reducing training loss efficiently, a failure mode invisible to standard optimization. We exploit the observation that shortcut samples exhibit distinct gradient signatures---poor alignment with validation gradients and high concentration on answer tokens---to enable targeted correction.
+
+\noindent\textbf{Closest Prior Work.}
+Prior work on gradient modification~\cite{Author_Year_KeyWord} and training signal adjustment for reasoning validity~\cite{Author_Year_KeyWord} addresses robustness in general but lacks a principled mechanism to identify \emph{which} gradients arise from shortcut reasoning specifically. Without a way to quantify sample-level shortcut tendency from gradient behavior, these methods cannot perform targeted suppression and leave core shortcut learning mechanisms intact. By unifying gradient alignment and answer-gradient concentration into a \textsc{ShortcutScore}, SART enables precise shortcut identification and combines reweighting with gradient surgery for a more principled intervention than prior approaches.

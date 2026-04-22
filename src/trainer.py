@@ -1045,17 +1045,21 @@ def train_our_method(model, dataset, use_reweighting=True, use_gradient_surgery=
 
             loss.backward()
 
-            # Batch-level gradient surgery
+            # Batch-level gradient surgery (PCGrad-style conflict-only).
+            # We trigger surgery only when the batch gradient genuinely
+            # conflicts with g_V (cos_sim < 0), not on small positive
+            # alignments below tau_A. See apply_gradient_surgery for the
+            # per-vector guard.
             if use_gradient_surgery:
                 batch_grad = get_grad_vector(model)
                 norm_bg = batch_grad.norm()
                 norm_gv = g_V.norm()
                 if norm_bg > 1e-10 and norm_gv > 1e-10:
                     cos_sim = (batch_grad @ g_V) / (norm_bg * norm_gv)
-                    if cos_sim.item() < hp_tau_A_surgery:
+                    if cos_sim.item() < 0:
                         g_mod = apply_gradient_surgery(
                             batch_grad, batch_grad, g_V,
-                            hp_tau_A_surgery - cos_sim.item(), 0.0,
+                            -cos_sim.item(), 0.0,
                             gamma=hp_gamma, rho=hp_rho)
                         # Preserve original gradient scale
                         g_mod = g_mod * (norm_bg / g_mod.norm().clamp(min=1e-10))

@@ -1,0 +1,21 @@
+\section{Overview}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\linewidth]{figures/short_cut_aware_framework.png}
+    \caption{
+    Overview of SART. (A) Gradient diagnostics: we compute per-sample gradient alignment with validation gradients and answer-token concentration. 
+    (B) ShortcutScore computation combines both signals to identify shortcut-prone samples. 
+    (C) Sample reweighting reduces their contribution. 
+    (D) Conflict-only gradient surgery removes only the components that conflict with $g_{\mathcal{V}}$, preserving any validation-aligned direction already present in the sample gradient.
+    (E) Resulting updates prioritize reasoning signals over shortcut patterns.
+    }
+    \label{fig:overview}
+\end{figure}
+Figure~\ref{fig:overview} illustrates our proposed \textbf{shortcut-aware reasoning training (SART)} framework, comprising two coupled components: (1) \textbf{ShortcutScore-based sample reweighting} and (2) \textbf{gradient surgery for shortcut suppression}.
+
+\textbf{Shortcut Detection via ShortcutScore.}
+We identify shortcut reasoning samples by analyzing gradient structure rather than labels or loss values. Signal 1 measures \textit{non-transfer gradient alignment}: we compute the cosine similarity between each sample's per-sample gradient and the validation gradient $g_{\mathcal{V}}$. Samples whose gradients are misaligned with $g_{\mathcal{V}}$ reduce training loss without improving generalizable reasoning---a hallmark of shortcut exploitation undetectable by label-quality or loss-based filters. Signal 2 measures \textit{answer-gradient concentration}: we compare gradient norm on final answer tokens to that on intermediate reasoning tokens. Shortcut samples concentrate gradient energy on answer tokens, indicating the model learns \textit{what to predict} rather than \textit{how to reason}. We combine both signals into a unified \textbf{ShortcutScore} that quantifies each sample's shortcut tendency and down-weights it during training.
+
+\textbf{Shortcut Suppression via Gradient Surgery.}
+Reweighting reduces shortcut influence but does not eliminate the harmful gradient directions such samples introduce. We therefore apply \emph{conflict-only gradient surgery} to high-ShortcutScore samples: whenever a sample gradient points against $g_{\mathcal{V}}$ (negative inner product), we project out only the conflicting component, following the PCGrad conflict-removal principle~\cite{yu2020gradient}; samples whose gradients already align positively with $g_{\mathcal{V}}$ are left untouched, so that we never discard a validation-improving direction. A second operation separately suppresses answer-token-dominant gradients to break the ``what to answer'' pathway. Together, ShortcutScore reweighting and conflict-only gradient surgery steer training dynamics toward genuine reasoning signals rather than superficial patterns.
