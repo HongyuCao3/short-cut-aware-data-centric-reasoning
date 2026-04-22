@@ -35,7 +35,14 @@ We compare against eleven methods:
 Here $^\dagger$ requires group annotations and $^\ddagger$ requires multiple environments.
 
 \paragraph{Metrics.}
-Clean accuracy, perturbed accuracy (\emph{robustness}), reasoning consistency, and shortcut detection F1.
+We report four metrics, all computed on held-out samples drawn from the true-rule distribution.
+\begin{itemize}[leftmargin=*, itemsep=1pt]
+    \item \textbf{Clean Accuracy} ($\uparrow$): token-level top-1 accuracy on the clean test split, where the shortcut feature is coincident with the correct label.
+    \item \textbf{Robustness} ($\uparrow$): token-level top-1 accuracy on the perturbed test split, constructed so that the shortcut feature \emph{contradicts} the correct label. A model that has truly learned the rule should be unaffected; one that exploits the shortcut will flip its prediction. We report the absolute accuracy on this split, not a ratio.
+    \item \textbf{Reasoning Consistency} ($\uparrow$): fraction of test examples for which the model, when given the question prefix, greedily generates intermediate reasoning tokens that exactly match the gold reasoning chain (up to the separator token). This captures whether correct answers are reached through the intended reasoning path rather than a shortcut. See Appendix~A.3 for the generation protocol.
+    \item \textbf{Shortcut Detection F1} ($\uparrow$): binary F1 of a shortcut-sample classifier derived from each method's internal signal. We treat each training sample's is\_shortcut label (known by construction on synthetic data) as ground truth, compute the method's per-sample score (\textsc{ShortcutScore} for SART, confidence for Data Filtering), sweep 50 linearly-spaced thresholds between the score's min and max, and report the best F1 over the sweep---an oracle upper bound on detection quality that is method-agnostic. Methods with no explicit per-sample diagnostic (e.g., SFT, JTT) are marked ``--''.
+\end{itemize}
+The ablation table additionally reports \textbf{Gradient Alignment}, the mean cosine similarity $\cos(\mathbf{g}_s,\mathbf{g}_{\mathcal{V}})$ over a held-out subset of up to 100 training samples; values closer to $0$ indicate training updates that are neither systematically aligned with nor systematically opposed to the validation-improving direction.
 
 %-----------------------------------------------------------------------------
 \subsection{Main Results}
@@ -129,19 +136,19 @@ Per-dataset results (Table~\ref{tab:per_dataset}) reveal three important finding
 
 \begin{table}[t]
 \centering
-\caption{Ablation of SART components (averages across three datasets). Grad.\ Align.: cosine similarity between training and validation gradients (closer to 0 $=$ better alignment with true task objective).}
+\caption{Ablation of SART components (averages across three datasets). Grad.\ Align.\ is the mean cosine similarity $\cos(\mathbf{g}_s,\mathbf{g}_{\mathcal{V}})$ (defined in \S\ref{sec:exp_setup}); values closer to $0$ indicate no systematic alignment or anti-alignment with the validation-improving direction.}
 \label{tab:ablation}
 \small
 \begin{tabular}{lcccc}
 \toprule
-\textbf{Configuration} & \textbf{Accuracy} ($\uparrow$) & \textbf{Robustness} ($\uparrow$) & \textbf{Grad.\ Align.} ($\uparrow$) & \textbf{SC Det.\ F1} \\
+\textbf{Configuration} & \textbf{Accuracy} ($\uparrow$) & \textbf{Robustness} ($\uparrow$) & \textbf{$|$Grad.\ Align.$|$} ($\downarrow$) & \textbf{SC Det.\ F1} \\
 \midrule
-SFT (Baseline)              & 68.8 & 19.4  & $-0.08$ & -- \\
+SFT (Baseline)              & 68.8 & 19.4  & $0.08$ & -- \\
 \midrule
-+ Reweighting Only          & 75.2 & 40.1  & $-0.06$ & 0.85 \\
-+ Gradient Surgery Only     & 73.5 & 40.5  & $-0.14$ & 0.82 \\
++ Reweighting Only          & 75.2 & 40.1  & $0.06$ & 0.85 \\
++ Gradient Surgery Only     & 73.5 & 40.5  & $0.14$ & 0.82 \\
 \midrule
-\textbf{SART (Full)}        & \textbf{92.5} & \textbf{87.9}  & $\mathbf{-0.03}$ & 0.64 \\
+\textbf{SART (Full)}        & \textbf{92.5} & \textbf{87.9}  & $\mathbf{0.03}$ & 0.64 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -155,7 +162,7 @@ Table~\ref{tab:ablation} isolates each component's contribution. Both mechanisms
 
 Critically, the full combination exhibits \textbf{dramatic super-additive gains}. On robustness, the individual improvements sum to $20.7 + 21.1 = 41.8$\,pp, yet the full method achieves \textbf{+68.5\,pp}---a \emph{+26.7\,pp synergy bonus} (64\% more than the sum of parts). Similarly, accuracy gains sum to 11.1\,pp individually but reach 23.7\,pp combined (+12.6\,pp synergy). This exceptional synergy arises because reweighting and gradient surgery operate on \emph{complementary axes}: reweighting adjusts \emph{how much} each sample contributes to the loss, while surgery adjusts \emph{in which direction} each gradient update proceeds. When combined, reweighted gradients are more amenable to precise surgical correction, and surgery amplifies the effect of reweighting by eliminating residual shortcut directions.
 
-The full method achieves near-zero gradient misalignment ($-0.03$), a $2.7{\times}$ improvement over SFT ($-0.08$). Removing either component causes catastrophic degradation: removing Reweighting drops accuracy by $-$19.0\,pp and robustness by $-$47.4\,pp; removing Gradient Surgery drops accuracy by $-$17.3\,pp and robustness by $-$47.7\,pp. Both components are essential and contribute approximately equally.
+The full method achieves near-zero gradient misalignment ($|\cos(\mathbf{g}_s,\mathbf{g}_{\mathcal{V}})|{=}0.03$), a $2.7{\times}$ improvement over SFT ($0.08$). Removing either component causes catastrophic degradation: removing Reweighting drops accuracy by $-$19.0\,pp and robustness by $-$47.4\,pp; removing Gradient Surgery drops accuracy by $-$17.3\,pp and robustness by $-$47.7\,pp. Both components are essential and contribute approximately equally.
 
 %-----------------------------------------------------------------------------
 \subsection{Hyperparameter Sensitivity}
