@@ -14,14 +14,18 @@
 set -euo pipefail
 
 # ── Paths (all absolute so nohup never gets confused) ────────────────────────
+# Artifacts (mlruns, optuna studies, logs) go to /data so we never fill up the
+# home partition. Override with SART_DATA_ROOT=/path ... run_hp_search.sh.
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OUTPUT_DIR="${REPO_DIR}/hp_optuna"
+SART_DATA_ROOT="${SART_DATA_ROOT:-/data/hongyuca/short-cut-aware-data-centric-reasoning}"
+export SART_DATA_ROOT
+OUTPUT_DIR="${SART_DATA_ROOT}/hp_optuna"
 LOG_FILE="${OUTPUT_DIR}/optuna.log"
 PID_FILE="${OUTPUT_DIR}/optuna.pid"
 STORAGE="sqlite:///${OUTPUT_DIR}/study.db"
 STUDY_NAME="sart_optuna"
 # SQLite backend avoids the Feb-2026 file-store deprecation warning
-MLFLOW_URI="sqlite:///${REPO_DIR}/mlflow.db"
+MLFLOW_URI="sqlite:///${SART_DATA_ROOT}/mlflow.db"
 EXPERIMENT_SCALE="${EXPERIMENT_SCALE:-server}"
 
 # Minimum free VRAM (MiB) required to run one server-scale trial

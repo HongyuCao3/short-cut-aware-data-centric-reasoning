@@ -1,4 +1,4 @@
 _target_: pytorch_lightning.loggers.MLFlowLogger
 experiment_name: sart-experiments
-tracking_uri: mlruns
+tracking_uri: ${oc.env:SART_DATA_ROOT,/data/hongyuca/short-cut-aware-data-centric-reasoning}/mlruns
 run_name: null

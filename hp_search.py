@@ -317,8 +317,14 @@ def main():
                         help='Quick smoke test with tiny grid')
     parser.add_argument('--best-config', type=str, default=None,
                         help='Path to best_config.json from Phase 1 (for Phase 2)')
-    parser.add_argument('--output-dir', type=str, default='hp_results',
-                        help='Output directory for results')
+    _data_root = os.environ.get(
+        'SART_DATA_ROOT',
+        '/data/hongyuca/short-cut-aware-data-centric-reasoning',
+    )
+    parser.add_argument('--output-dir', type=str,
+                        default=f'{_data_root}/hp_results',
+                        help='Output directory for results '
+                             '(default: $SART_DATA_ROOT/hp_results)')
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)

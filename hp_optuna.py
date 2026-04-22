@@ -23,8 +23,11 @@ Usage:
 
   # Resume previous study  (Optuna DB + existing MLflow experiment)
   EXPERIMENT_SCALE=server python3 hp_optuna.py \\
-    --storage sqlite:///hp_optuna/study.db \\
+    --storage sqlite:///$SART_DATA_ROOT/hp_optuna/study.db \\
     --study-name sart_optuna --n-trials 50
+
+  # Artifacts default to $SART_DATA_ROOT (/data/hongyuca/short-cut-aware-data-centric-reasoning);
+  # override with SART_DATA_ROOT=/some/other/path ... python3 hp_optuna.py
 
   # Disable MLflow (fall back to JSON only)
   python3 hp_optuna.py --no-mlflow
@@ -403,13 +406,20 @@ def main() -> None:
     parser.add_argument("--study-name", type=str,   default="sart_optuna")
     parser.add_argument("--sampler",    type=str,   default="tpe",
                         choices=["tpe", "cmaes", "random"])
-    parser.add_argument("--output-dir", type=str,   default="hp_optuna",
-                        help="Directory for best_config_optuna.json")
+    _data_root = os.environ.get(
+        "SART_DATA_ROOT",
+        "/data/hongyuca/short-cut-aware-data-centric-reasoning",
+    )
+    parser.add_argument("--output-dir", type=str,   default=f"{_data_root}/hp_optuna",
+                        help="Directory for best_config_optuna.json "
+                             "(default: $SART_DATA_ROOT/hp_optuna)")
     parser.add_argument("--device",     type=str,   default=None)
 
     # MLflow
-    parser.add_argument("--mlflow-uri",        type=str, default="sqlite:///mlflow.db",
-                        help="MLflow tracking URI (default: sqlite:///mlflow.db)")
+    parser.add_argument("--mlflow-uri",        type=str,
+                        default=f"sqlite:///{_data_root}/mlflow.db",
+                        help="MLflow tracking URI "
+                             "(default: sqlite:///$SART_DATA_ROOT/mlflow.db)")
     parser.add_argument("--mlflow-experiment", type=str, default="SART-HP-Search",
                         help="MLflow experiment name")
     parser.add_argument("--no-mlflow", action="store_true",

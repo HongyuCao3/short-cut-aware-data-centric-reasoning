@@ -12,8 +12,9 @@ Usage:
   # GSM8K only:
   CUDA_VISIBLE_DEVICES=1 python3 run_pretrained.py --dataset gsm8k
 
-  # Full run with nohup:
-  CUDA_VISIBLE_DEVICES=1 nohup python3 run_pretrained.py > logs/pretrained_exp.log 2>&1 &
+  # Full run with nohup (log goes to /data, not home):
+  CUDA_VISIBLE_DEVICES=1 nohup python3 run_pretrained.py \
+      > /data/hongyuca/short-cut-aware-data-centric-reasoning/logs/pretrained_exp.log 2>&1 &
 """
 import os
 import sys
