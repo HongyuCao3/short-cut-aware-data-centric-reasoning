@@ -17,6 +17,13 @@ transformers
 tokenizers
 accelerate
 
+# PEFT (Parameter-Efficient Fine-Tuning): LoRA adapters so 7B-class models
+# fit into realistic GPU memory for SART's per-sample gradient operations.
+peft
+
+# bitsandbytes: 4-bit / 8-bit quantization (QLoRA). Linux + CUDA only.
+bitsandbytes
+
 # Hyperparameter search
 optuna
 
