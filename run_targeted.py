@@ -79,12 +79,19 @@ def run_one(name, train_fn, ds, **train_kwargs):
     r = evaluate(model, ds, f1=f1, alignment=alignment)
     r['train_time_sec'] = train_time
 
+    def _fmt(val, spec='.3f'):
+        """Format a scalar, tolerating None from methods that don't compute it."""
+        if val is None:
+            return '   -  '
+        return format(val, spec)
+
     print(
         f'    [{name}] '
-        f'acc={r["accuracy_clean"]:.3f} rob={r["robustness"]:.3f} '
-        f'reason={r.get("reasoning_consistency", float("nan")):.3f} '
-        f'f1={r.get("shortcut_f1", float("nan")):.3f} '
-        f'align={r.get("gradient_alignment", float("nan")):.3f} '
+        f'acc={_fmt(r.get("accuracy_clean"))} '
+        f'rob={_fmt(r.get("robustness"))} '
+        f'reason={_fmt(r.get("reasoning_consistency"))} '
+        f'f1={_fmt(r.get("shortcut_f1"))} '
+        f'align={_fmt(r.get("gradient_alignment"))} '
         f'time={train_time:.1f}s',
         flush=True,
     )
