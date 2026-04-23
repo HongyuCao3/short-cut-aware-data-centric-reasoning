@@ -89,79 +89,157 @@ def load_dataset(dataset_name, tokenizer):
         raise ValueError(f"未知数据集: {dataset_name}。支持: 'gsm8k', 'math'")
 
 
-def evaluate_peft_model(model, dataset, tokenizer, verbose=True):
-    """评估 PEFT 模型在干净测试集和扰动测试集上的表现。
+def _accuracy_on_split(model, split, tokenizer, max_gen=64,
+                        batch_size=4, max_samples=None, verbose=False):
+    """Greedy-decode each sample in `split`, parse the predicted answer,
+    and compare against the stored `answer_value`. Returns (correct, total).
 
-    注意：HuggingFace CausalLM 的评估接口与 SmallGPT 不同。
-    本函数调用 run_full_evaluation_nl()，该函数已针对真实世界数据集设计。
-
-    Args:
-        model:     PEFT 模型（评估时切换为 eval 模式）
-        dataset:   数据集字典
-        tokenizer: 分词器
-        verbose:   是否打印结果
-
-    Returns:
-        results: 包含 accuracy_clean, robustness, reasoning_consistency 等的字典
+    PEFT-native eval: uses HuggingFace CausalLM's `.generate()` interface
+    (do_sample=False, max_new_tokens=max_gen), not SmallGPT's signature.
+    Batches prompts with left-padding so attention masks remain correct
+    for mixed-length prefixes.
     """
-    # run_full_evaluation_nl 期望模型有特定的接口
-    # 我们需要为 PEFT 模型提供 pad_id 信息
+    import math as _math
+    from src.data_realworld import parse_gsm8k_answer
+
+    device = LC.device
+    eos_id = tokenizer.eos_token_id
     pad_id = tokenizer.pad_token_id
 
+    samples = split.samples if hasattr(split, 'samples') else list(split)
+    if max_samples is not None and max_samples < len(samples):
+        samples = samples[:max_samples]
+
+    # Switch to left-padding for generation so attention_mask lines up
+    # with the right-side prefix tokens. Saved and restored.
+    _prev_pad = tokenizer.padding_side
+    tokenizer.padding_side = "left"
+
+    correct, total, skipped = 0, 0, 0
     model.eval()
+    with torch.no_grad():
+        for i in range(0, len(samples), batch_size):
+            chunk = samples[i:i + batch_size]
+            # Build prompt-only sequences using stored prompt_len.
+            prompt_token_lists = []
+            gt_values = []
+            for s in chunk:
+                plen = int(s['prompt_len']) if 'prompt_len' in s else len(s['input_ids'])
+                prompt_token_lists.append(list(s['input_ids'])[:plen])
+                gt = s.get('answer_value', float('nan'))
+                if hasattr(gt, 'item'):
+                    gt = gt.item()
+                gt_values.append(gt)
+
+            max_prompt = max(len(p) for p in prompt_token_lists)
+            input_ids = []
+            attention_mask = []
+            for p in prompt_token_lists:
+                pad_n = max_prompt - len(p)
+                input_ids.append([pad_id] * pad_n + p)
+                attention_mask.append([0] * pad_n + [1] * len(p))
+            input_ids = torch.tensor(input_ids, device=device)
+            attention_mask = torch.tensor(attention_mask, device=device)
+
+            gen = model.generate(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                max_new_tokens=max_gen,
+                do_sample=False,
+                pad_token_id=pad_id,
+                eos_token_id=eos_id,
+            )
+            # Only look at the newly generated suffix.
+            for b_idx, out in enumerate(gen):
+                new_tokens = out[input_ids.shape[1]:].cpu().tolist()
+                text = tokenizer.decode(new_tokens, skip_special_tokens=True)
+                pred = parse_gsm8k_answer(text)
+                gt = gt_values[b_idx]
+                if gt is None or (isinstance(gt, float) and _math.isnan(gt)):
+                    skipped += 1
+                    continue
+                if pred is not None and abs(pred - gt) < 0.01:
+                    correct += 1
+                total += 1
+            if verbose and (i // batch_size) % 20 == 0 and i > 0:
+                print(f'      decoded {i + len(chunk)}/{len(samples)} '
+                      f'(acc so far = {correct / max(total, 1):.3f})',
+                      flush=True)
+
+    tokenizer.padding_side = _prev_pad
+    model.train()
+    return correct, total, skipped
+
+
+def evaluate_peft_model(model, dataset, tokenizer, verbose=True,
+                         max_eval_samples=200, max_gen=64, batch_size=4):
+    """Accuracy + robustness on test_clean / test_perturbed.
+
+    Subsamples each split to at most `max_eval_samples` for a fast turnaround
+    (PEFT generation at bs=4 on an H100 lands around 2-3 s/batch, so 200
+    samples per split ≈ 2 minutes). Robustness is absolute accuracy on the
+    perturbed split.
+    """
     results = {}
 
-    try:
-        # 使用现有的 NL 评估函数
-        # 注意：该函数内部调用 model(input_ids)，与 peft_forward 接口略有差异
-        # 此处直接计算损失指标（不做生成评估，避免复杂性）
-        from src.model_peft import peft_forward
-        from src.methods import masked_ce_loss
+    # Robustness-gap PPL (cheap loss-based signal; still useful when
+    # accuracy is low).
+    from src.model_peft import peft_forward
+    from src.methods import masked_ce_loss
+    import math
 
-        def _eval_loss(split_name):
-            """计算指定分割集的平均损失（作为性能代理指标）。"""
-            loader = get_dataloader(dataset[split_name], batch_size=LC.batch_size,
-                                    shuffle=False)
-            total_loss = 0.0
-            n_batches = 0
-            with torch.no_grad():
-                for batch in loader:
-                    inp = batch['input_ids'].to(LC.device)
-                    tgt = batch['target_ids'].to(LC.device)
-                    lm = batch['loss_mask'].to(LC.device)
+    def _eval_loss(split_name):
+        loader = get_dataloader(dataset[split_name], batch_size=LC.batch_size,
+                                shuffle=False)
+        total_loss = 0.0
+        n = 0
+        with torch.no_grad():
+            for batch in loader:
+                inp = batch['input_ids'].to(LC.device)
+                tgt = batch['target_ids'].to(LC.device)
+                lm = batch['loss_mask'].to(LC.device)
+                logits = peft_forward(model, inp, tokenizer.pad_token_id)
+                loss = masked_ce_loss(logits, tgt, lm)
+                total_loss += loss.item()
+                n += 1
+        return total_loss / max(n, 1)
 
-                    logits = peft_forward(model, inp, pad_id)
-                    loss = masked_ce_loss(logits, tgt, lm)
-                    total_loss += loss.item()
-                    n_batches += 1
-            return total_loss / max(n_batches, 1)
+    results['clean_loss']     = _eval_loss('test_clean')
+    results['perturbed_loss'] = _eval_loss('test_perturbed')
+    results['clean_ppl']      = math.exp(min(results['clean_loss'], 20))
+    results['perturbed_ppl']  = math.exp(min(results['perturbed_loss'], 20))
+    results['robustness_gap'] = results['perturbed_loss'] - results['clean_loss']
 
-        # 计算困惑度（Perplexity）作为性能指标
-        # 低困惑度 = 模型对真实推理序列的预测更好
-        import math
-        clean_loss = _eval_loss('test_clean')
-        perturbed_loss = _eval_loss('test_perturbed')
+    # Decode-based accuracy: the honest metric that captures shortcut flip.
+    print(f'  [eval] decoding test_clean (max_samples={max_eval_samples})...',
+          flush=True)
+    c_clean, t_clean, s_clean = _accuracy_on_split(
+        model, dataset['test_clean'], tokenizer,
+        max_gen=max_gen, batch_size=batch_size,
+        max_samples=max_eval_samples, verbose=verbose,
+    )
+    print(f'  [eval] decoding test_perturbed...', flush=True)
+    c_pert, t_pert, s_pert = _accuracy_on_split(
+        model, dataset['test_perturbed'], tokenizer,
+        max_gen=max_gen, batch_size=batch_size,
+        max_samples=max_eval_samples, verbose=verbose,
+    )
 
-        results['clean_perplexity'] = math.exp(min(clean_loss, 20))   # 避免 overflow
-        results['perturbed_perplexity'] = math.exp(min(perturbed_loss, 20))
-        results['clean_loss'] = clean_loss
-        results['perturbed_loss'] = perturbed_loss
+    results['accuracy_clean']     = c_clean / max(t_clean, 1)
+    results['accuracy_perturbed'] = c_pert  / max(t_pert, 1)
+    results['robustness']         = results['accuracy_perturbed']
+    results['n_eval_clean']       = t_clean
+    results['n_eval_perturbed']   = t_pert
+    results['n_skipped_clean']    = s_clean
+    results['n_skipped_perturbed'] = s_pert
 
-        # 困惑度差值：扰动集比干净集困惑度高，说明模型对捷径样本泛化差
-        results['robustness_gap'] = perturbed_loss - clean_loss
-
-        if verbose:
-            print(f"    干净测试集 PPL:    {results['clean_perplexity']:.2f} "
-                  f"(loss={clean_loss:.4f})")
-            print(f"    扰动测试集 PPL:    {results['perturbed_perplexity']:.2f} "
-                  f"(loss={perturbed_loss:.4f})")
-            print(f"    鲁棒性差距 (越小越好): {results['robustness_gap']:.4f}")
-
-    except Exception as e:
-        print(f"  [警告] 评估失败: {e}")
-        results = {'clean_loss': float('nan'), 'perturbed_loss': float('nan')}
-
-    model.train()
+    if verbose:
+        print(f'    acc_clean     = {results["accuracy_clean"]:.3f} '
+              f'({c_clean}/{t_clean}, skipped {s_clean})')
+        print(f'    acc_perturbed = {results["accuracy_perturbed"]:.3f} '
+              f'({c_pert}/{t_pert}, skipped {s_pert})')
+        print(f'    clean PPL / pert PPL = {results["clean_ppl"]:.2f} / '
+              f'{results["perturbed_ppl"]:.2f}')
     return results
 
 
