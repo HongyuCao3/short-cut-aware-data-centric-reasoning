@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
-"""Quick-verify harness: does the PCGrad fix preserve SART's Math result?
+"""Quick-verify harness: does the PCGrad fix preserve SART's results?
 
-Runs only SART-Full and Reweight-Only on Math-Arithmetic at FULL server
-scale scoring (10k samples), but skips the expensive F1 eval so each
-method lands in ~3 min rather than ~12 min. Enough to know if SART's
-+95 pp robustness survived the conflict-only projection rule.
+Runs SFT + Reweight-Only + SART-Full on one synthetic dataset at FULL
+server scale scoring (10k samples), but skips the expensive F1 eval so
+each method lands in ~3-5 min rather than ~12 min. Enough to know if
+SART's +95 pp robustness survived the conflict-only projection rule.
 
 Usage:
   CUDA_VISIBLE_DEVICES=<free-gpu> EXPERIMENT_SCALE=server \
-      python3 -u run_verify.py
+      python3 -u run_verify.py [--dataset {math,financial,causal}]
+
+Default dataset is math for backward compatibility with earlier runs.
 """
+import argparse
 import os
 import sys
 import time
@@ -22,10 +25,21 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.stdout.reconfigure(line_buffering=True)
 
 from src.config import Config as C, PROFILE
-from src.data import generate_math_dataset, get_dataloader
+from src.data import (generate_math_dataset, generate_financial_dataset,
+                      generate_causal_dataset, get_dataloader)
 from src.model import create_model
 from src.trainer import train_standard, train_our_method
 from src.evaluate import run_full_evaluation, evaluate_gradient_alignment
+
+
+DATASET_FACTORIES = {
+    'math':      (generate_math_dataset,      'Math-Arithmetic',
+                  'paper Table 2 ref: SFT 77.6/3.2, SART 98.0/95.8'),
+    'financial': (generate_financial_dataset, 'Financial-Analysis',
+                  'paper Table 2 ref: SFT 66.4/28.6, SART 89.4/78.8'),
+    'causal':    (generate_causal_dataset,    'Causal-Reasoning',
+                  'paper Table 2 ref: SFT 62.4/26.4, SART 90.2/89.0'),
+}
 
 
 OUT_DIR = os.environ.get(
@@ -33,7 +47,6 @@ OUT_DIR = os.environ.get(
     '/data/hongyuca/short-cut-aware-data-centric-reasoning',
 ) + '/logs/pcgrad-rerun'
 os.makedirs(OUT_DIR, exist_ok=True)
-OUT_JSON = os.path.join(OUT_DIR, 'verify_results.json')
 
 
 def set_seed(seed=C.seed):
@@ -64,14 +77,24 @@ def evaluate_quick(model, ds):
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--dataset', choices=list(DATASET_FACTORIES),
+                    default='math')
+    args = ap.parse_args()
+    dataset_factory, dataset_pretty, paper_ref = DATASET_FACTORIES[args.dataset]
+    out_json = os.path.join(OUT_DIR, f'verify_results_{args.dataset}.json')
+
     print('=' * 70, flush=True)
     print(f'PCGrad-fix QUICK VERIFY (profile={PROFILE})', flush=True)
-    print(f'  Dataset: Math-Arithmetic (full 10k scoring, no F1)', flush=True)
-    print(f'  Output:  {OUT_JSON}', flush=True)
+    print(f'  Dataset: {dataset_pretty} (full 10k scoring, no F1)', flush=True)
+    print(f'  Output:  {out_json}', flush=True)
     print('=' * 70, flush=True)
 
-    print('\n--- Generating Math-Arithmetic ---', flush=True)
-    ds = generate_math_dataset(seed=42)
+    print(f'\n--- Generating {dataset_pretty} ---', flush=True)
+    # Keep the per-dataset seed offsets that run_all.py uses so numbers
+    # are comparable to the published tables.
+    seed_offsets = {'math': 42, 'financial': 43, 'causal': 44}
+    ds = dataset_factory(seed=seed_offsets[args.dataset])
     print(f'  train={len(ds["train"])} val={len(ds["val"])}', flush=True)
 
     # First: SFT baseline for reference
@@ -135,12 +158,11 @@ def main():
     results['sart_full'] = r
     del m; torch.cuda.empty_cache()
 
-    with open(OUT_JSON, 'w') as f:
+    with open(out_json, 'w') as f:
         json.dump(results, f, indent=2)
 
     print('\n' + '=' * 70, flush=True)
-    print('VERDICT (Math-Arithmetic, paper Table 2 ref: SFT 77.6/3.2, '
-          'SART 98.0/95.8)', flush=True)
+    print(f'VERDICT ({dataset_pretty}, {paper_ref})', flush=True)
     print(f'  SFT            acc={results["sft"]["accuracy_clean"]:.3f} '
           f'rob={results["sft"]["robustness"]:.3f}', flush=True)
     print(f'  Reweight-Only  acc={results["reweight_only"]["accuracy_clean"]:.3f} '
