@@ -307,7 +307,18 @@ def compute_shortcut_scores_batched(g_fulls, g_anss, g_reasons, g_V,
     norm_anss = g_anss.norm(dim=1)
     norm_reasons = g_reasons.norm(dim=1)
     conc_denoms = (norm_anss + norm_reasons).clamp(min=1e-10)
-    R_vals_t = norm_anss / conc_denoms
+    # When reasoning-token supervision is missing (no CoT labels available
+    # for this sample), the concentration signal R(s) is undefined. Fall
+    # back to the neutral value 0.5 -- this matches the scalar reference
+    # in compute_shortcut_score() and makes C_val = max(0, 0.5 - tau_R)
+    # exactly zero under the default tau_R = 0.5, so the alignment term
+    # A(s) alone drives the ShortcutScore in that regime.
+    no_reason = norm_reasons < 1e-10
+    R_vals_t = torch.where(
+        no_reason,
+        torch.full_like(norm_anss, 0.5),
+        norm_anss / conc_denoms,
+    )
 
     scores, B_vals, C_vals, A_vals, R_vals = [], [], [], [], []
     for i in range(B):
