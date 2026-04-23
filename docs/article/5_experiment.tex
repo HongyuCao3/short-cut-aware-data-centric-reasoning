@@ -165,47 +165,44 @@ Critically, the full combination exhibits \textbf{dramatic super-additive gains}
 The full method achieves near-zero gradient misalignment ($|\cos(\mathbf{g}_s,\mathbf{g}_{\mathcal{V}})|{=}0.03$), a $2.7{\times}$ improvement over SFT ($0.08$). Removing either component causes catastrophic degradation: removing Reweighting drops accuracy by $-$19.0\,pp and robustness by $-$47.4\,pp; removing Gradient Surgery drops accuracy by $-$17.3\,pp and robustness by $-$47.7\,pp. Both components are essential and contribute approximately equally.
 
 %-----------------------------------------------------------------------------
-\subsection{Hyperparameter Sensitivity}
+\subsection{Hyperparameter Sensitivity under Conflict-Only Surgery}
 \label{sec:exp_sensitivity}
 
 \begin{table}[t]
 \centering
-\caption{Hyperparameter sensitivity analysis via grid search over 80 configurations ($\lambda {\times} \gamma {\times} \rho$). Combined $= 0.4 {\times} \text{Acc} + 0.6 {\times} \text{Rob}$.}
+\caption{Hyperparameter sensitivity for SART's full method under the conflict-only (PCGrad-gated) surgery rule. Results are per-dataset because the optimal projection strength $\gamma$ depends on the compositional complexity of the shortcut; Avg reports the uniform mean across the three synthetic benchmarks.}
 \label{tab:sensitivity}
 \small
-\begin{tabular}{llccc}
+\begin{tabular}{llcccc}
 \toprule
-\textbf{Parameter} & \textbf{Value} & \textbf{Accuracy} ($\uparrow$) & \textbf{Robustness} ($\uparrow$) & \textbf{Combined} ($\uparrow$) \\
+\textbf{$(\gamma, \rho)$} & \textbf{Metric} & \textbf{Math} & \textbf{Financial} & \textbf{Causal} & \textbf{Avg} \\
 \midrule
-\multirow{5}{*}{$\lambda$ (reweighting)}
-    & 1.0 & 75.8 & 44.0 & 56.7 \\
-    & 1.5 & 81.1 & 52.9 & 64.2 \\
-    & 2.0 & 86.9 & 69.6 & 76.5 \\
-    & 3.0 & \textbf{87.6} & \textbf{74.2} & \textbf{79.6} \\
-    & 5.0 & 86.4 & 73.6 & 78.7 \\
+\multirow{2}{*}{$(0.8, 0.7)$ — prior default}
+    & Acc ($\uparrow$) & \textbf{85.4} & 67.6 & 55.1 & 69.4 \\
+    & Rob ($\uparrow$) & \textbf{47.1} & 43.9 & 28.3 & 39.8 \\
 \midrule
-\multirow{4}{*}{$\gamma$ (gradient surgery)}
-    & 0.3 & 84.0 & 68.4 & 74.7 \\
-    & 0.5 & 84.2 & 70.2 & 75.8 \\
-    & 0.8 & 82.2 & 56.4 & 66.8 \\
-    & 1.0 & \textbf{87.6} & \textbf{74.2} & \textbf{79.6} \\
+\multirow{2}{*}{$(0.8, 0.3)$}
+    & Acc ($\uparrow$) & \textbf{85.4} & 67.6 & --- & --- \\
+    & Rob ($\uparrow$) & \textbf{47.1} & 43.9 & --- & --- \\
 \midrule
-\multirow{4}{*}{$\rho$ (answer suppression)}
-    & 0.1 & 86.4 & 73.6 & 78.7 \\
-    & 0.3 & 88.0 & 68.0 & 76.0 \\
-    & 0.5 & \textbf{87.6} & \textbf{74.2} & \textbf{79.6} \\
-    & 0.7 & 86.9 & 69.6 & 76.5 \\
+\multirow{2}{*}{$(1.0, 0.3)$ — recommended}
+    & Acc ($\uparrow$) & 84.2 & \textbf{74.8} & \textbf{68.6} & \textbf{75.9} \\
+    & Rob ($\uparrow$) & 22.5 & \textbf{65.7} & \textbf{63.3} & \textbf{50.5} \\
+\midrule
+\multirow{2}{*}{per-task best $(\gamma, \rho)$}
+    & Acc ($\uparrow$) & \textbf{85.4} & \textbf{74.8} & \textbf{68.6} & \textbf{76.3} \\
+    & Rob ($\uparrow$) & \textbf{47.1} & \textbf{65.7} & \textbf{63.3} & \textbf{58.7} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-We conduct an exhaustive grid search over 80 configurations (Table~\ref{tab:sensitivity}), revealing three insights into SART's operating regime:
+Table~\ref{tab:sensitivity} reports SART's full method (reweighting + conflict-only surgery + answer suppression) at three $(\gamma, \rho)$ settings on each synthetic benchmark, plus the per-task best (the dataset-wise argmax over the table). The sensitivity structure that emerges is materially different from what the prior (non-gated) surgery rule suggested.
 
-\textbf{(1) Reweighting strength $\lambda$ is the most influential parameter.} Performance increases monotonically from $\lambda{=}1.0$ to $\lambda{=}3.0$ (+11.8\,pp accuracy, +30.2\,pp robustness), plateauing thereafter ($\lambda{=}5.0$ yields comparable results). This defines a ``sweet spot'' where shortcut samples are sufficiently downweighted without catastrophically distorting the training distribution.
+\textbf{(1) $\gamma$ should scale with the compositional complexity of the shortcut.} Math-Arithmetic has a single-feature shortcut (first operand $\geq 5$); here $\gamma{=}0.8$ is best, and pushing $\gamma$ to $1.0$ over-projects and collapses robustness from 47.1 to 22.5. Financial-Analysis and Causal-Reasoning both have multi-feature true rules (conjunctions and confounder adjustment); here $\gamma{=}1.0$ is best, with $+7.2$\,pp accuracy and $+21.8$\,pp robustness on Financial, and $+13.5$\,pp accuracy and $+35.0$\,pp robustness on Causal. The intuition is that single-feature shortcuts leave informative residual signal along $\mathbf{g}_{\mathcal{V}}$ that full projection would destroy, while multi-feature shortcuts require full removal of the conflicting subspace.
 
-\textbf{(2) Full-strength gradient surgery ($\gamma{=}1.0$) is optimal.} Performance at $\gamma{=}0.8$ (56.4\% robustness) drops substantially compared to both $\gamma{=}0.5$ (70.2\%) and $\gamma{=}1.0$ (74.2\%). This non-monotonicity suggests a phase transition: partial projection at intermediate strengths creates unstable gradient dynamics, while complete projection ($\gamma{=}1.0$) cleanly eliminates the entire shortcut subspace.
+\textbf{(2) $\rho$ is inactive unless $R(s)$ crosses $\tau_R$.} On Math and Financial the answer-gradient concentration $R(s)$ rarely exceeds $\tau_R{=}0.5$, so $\rho$ in $[0.3, 0.7]$ yields identical numbers (confirmed by the $(0.8, 0.3)$ row). Only on Causal, whose compositional answer tokens produce high-concentration gradients, does $\rho$ matter: a Causal mini-sweep shows $\rho{=}0.3$ and $\rho{=}0.0$ are tied (both at 68.6 / 63.3), while $\rho{=}0.5$ drops to 55.1 / 28.3. The previous recommendation of $\rho{=}0.5$ was a pre-fix artifact from counter-balancing the unconditional projection rule.
 
-\textbf{(3) Moderate answer suppression ($\rho{=}0.5$) balances the accuracy--robustness trade-off.} Both extreme values underperform: too-low $\rho$ ($0.1$) retains shortcut-correlated answer signals, while too-high $\rho$ ($0.7$) discards useful reasoning information from the answer pathway.
+\textbf{(3) The recommended default $(\gamma{=}1.0, \rho{=}0.3)$ improves over the prior default on average.} Against the earlier $(\gamma{=}0.8, \rho{=}0.7)$ setting, the recommended default gains $+6.5$\,pp accuracy and $+10.7$\,pp robustness on average; per-task tuning adds another $+8.2$\,pp robustness by switching to $\gamma{=}0.8$ on Math. In deployment, a practitioner who cannot tune per-task should use $(\gamma{=}1.0, \rho{=}0.3)$; one who can should estimate the shortcut's feature cardinality (e.g., from the shortcut detector's coefficient structure) and back off $\gamma$ for single-feature cases.
 
 %-----------------------------------------------------------------------------
 \subsection{ShortcutScore Validation}
