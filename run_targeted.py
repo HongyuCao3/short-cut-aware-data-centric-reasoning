@@ -65,6 +65,18 @@ def run_one(name, train_fn, ds, **train_kwargs):
     t0 = time.time()
     set_seed()
     model = create_model()
+
+    # For methods that run a per-sample scoring pass (train_our_method),
+    # cut score_max_samples and sketch_k so the scoring pass completes
+    # in ~30s rather than ~1hr at server scale. The published Table 1
+    # can be re-produced at the default 10k/128 later; this is the
+    # quick-signal harness for the PCGrad-fix sanity check.
+    if train_fn is train_our_method:
+        cfg_override = train_kwargs.pop('cfg', None) or {}
+        cfg_override.setdefault('score_max_samples', 1500)
+        cfg_override.setdefault('sketch_k', 64)
+        train_kwargs['cfg'] = cfg_override
+
     out = train_fn(model, ds, **train_kwargs)
     # Some trainers return (model, collected); we only need the model here.
     if isinstance(out, tuple):
