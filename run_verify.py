@@ -80,9 +80,21 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--dataset', choices=list(DATASET_FACTORIES),
                     default='math')
+    ap.add_argument('--gamma', type=float, default=None,
+                    help='Override surgery projection strength '
+                         '(default: config value)')
+    ap.add_argument('--rho', type=float, default=None,
+                    help='Override answer-suppression coefficient '
+                         '(default: config value)')
+    ap.add_argument('--tag', type=str, default='',
+                    help='Optional suffix for the output JSON filename '
+                         '(default: empty, file is verify_results_<dataset>.json)')
     args = ap.parse_args()
     dataset_factory, dataset_pretty, paper_ref = DATASET_FACTORIES[args.dataset]
-    out_json = os.path.join(OUT_DIR, f'verify_results_{args.dataset}.json')
+    tag_suffix = f'_{args.tag}' if args.tag else ''
+    out_json = os.path.join(
+        OUT_DIR, f'verify_results_{args.dataset}{tag_suffix}.json',
+    )
 
     print('=' * 70, flush=True)
     print(f'PCGrad-fix QUICK VERIFY (profile={PROFILE})', flush=True)
@@ -116,6 +128,12 @@ def main():
     # reweighting reaches all training samples. sketch_k kept at server
     # default (128) for fidelity to the published pipeline.
     cfg_override = {'score_max_samples': 10000, 'sketch_k': 128}
+    if args.gamma is not None:
+        cfg_override['gamma'] = args.gamma
+        print(f'  Override: gamma = {args.gamma}', flush=True)
+    if args.rho is not None:
+        cfg_override['rho'] = args.rho
+        print(f'  Override: rho = {args.rho}', flush=True)
 
     # Reweight-only: does reweighting at full 10k score scale recover rob > 0?
     print('\n[2/3] Reweight-Only (full 10k scoring)...', flush=True)
