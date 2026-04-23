@@ -52,14 +52,32 @@ def _per_sample_masked_ce_loss(logits, targets, mask):
 
 
 def _apply_perturbation(model, epsilon, seed, direction=1):
-    """Perturb all trainable parameters in-place by direction * epsilon * z_j."""
-    rng = torch.Generator()
+    """Perturb all trainable parameters in-place by direction * epsilon * z_j.
+
+    Uses a single on-device generator sequenced across all trainable
+    parameters. This keeps the original semantics -- each parameter sees
+    a distinct slice of the random stream even when two parameters share
+    a shape, which SPSA requires for an unbiased gradient estimate --
+    while eliminating the cudaMemcpy for each randn call. The old CPU-
+    generator + .to(device) pattern emitted one host-to-device copy per
+    parameter tensor; with sketch_k=128 and ~50 parameter tensors, that
+    became ~7.5 million tiny syncs per 10k-sample scoring pass and
+    pinned Phase 2 to host-device bandwidth instead of H100 FLOPs.
+    """
+    device = next(model.parameters()).device
+    rng = torch.Generator(device=device)
     rng.manual_seed(seed)
     with torch.no_grad():
         for p in model.parameters():
-            if p.requires_grad:
-                z = torch.randn(p.shape, generator=rng)
-                p.data.add_(direction * epsilon * z.to(p.device))
+            if not p.requires_grad:
+                continue
+            # Generator only works on matching device; fall back for the
+            # rare case where a parameter lives on a different device.
+            if p.device == device:
+                z = torch.randn(p.shape, generator=rng, device=device, dtype=p.dtype)
+            else:
+                z = torch.randn(p.shape, device=p.device, dtype=p.dtype)
+            p.data.add_(z, alpha=direction * epsilon)
 
 
 def sketch_gradient_vector(g_V, model, k, base_seed, device):
