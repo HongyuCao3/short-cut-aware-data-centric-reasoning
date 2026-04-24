@@ -52,6 +52,8 @@ website:
             href: experiments/ablation.qmd
           - text: "HP Sensitivity"
             href: experiments/hyperparam.qmd
+          - text: "HP Follow-Ups"
+            href: experiments/hyperparam_followups.qmd
       - section: "Guides"
         contents:
           - text: "Server Guide"
