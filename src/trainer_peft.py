@@ -505,6 +505,109 @@ def _apply_batch_gradient_surgery_peft(model, batch, weights, g_V, device, pad_i
     return loss_val
 
 
+def _apply_persample_gradient_surgery_peft(model, batch, weights, g_V, device, pad_id,
+                                            use_gradient_surgery, cfg=None):
+    """Per-sample PCGrad variant.
+
+    The batch-level helper above aggregates gradients across a mixed batch of
+    shortcut + clean samples before testing `g_batch @ g_V < 0`. Clean samples
+    align positively with g_V and wash out the negative signal from shortcut
+    samples, so the PCGrad gate rarely fires and γ becomes inert. This helper
+    runs the same forward once, then backprops each sample separately, tests
+    conflict per-sample, projects only the conflicting ones, and sums the
+    (possibly projected) weighted per-sample gradients into .grad.
+
+    Costs ~B× more backward passes than the batch helper but preserves the
+    sample-level conflict signal. Answer-token gradient suppression (ρ·g_ans)
+    is also computed per-sample so that the `C_val` gate reflects the actual
+    per-sample answer concentration rather than a batch average.
+    """
+    _c = cfg or {}
+    hp_gamma = _c.get('gamma', LC.gamma)
+    hp_rho = _c.get('rho', LC.rho)
+    hp_tau_A = _c.get('tau_A', LC.tau_A)
+    hp_tau_R = _c.get('tau_R', LC.tau_R)
+
+    input_ids = batch['input_ids'].to(device)
+    target_ids = batch['target_ids'].to(device)
+    loss_mask = batch['loss_mask'].to(device)
+    answer_mask = batch['answer_mask'].to(device)
+
+    B = input_ids.size(0)
+    w_dev = weights.to(device)
+
+    g_accum = None
+    total_loss_val = 0.0
+
+    norm_V = g_V.norm()
+
+    for i in range(B):
+        inp = input_ids[i:i+1]
+        tgt = target_ids[i:i+1]
+        lm = loss_mask[i:i+1]
+        am = answer_mask[i:i+1]
+        w_i = w_dev[i].item()
+
+        logits = peft_forward(model, inp, pad_id)
+        loss_per_token = F.cross_entropy(
+            logits.reshape(-1, logits.size(-1)),
+            tgt.reshape(-1),
+            reduction='none',
+        ).reshape(1, -1)
+
+        denom_full = lm.sum().clamp(min=1.0)
+        full_loss = (loss_per_token * lm).sum() / denom_full
+
+        model.zero_grad()
+        full_loss.backward(retain_graph=True)
+        g_i = get_peft_grad_vector(model).clone()
+
+        if use_gradient_surgery:
+            if am.sum() > 0:
+                denom_ans = am.sum().clamp(min=1.0)
+                ans_loss = (loss_per_token * am).sum() / denom_ans
+                model.zero_grad()
+                ans_loss.backward()
+                g_ans_i = get_peft_grad_vector(model).clone()
+            else:
+                g_ans_i = torch.zeros_like(g_i)
+
+            norm_i = g_i.norm()
+            if norm_i > 1e-10 and norm_V > 1e-10:
+                A_i = (g_i @ g_V / (norm_i * norm_V)).item()
+            else:
+                A_i = 0.0
+            B_val = max(0.0, hp_tau_A - A_i)
+
+            norm_ans_i = g_ans_i.norm().item()
+            norm_full_i = norm_i.item()
+            R_i = norm_ans_i / (norm_ans_i + max(norm_full_i - norm_ans_i, 1e-10))
+            C_val = max(0.0, R_i - hp_tau_R)
+
+            g_i_mod = apply_gradient_surgery(
+                g_i, g_ans_i, g_V, B_val, C_val,
+                gamma=hp_gamma, rho=hp_rho,
+            )
+        else:
+            del logits
+            g_i_mod = g_i
+
+        weighted = w_i * g_i_mod
+        if g_accum is None:
+            g_accum = weighted
+        else:
+            g_accum = g_accum + weighted
+
+        total_loss_val += w_i * full_loss.item()
+
+    g_accum = g_accum / max(B, 1)
+
+    model.zero_grad()
+    set_peft_grad_vector(model, g_accum)
+
+    return total_loss_val / max(B, 1)
+
+
 # ============================================================================
 # 主函数：SART 完整训练流程
 # ============================================================================
@@ -641,12 +744,16 @@ def train_sart_peft(model, dataset, tokenizer,
             g_V = compute_validation_gradient_peft(model, val_loader, _device, pad_id)
             model.train()  # 切回 train 模式
 
+        _use_persample = _c.get('persample_surgery', False)
+        _surgery_fn = (_apply_persample_gradient_surgery_peft
+                       if _use_persample else _apply_batch_gradient_surgery_peft)
+
         for step_idx, batch in enumerate(train_loader):
             weights = batch.get('weight', torch.ones(batch['input_ids'].size(0)))
 
             # 核心：计算加权损失 + 梯度手术
             # 函数内部已完成 backward 和 set_peft_grad_vector
-            loss_val = _apply_batch_gradient_surgery_peft(
+            loss_val = _surgery_fn(
                 model, batch, weights, g_V, _device, pad_id,
                 use_gradient_surgery, cfg=cfg
             )

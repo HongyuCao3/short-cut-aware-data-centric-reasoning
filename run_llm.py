@@ -89,8 +89,9 @@ def load_dataset(dataset_name, tokenizer):
         raise ValueError(f"未知数据集: {dataset_name}。支持: 'gsm8k', 'math'")
 
 
-def _accuracy_on_split(model, split, tokenizer, max_gen=64,
-                        batch_size=4, max_samples=None, verbose=False):
+def _accuracy_on_split(model, split, tokenizer, max_gen=256,
+                        batch_size=4, max_samples=None, verbose=False,
+                        dump_samples=0):
     """Greedy-decode each sample in `split`, parse the predicted answer,
     and compare against the stored `answer_value`. Returns (correct, total).
 
@@ -155,6 +156,18 @@ def _accuracy_on_split(model, split, tokenizer, max_gen=64,
                 text = tokenizer.decode(new_tokens, skip_special_tokens=True)
                 pred = parse_gsm8k_answer(text)
                 gt = gt_values[b_idx]
+
+                # Dump the first few (prompt, generation, parsed, gt) tuples
+                # so eval failures are diagnosable from the log.
+                if i == 0 and b_idx < dump_samples:
+                    prompt_text = tokenizer.decode(
+                        prompt_token_lists[b_idx], skip_special_tokens=True,
+                    )
+                    print(f'      --- debug sample {b_idx} ---', flush=True)
+                    print(f'      PROMPT: {prompt_text[-200:]!r}', flush=True)
+                    print(f'      GEN:    {text!r}', flush=True)
+                    print(f'      PRED:   {pred}   GT: {gt}', flush=True)
+
                 if gt is None or (isinstance(gt, float) and _math.isnan(gt)):
                     skipped += 1
                     continue
@@ -172,7 +185,8 @@ def _accuracy_on_split(model, split, tokenizer, max_gen=64,
 
 
 def evaluate_peft_model(model, dataset, tokenizer, verbose=True,
-                         max_eval_samples=200, max_gen=64, batch_size=4):
+                         max_eval_samples=200, max_gen=256, batch_size=4,
+                         dump_samples=3):
     """Accuracy + robustness on test_clean / test_perturbed.
 
     Subsamples each split to at most `max_eval_samples` for a fast turnaround
@@ -211,18 +225,20 @@ def evaluate_peft_model(model, dataset, tokenizer, verbose=True,
     results['robustness_gap'] = results['perturbed_loss'] - results['clean_loss']
 
     # Decode-based accuracy: the honest metric that captures shortcut flip.
-    print(f'  [eval] decoding test_clean (max_samples={max_eval_samples})...',
-          flush=True)
+    print(f'  [eval] decoding test_clean (max_samples={max_eval_samples}, '
+          f'max_gen={max_gen})...', flush=True)
     c_clean, t_clean, s_clean = _accuracy_on_split(
         model, dataset['test_clean'], tokenizer,
         max_gen=max_gen, batch_size=batch_size,
         max_samples=max_eval_samples, verbose=verbose,
+        dump_samples=dump_samples,
     )
     print(f'  [eval] decoding test_perturbed...', flush=True)
     c_pert, t_pert, s_pert = _accuracy_on_split(
         model, dataset['test_perturbed'], tokenizer,
         max_gen=max_gen, batch_size=batch_size,
         max_samples=max_eval_samples, verbose=verbose,
+        dump_samples=0,
     )
 
     results['accuracy_clean']     = c_clean / max(t_clean, 1)
@@ -261,6 +277,25 @@ def main():
     no_quant = os.environ.get('NO_QUANT', '0') == '1'
     use_4bit = not no_quant
 
+    # Optional (gamma, rho) override via env so ablations can be launched
+    # without editing LLMConfig. Propagated into train_sart_peft via cfg=.
+    _gamma_env = os.environ.get('SART_GAMMA', '')
+    _rho_env = os.environ.get('SART_RHO', '')
+    _scoremax_env = os.environ.get('SART_SCORE_MAX', '')
+    _persample_env = os.environ.get('SART_PERSAMPLE', '')
+    cfg_override = {}
+    if _gamma_env:
+        cfg_override['gamma'] = float(_gamma_env)
+    if _rho_env:
+        cfg_override['rho'] = float(_rho_env)
+    if _scoremax_env:
+        cfg_override['score_max_samples'] = int(_scoremax_env)
+    if _persample_env in ('1', 'true', 'True'):
+        cfg_override['persample_surgery'] = True
+    _lambda_env = os.environ.get('SART_LAMBDA', '')
+    if _lambda_env:
+        cfg_override['lambda_'] = float(_lambda_env)
+
     print("=" * 70)
     print("SART 实验：预训练 LLM + PEFT (LoRA)")
     print("=" * 70)
@@ -272,6 +307,8 @@ def main():
     print(f"  LoRA rank:  {LC.lora_r}, alpha={LC.lora_alpha}")
     print(f"  批次大小:   {LC.batch_size} × {LC.grad_accum_steps} (累积) "
           f"= {LC.batch_size * LC.grad_accum_steps} 等效批次")
+    if cfg_override:
+        print(f"  cfg override: {cfg_override}")
     print(f"  学习率:     {LC.lr}")
     print(f"  总 Epochs:  {LC.epochs} (预热 {LC.warmup_epochs} + 主训 "
           f"{LC.epochs - LC.warmup_epochs})")
@@ -306,18 +343,24 @@ def main():
         set_seed(LC.seed)
         t0 = time.time()
 
+        _cfg = cfg_override or None
         if ablation == 'full':
             print("\n>>> 训练: SART (重加权 + 梯度手术)")
             collected = train_sart_peft(
                 model, dataset, tokenizer,
-                use_reweighting=True, use_gradient_surgery=True, verbose=True
+                use_reweighting=True, use_gradient_surgery=True,
+                verbose=True, cfg=_cfg,
             )
         elif ablation == 'reweight_only':
             print("\n>>> 训练: SART 消融 - 仅重加权")
-            collected = train_reweighting_only_peft(model, dataset, tokenizer, verbose=True)
+            collected = train_reweighting_only_peft(
+                model, dataset, tokenizer, verbose=True, cfg=_cfg,
+            )
         else:  # surgery_only
             print("\n>>> 训练: SART 消融 - 仅梯度手术")
-            collected = train_surgery_only_peft(model, dataset, tokenizer, verbose=True)
+            collected = train_surgery_only_peft(
+                model, dataset, tokenizer, verbose=True, cfg=_cfg,
+            )
 
         print(f"\n  训练耗时: {time.time()-t0:.1f}s")
 

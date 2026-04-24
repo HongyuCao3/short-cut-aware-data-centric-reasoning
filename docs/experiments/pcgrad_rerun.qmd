@@ -72,7 +72,7 @@ Under PCGrad-gated surgery, projection only removes genuinely conflicting compon
 - [x] Three synthetic datasets re-run at paper default and at retuned (γ=1.0, ρ=0.3)
 - [x] Causal γ×ρ mini-sweep (4 configs)
 - [x] Per-dataset best numbers logged to this doc
-- [ ] Update §5.3 (hyperparameter sensitivity) in `docs/article/5_experiment.tex` with these numbers
-- [ ] Update `configs/method/sart.yaml` and `src/config.py` defaults to γ=1.0, ρ=0.3 (or document the per-task choice)
+- [x] Update §5.3 (hyperparameter sensitivity) in `docs/article/5_experiment.tex` with these numbers
+- [ ] Update `configs/method/sart.yaml` and `src/config.py` defaults — *deferred*: γ=1.0 is not strictly dominant (Math still prefers γ=0.8), so defaults stay and per-task overrides are documented inline in `run_verify.py` / `run_sweep_causal.py`
 - [ ] Full 12-baseline rerun of Table 1 at the new default (follow-up)
-- [ ] Move to P0-3 real-world benchmarks (GSM8K / SVAMP / StrategyQA) — the synthetic signal-to-noise now supports the theoretical fix and it is time to show the result on pretrained LLMs.
+- [~] P0-3 real-world benchmarks — in progress on Qwen3-8B + LoRA / GSM8K. See `docs/experiments/llm_gsm8k.qmd` for the LLM transfer results and the ρ/generative-model incompatibility finding.

@@ -58,6 +58,7 @@ The intuition is analogous to the flat region concept in continual learning~\cit
 \noindent\textbf{Step 1: Conflict-Only Projection for Non-Transfer Alignment.}
 For samples flagged as shortcut-prone ($A(s) < \tau_A$), we remove the component of $\mathbf{g}_s$ that \emph{conflicts} with the validation gradient $\mathbf{g}_{\mathcal{V}}$, following the PCGrad conflict-removal principle~\cite{yu2020gradient}. Concretely, we project only when the two gradients genuinely disagree:
 \begin{equation}
+\label{eq:gradient_surgery}
     \mathbf{g}_s' =
     \begin{cases}
         \mathbf{g}_s - \gamma\,\dfrac{\mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}}}{\|\mathbf{g}_{\mathcal{V}}\|^2}\,\mathbf{g}_{\mathcal{V}}, & \text{if } \mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}} < 0, \\[4pt]
