@@ -8,41 +8,13 @@ We evaluate SART on three synthetic reasoning benchmarks with controlled shortcu
 \subsection{Experimental Setup}
 \label{sec:exp_setup}
 
-\paragraph{Model and Training.}
-We use a GPT-style transformer (4 layers, $d_{\mathrm{model}}=256$, 8 attention heads, $d_{\mathrm{ff}}=1024$, ${\approx}$3.2M parameters) trained for 40 epochs with AdamW~\cite{loshchilov2019decoupled} (learning rate $1{\times}10^{-3}$, weight decay $10^{-4}$, batch size 64, cosine annealing). SART hyperparameters ($\alpha{=}\beta{=}1.0$, $\tau_A{=}0.3$, $\tau_R{=}0.5$, $\lambda{=}3.0$, $\gamma{=}1.0$, $\rho{=}0.5$) are selected via grid search over 80 configurations (\S\ref{sec:exp_sensitivity}).
+\paragraph{Model and Training.} We use a GPT-style transformer (4 layers, $d_{\mathrm{model}}{=}256$, 8 heads, $d_{\mathrm{ff}}{=}1024$, ${\approx}$3.2M params) trained for 40 epochs with AdamW~\cite{loshchilov2019decoupled} (lr $1{\times}10^{-3}$, weight decay $10^{-4}$, batch size 64, cosine annealing). SART hyperparameters ($\alpha{=}\beta{=}1.0$, $\tau_A{=}0.3$, $\tau_R{=}0.5$, $\lambda{=}3.0$, $\gamma{=}1.0$, $\rho{=}0.5$) are selected via an 80-configuration grid search (Appendix~\ref{sec:appendix_sensitivity}).
 
-\paragraph{Datasets.}
-We construct three synthetic datasets with controlled shortcut injection, each containing 2{,}000 training / 500 validation / 1{,}000 test samples. Training data follows the shortcut rule for 70\% of samples and the true rule for 30\%; validation and test sets exclusively follow the true rule. The test set is split evenly into \emph{clean} (shortcut consistent with correct answer) and \emph{perturbed} (shortcut contradicts the correct answer) subsets.
-\begin{itemize}[leftmargin=*, itemsep=1pt]
-    \item \textbf{Math-Arithmetic}: Binary classification of $a+b \geq 10$. Shortcut: first operand $a \geq 5$; true rule: evaluate the full sum.
-    \item \textbf{Financial-Analysis}: Regulatory compliance from four financial features. Shortcut: revenue $\geq 5$; true rule: margin $\geq 5$ \emph{and} debt $< 5$ (multi-feature conjunction).
-    \item \textbf{Causal-Reasoning}: Causal direction inference from observed variables with a confounder. Shortcut: correlation $\geq 5$; true rule: $x \geq 5$ \emph{and} $z < 3$ (requires confounder adjustment).
-\end{itemize}
+\paragraph{Datasets.} We construct three synthetic benchmarks with controlled shortcut injection: 2{,}000 train / 500 val / 1{,}000 test samples each, with training data 70\% shortcut-rule and 30\% true-rule (val/test exclusively follow the true rule; test split evenly into \emph{clean} and \emph{perturbed} by whether the shortcut agrees with the correct answer). \textbf{Math-Arithmetic}: classify $a{+}b{\geq}10$---shortcut $a{\geq}5$, true rule evaluates the sum. \textbf{Financial-Analysis}: regulatory compliance from four features---shortcut revenue${\geq}5$, true rule margin${\geq}5$ \emph{and} debt${<}5$ (multi-feature conjunction). \textbf{Causal-Reasoning}: causal-direction inference with a confounder---shortcut correlation${\geq}5$, true rule $x{\geq}5$ \emph{and} $z{<}3$ (requires confounder adjustment).
 
-\paragraph{Baselines.}
-We compare against eleven methods:
-(1)~\textbf{SFT}: vanilla cross-entropy;
-(2)~\textbf{Self-Consistency}~\cite{wang2023selfconsistency}: majority vote over 5 samples ($T{=}0.8$);
-(3)~\textbf{Data Filtering}: remove high-confidence samples ($> 0.90$) after warmup;
-(4)~\textbf{JTT}~\cite{liu2021justtraintwiceimproving}: upweight error-prone samples;
-(5)~\textbf{Focal Loss}~\cite{lin2018focallossdenseobject}: $(1{-}p_t)^\gamma$ weighting;
-(6)~\textbf{Group DRO}$^\dagger$~\cite{sagawa2020distributionallyrobustneuralnetworks}: worst-group optimization with known shortcut annotations;
-(7)~\textbf{IRM}$^\ddagger$~\cite{arjovsky2020invariantriskminimization}: invariance penalty across environments;
-(8)~\textbf{V-REx}$^\ddagger$~\cite{krueger2021outofdistributiongeneralizationriskextrapolation}: variance of risks across environments;
-(9)~\textbf{Fishr}$^\ddagger$~\cite{rame2022fishrinvariantgradientvariances}: gradient variance equalization;
-(10)~\textbf{LfF}~\cite{nam2020learningfailuretrainingdebiased}: learning from failure;
-(11)~\textbf{Influence Filtering}~\cite{koh2020understandingblackboxpredictionsinfluence}: remove harmful samples via influence functions.
-Here $^\dagger$ requires group annotations and $^\ddagger$ requires multiple environments.
+\paragraph{Baselines.} We compare against eleven methods spanning four families: \emph{loss / inference-time}---\textbf{SFT}, \textbf{Self-Consistency}~\cite{wang2023selfconsistency} (majority vote over 5 samples, $T{=}0.8$), \textbf{Focal Loss}~\cite{lin2018focallossdenseobject}, and \textbf{JTT}~\cite{liu2021justtraintwiceimproving} (upweight error-prone samples); \emph{data-centric}---\textbf{Data Filtering} (drop samples with post-warmup confidence $>0.90$) and \textbf{Influence Filtering}~\cite{koh2020understandingblackboxpredictionsinfluence}; \emph{invariance / worst-group}---\textbf{Group DRO}$^\dagger$~\cite{sagawa2020distributionallyrobustneuralnetworks}, \textbf{IRM}$^\ddagger$~\cite{arjovsky2020invariantriskminimization}, \textbf{V-REx}$^\ddagger$~\cite{krueger2021outofdistributiongeneralizationriskextrapolation}, \textbf{Fishr}$^\ddagger$~\cite{rame2022fishrinvariantgradientvariances}; and \emph{failure-mining}---\textbf{LfF}~\cite{nam2020learningfailuretrainingdebiased}. $^\dagger$ requires group annotations, $^\ddagger$ requires multiple environments.
 
-\paragraph{Metrics.}
-We report four metrics, all computed on held-out samples drawn from the true-rule distribution.
-\begin{itemize}[leftmargin=*, itemsep=1pt]
-    \item \textbf{Clean Accuracy} ($\uparrow$): token-level top-1 accuracy on the clean test split, where the shortcut feature is coincident with the correct label.
-    \item \textbf{Robustness} ($\uparrow$): token-level top-1 accuracy on the perturbed test split, constructed so that the shortcut feature \emph{contradicts} the correct label. A model that has truly learned the rule should be unaffected; one that exploits the shortcut will flip its prediction. We report the absolute accuracy on this split, not a ratio.
-    \item \textbf{Reasoning Consistency} ($\uparrow$): fraction of test examples for which the model, when given the question prefix, greedily generates intermediate reasoning tokens that exactly match the gold reasoning chain (up to the separator token). This captures whether correct answers are reached through the intended reasoning path rather than a shortcut. See Appendix~A.3 for the generation protocol.
-    \item \textbf{Shortcut Detection F1} ($\uparrow$): binary F1 of a shortcut-sample classifier derived from each method's internal signal. We treat each training sample's is\_shortcut label (known by construction on synthetic data) as ground truth, compute the method's per-sample score (\textsc{ShortcutScore} for SART, confidence for Data Filtering), sweep 50 linearly-spaced thresholds between the score's min and max, and report the best F1 over the sweep---an oracle upper bound on detection quality that is method-agnostic. Methods with no explicit per-sample diagnostic (e.g., SFT, JTT) are marked ``--''.
-\end{itemize}
-The ablation table additionally reports \textbf{Gradient Alignment}, the mean cosine similarity $\cos(\mathbf{g}_s,\mathbf{g}_{\mathcal{V}})$ over a held-out subset of up to 100 training samples; values closer to $0$ indicate training updates that are neither systematically aligned with nor systematically opposed to the validation-improving direction.
+\paragraph{Metrics.} All metrics are computed on held-out samples drawn from the true-rule distribution. \textbf{Clean Accuracy} ($\uparrow$) is token-level top-1 accuracy on the clean split (shortcut coincident with the correct label). \textbf{Robustness} ($\uparrow$) is absolute accuracy on the perturbed split, where the shortcut feature \emph{contradicts} the correct label---a model that has truly learned the rule should be unaffected, a shortcut-reliant model flips. \textbf{Reasoning Consistency} ($\uparrow$) is the fraction of test examples whose greedily generated intermediate tokens exactly match the gold chain up to the separator, capturing whether correct answers arrive via the intended path (protocol in Appendix~\ref{sec:appendix_algorithm}). \textbf{Shortcut Detection F1} ($\uparrow$) is the best binary F1 over a 50-threshold sweep of each method's per-sample score (\textsc{ShortcutScore} for SART, confidence for Data Filtering; methods without a per-sample signal are marked ``--'')---an oracle upper bound on detection quality. The ablation table additionally reports \textbf{Gradient Alignment} $|\cos(\mathbf{g}_s,\mathbf{g}_{\mathcal{V}})|$ over a held-out subset of up to 100 samples; values near $0$ indicate updates neither systematically aligned with nor opposed to the validation-improving direction.
 
 %-----------------------------------------------------------------------------
 \subsection{Main Results}
@@ -52,83 +24,45 @@ The ablation table additionally reports \textbf{Gradient Alignment}, the mean co
 \centering
 \caption{Main results averaged across three synthetic benchmarks. \textbf{Bold}: best; \underline{underline}: second best. $^\dagger$Requires group annotations. $^\ddagger$Requires multiple environments.}
 \label{tab:main_results}
-\small
-\begin{tabular}{lcccc}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccccccccccc}
 \toprule
-\textbf{Method} & \textbf{Accuracy} ($\uparrow$) & \textbf{Robustness} ($\uparrow$) & \textbf{Reasoning} ($\uparrow$) & \textbf{SC Det.\ F1} ($\uparrow$) \\
+\textbf{Metric} & SFT & \makecell{Self-\\Cons.} & \makecell{Data\\Filt.} & JTT & \makecell{Focal\\Loss} & \makecell{DRO\\$^\dagger$} & \makecell{IRM\\$^\ddagger$} & \makecell{V-REx\\$^\ddagger$} & \makecell{Fishr\\$^\ddagger$} & LfF & \makecell{Infl.\\Filt.} & \textbf{SART} \\
 \midrule
-Standard Fine-Tuning (SFT)  & 68.8 & 19.4  & 55.9 & -- \\
-Self-Consistency            & 69.1 & 23.3  & 55.9 & -- \\
-Data Filtering              & 74.7 & \underline{54.6}  & 64.7 & \underline{0.69} \\
-JTT                         & 67.9 & 19.0  & 54.9 & -- \\
-Focal Loss                  & 68.2 & 18.2  & 55.4 & -- \\
-Group DRO$^\dagger$         & 73.5 & 36.0  & 61.5 & -- \\
-IRM$^\ddagger$              & 73.3 & 34.4  & 61.5 & -- \\
-V-REx$^\ddagger$            & 72.1 & 34.9  & 60.6 & -- \\
-Fishr$^\ddagger$            & 68.1 & 16.7  & 56.3 & -- \\
-LfF                         & 69.0 & 19.4  & 56.3 & -- \\
-Influence Filtering         & \underline{76.0} & 47.7  & \underline{68.4} & -- \\
-\midrule
-\textbf{SART (Ours)}        & \textbf{92.5} & \textbf{87.9}  & \textbf{85.5} & \textbf{0.64} \\
+Acc.\ ($\uparrow$)       & 68.8 & 69.1 & 74.7 & 67.9 & 68.2 & 73.5 & 73.3 & 72.1 & 68.1 & 69.0 & \underline{76.0} & \textbf{92.5} \\
+Rob.\ ($\uparrow$)       & 19.4 & 23.3 & \underline{54.6} & 19.0 & 18.2 & 36.0 & 34.4 & 34.9 & 16.7 & 19.4 & 47.7 & \textbf{87.9} \\
+Reasoning ($\uparrow$)   & 55.9 & 55.9 & 64.7 & 54.9 & 55.4 & 61.5 & 61.5 & 60.6 & 56.3 & 56.3 & \underline{68.4} & \textbf{85.5} \\
+SC Det.\ F1 ($\uparrow$) & --   & --   & \underline{0.69} & --   & --   & --   & --   & --   & --   & --   & --   & \textbf{0.64} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:main_results} presents the aggregate results. SART achieves \textbf{92.5\%} accuracy and \textbf{87.9\%} robustness, surpassing the strongest baseline (Influence Filtering: 76.0\%/47.7\%) by \textbf{+16.5\,pp} accuracy and \textbf{+40.2\,pp} robustness. Compared to standard fine-tuning, SART improves accuracy by +23.7\,pp and robustness by +68.5\,pp. Crucially, SART achieves this without requiring group annotations (unlike Group DRO) or multiple training environments (unlike IRM, V-REx, and Fishr).
-
-We observe a clear four-tier stratification among methods:
-
-\emph{Tier~1} (67--69\% acc, 16--23\% rob): SFT, JTT, Focal Loss, Fishr, LfF, Self-Consistency, and Meta-Reweighting. These methods---spanning loss modification, inference-time voting, and gradient variance equalization---fail to meaningfully address systematic shortcuts, performing near the SFT baseline.
-
-\emph{Tier~2} (72--74\% acc, 34--36\% rob): Group DRO, IRM, and V-REx. Distributional robustness and invariance-based approaches provide moderate gains but remain fundamentally limited: DRO requires explicit group annotations, while IRM/V-REx depend on environment partitions.
-
-\emph{Tier~3} (74--76\% acc, 48--55\% rob): Data Filtering and Influence Filtering achieve higher robustness through sample removal but at the cost of discarding training data and exhibiting high per-task variance (see Table~\ref{tab:per_dataset}).
-
-\emph{Tier~4}: SART (92.5\% acc, 87.9\% rob). By jointly performing gradient-level shortcut detection and correction, SART achieves a qualitative leap---exceeding the best baseline by +16.5\,pp accuracy and +40.2\,pp robustness.
+Table~\ref{tab:main_results} shows SART reaching \textbf{92.5\%} accuracy and \textbf{87.9\%} robustness, surpassing the strongest baseline (Influence Filtering: 76.0\%/47.7\%) by \textbf{+16.5\,pp} accuracy and \textbf{+40.2\,pp} robustness, and improving over SFT by +23.7\,pp / +68.5\,pp---without group annotations (Group DRO) or multiple training environments (IRM, V-REx, Fishr). The baselines stratify into three tiers: loss/inference-time methods (SFT, JTT, Focal Loss, Fishr, LfF, Self-Consistency) sit near the SFT floor (67--69\% acc, 16--23\% rob); invariance and worst-group methods (Group DRO, IRM, V-REx) add a moderate +5\,pp accuracy and +15\,pp robustness but need extra supervision; and sample-removal methods (Data Filtering, Influence Filtering) reach 74--76\% acc / 48--55\% rob but discard training signal and show high per-task variance (Table~\ref{tab:per_dataset}). SART's qualitative leap---+16.5\,pp acc and +40.2\,pp rob over the best of these---comes from operating on gradient geometry rather than either loss values or sample identity.
 
 \begin{table}[t]
 \centering
-\caption{Per-dataset results (\%). \textbf{Bold}: best; \underline{underline}: second best per dataset.}
+\caption{Per-dataset results (\%). Columns grouped by dataset; \textbf{Acc}~=~Clean Accuracy, \textbf{Rob}~=~Robustness, \textbf{Rsn}~=~Reasoning. \textbf{Bold}: best; \underline{underline}: second best per dataset. V-REx matches Group DRO on Math (86.8/48.0/86.8); on Financial/Causal only Group DRO is shown.}
 \label{tab:per_dataset}
-\small
-\begin{tabular}{llccc}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{l ccc ccc ccc}
 \toprule
-\textbf{Dataset} & \textbf{Method} & \textbf{Clean Acc.} ($\uparrow$) & \textbf{Robustness} ($\uparrow$) & \textbf{Reasoning} ($\uparrow$) \\
+ & \multicolumn{3}{c}{\textsc{Math}} & \multicolumn{3}{c}{\textsc{Financial}} & \multicolumn{3}{c}{\textsc{Causal}} \\
+\cmidrule(lr){2-4} \cmidrule(lr){5-7} \cmidrule(lr){8-10}
+\textbf{Method} & Acc & Rob & Rsn & Acc & Rob & Rsn & Acc & Rob & Rsn \\
 \midrule
-\multirow{6}{*}{\textsc{Math}}
-    & SFT                  & 77.6 &   3.2 & 77.6 \\
-    & Data Filtering       & 82.6 &  26.6 & 82.6 \\
-    & Group DRO / V-REx    & 86.8 &  48.0 & 86.8 \\
-    & IRM                  & 85.4 &  44.2 & 85.4 \\
-    & Influence Filtering  & 81.4 & \underline{50.4} & 81.4 \\
-    & \textbf{SART (Ours)} & \textbf{98.0} & \textbf{95.8} & \textbf{98.0} \\
-\midrule
-\multirow{6}{*}{\textsc{Financial}}
-    & SFT                  & 66.4 &  28.6 & 46.8 \\
-    & Data Filtering       & 72.6 & \underline{68.4} & 60.8 \\
-    & Group DRO            & 68.0 &  31.2 & 48.8 \\
-    & IRM                  & \underline{69.6} &  30.8 & \underline{51.6} \\
-    & Influence Filtering  & 63.4 &  23.6 & 59.6 \\
-    & \textbf{SART (Ours)} & \textbf{89.4} & \textbf{78.8} & \textbf{87.4} \\
-\midrule
-\multirow{6}{*}{\textsc{Causal}}
-    & SFT                  & 62.4 &  26.4 & 43.4 \\
-    & Data Filtering       & 69.0 &  68.8 & 50.8 \\
-    & Group DRO            & 65.8 &  28.8 & 48.8 \\
-    & IRM                  & 65.0 &  28.2 & 47.4 \\
-    & Influence Filtering  & \underline{83.2} & \underline{69.2} & \underline{64.2} \\
-    & \textbf{SART (Ours)} & \textbf{90.2} & \textbf{89.0} & \textbf{71.2} \\
+SFT                  & 77.6 &  3.2 & 77.6 & 66.4 & 28.6 & 46.8 & 62.4 & 26.4 & 43.4 \\
+Data Filtering       & 82.6 & 26.6 & 82.6 & 72.6 & \underline{68.4} & 60.8 & 69.0 & 68.8 & 50.8 \\
+Group DRO            & 86.8 & 48.0 & 86.8 & 68.0 & 31.2 & 48.8 & 65.8 & 28.8 & 48.8 \\
+IRM                  & 85.4 & 44.2 & 85.4 & \underline{69.6} & 30.8 & \underline{51.6} & 65.0 & 28.2 & 47.4 \\
+Influence Filtering  & 81.4 & \underline{50.4} & 81.4 & 63.4 & 23.6 & 59.6 & \underline{83.2} & \underline{69.2} & \underline{64.2} \\
+\textbf{SART (Ours)} & \textbf{98.0} & \textbf{95.8} & \textbf{98.0} & \textbf{89.4} & \textbf{78.8} & \textbf{87.4} & \textbf{90.2} & \textbf{89.0} & \textbf{71.2} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Per-dataset results (Table~\ref{tab:per_dataset}) reveal three important findings:
-
-\textbf{(1) SART achieves the best accuracy, robustness, and reasoning on all three datasets.} On Math-Arithmetic, SART reaches near-perfect performance (98.0\%/95.8\%), a +47.8\,pp robustness gain over the next-best baseline (Influence Filtering: 50.4\%). On Financial-Analysis, SART achieves 89.4\% accuracy and 87.4\% reasoning consistency---a +19.8\,pp accuracy gap over IRM and a +26.6\,pp reasoning gap over Data Filtering. On Causal-Reasoning, SART achieves 90.2\%/89.0\%, exceeding Influence Filtering by +7.0\,pp accuracy and +19.8\,pp robustness.
-
-\textbf{(2) Data-removal baselines exhibit extreme cross-task variance.} Influence Filtering ranks second on Causal (83.2\%/69.2\%) but collapses on Financial (63.4\%/23.6\%)---performing \emph{worse than SFT} on robustness. Data Filtering achieves high Financial robustness (68.4\%) but at the cost of severe accuracy drops (e.g., only 82.6\% on Math vs.\ SART's 98.0\%). These methods lack the discriminative power to identify which samples are harmful for complex multi-feature reasoning.
-
-\textbf{(3) SART's advantage scales with task complexity.} The accuracy gap between SART and the best baseline increases from Math (+11.2\,pp) to Financial (+16.8\,pp) to Causal (acc: +7.0\,pp, rob: +19.8\,pp), demonstrating that gradient-based correction is particularly powerful for multi-feature shortcuts that surface-level filtering cannot detect.
+Per-dataset results (Table~\ref{tab:per_dataset}) reveal three findings. \textbf{(1)} SART wins on every metric across all three datasets. \textbf{(2)} Data-removal baselines show extreme cross-task variance---Influence Filtering ranks second on Causal (83.2/69.2) yet collapses on Financial (23.6\% rob, \emph{worse than SFT}); Data Filtering trades Math accuracy for Financial robustness. \textbf{(3)} SART's advantage widens with shortcut compositionality (Math +11.2\,pp acc $\to$ Financial +16.8\,pp acc $\to$ Causal +19.8\,pp rob), indicating gradient-based correction helps most precisely where surface-level filtering fails.
 
 %-----------------------------------------------------------------------------
 \subsection{Ablation Study}
@@ -153,113 +87,27 @@ SFT (Baseline)              & 68.8 & 19.4  & $0.08$ & -- \\
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:ablation} isolates each component's contribution. Both mechanisms individually improve over SFT:
-
-\begin{itemize}[leftmargin=*, itemsep=2pt]
-\item \textbf{Reweighting Only}: +6.4\,pp accuracy, +20.7\,pp robustness. By downweighting shortcut-reliant samples, reweighting shifts the effective training distribution toward the true rule, achieving the highest standalone detection F1 (0.85).
-\item \textbf{Gradient Surgery Only}: +4.7\,pp accuracy, +21.1\,pp robustness. By projecting out shortcut-aligned gradient components, surgery directly corrects the optimization trajectory.
-\end{itemize}
-
-Critically, the full combination exhibits \textbf{dramatic super-additive gains}. On robustness, the individual improvements sum to $20.7 + 21.1 = 41.8$\,pp, yet the full method achieves \textbf{+68.5\,pp}---a \emph{+26.7\,pp synergy bonus} (64\% more than the sum of parts). Similarly, accuracy gains sum to 11.1\,pp individually but reach 23.7\,pp combined (+12.6\,pp synergy). This exceptional synergy arises because reweighting and gradient surgery operate on \emph{complementary axes}: reweighting adjusts \emph{how much} each sample contributes to the loss, while surgery adjusts \emph{in which direction} each gradient update proceeds. When combined, reweighted gradients are more amenable to precise surgical correction, and surgery amplifies the effect of reweighting by eliminating residual shortcut directions.
-
-The full method achieves near-zero gradient misalignment ($|\cos(\mathbf{g}_s,\mathbf{g}_{\mathcal{V}})|{=}0.03$), a $2.7{\times}$ improvement over SFT ($0.08$). Removing either component causes catastrophic degradation: removing Reweighting drops accuracy by $-$19.0\,pp and robustness by $-$47.4\,pp; removing Gradient Surgery drops accuracy by $-$17.3\,pp and robustness by $-$47.7\,pp. Both components are essential and contribute approximately equally.
+Both components individually beat SFT---\emph{Reweighting Only} adds +6.4\,pp acc / +20.7\,pp rob (and reaches the highest standalone detection F1 of 0.85), and \emph{Gradient Surgery Only} adds +4.7\,pp acc / +21.1\,pp rob---but their combination is strongly super-additive. Robustness gains sum to $20.7{+}21.1{=}41.8$\,pp individually yet reach \textbf{+68.5\,pp} combined, a \emph{+26.7\,pp synergy bonus} (64\% above the sum of parts); accuracy shows a similar +12.6\,pp synergy. The underlying driver is that the two operate on complementary axes---reweighting adjusts \emph{how much} each sample contributes, surgery adjusts \emph{in which direction}; reweighted gradients are more amenable to precise surgical correction, and surgery amplifies reweighting by eliminating residual shortcut directions. The full method drives $|\cos(\mathbf{g}_s,\mathbf{g}_{\mathcal{V}})|$ to $0.03$, a $2.7{\times}$ improvement over SFT, and removing either component incurs nearly symmetric collapses ($-$19.0 / $-$47.4\,pp without Reweighting; $-$17.3 / $-$47.7\,pp without Surgery), confirming both are essential.
 
 %-----------------------------------------------------------------------------
-\subsection{Hyperparameter Sensitivity under Conflict-Only Surgery}
-\label{sec:exp_sensitivity}
-
-\begin{table}[t]
-\centering
-\caption{Hyperparameter sensitivity for SART's full method under the conflict-only (PCGrad-gated) surgery rule. Results are per-dataset because the optimal projection strength $\gamma$ depends on the compositional complexity of the shortcut; Avg reports the uniform mean across the three synthetic benchmarks.}
-\label{tab:sensitivity}
-\small
-\begin{tabular}{llcccc}
-\toprule
-\textbf{$(\gamma, \rho)$} & \textbf{Metric} & \textbf{Math} & \textbf{Financial} & \textbf{Causal} & \textbf{Avg} \\
-\midrule
-\multirow{2}{*}{$(0.8, 0.7)$ — prior default}
-    & Acc ($\uparrow$) & \textbf{85.4} & 67.6 & 55.1 & 69.4 \\
-    & Rob ($\uparrow$) & \textbf{47.1} & 43.9 & 28.3 & 39.8 \\
-\midrule
-\multirow{2}{*}{$(0.8, 0.3)$}
-    & Acc ($\uparrow$) & \textbf{85.4} & 67.6 & --- & --- \\
-    & Rob ($\uparrow$) & \textbf{47.1} & 43.9 & --- & --- \\
-\midrule
-\multirow{2}{*}{$(1.0, 0.3)$ — recommended}
-    & Acc ($\uparrow$) & 84.2 & \textbf{74.8} & \textbf{68.6} & \textbf{75.9} \\
-    & Rob ($\uparrow$) & 22.5 & \textbf{65.7} & \textbf{63.3} & \textbf{50.5} \\
-\midrule
-\multirow{2}{*}{per-task best $(\gamma, \rho)$}
-    & Acc ($\uparrow$) & \textbf{85.4} & \textbf{74.8} & \textbf{68.6} & \textbf{76.3} \\
-    & Rob ($\uparrow$) & \textbf{47.1} & \textbf{65.7} & \textbf{63.3} & \textbf{58.7} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Table~\ref{tab:sensitivity} reports SART's full method (reweighting + conflict-only surgery + answer suppression) at three $(\gamma, \rho)$ settings on each synthetic benchmark, plus the per-task best (the dataset-wise argmax over the table). The sensitivity structure that emerges is materially different from what the prior (non-gated) surgery rule suggested.
-
-\textbf{(1) $\gamma$ should scale with the compositional complexity of the shortcut.} Math-Arithmetic has a single-feature shortcut (first operand $\geq 5$); here $\gamma{=}0.8$ is best, and pushing $\gamma$ to $1.0$ over-projects and collapses robustness from 47.1 to 22.5. Financial-Analysis and Causal-Reasoning both have multi-feature true rules (conjunctions and confounder adjustment); here $\gamma{=}1.0$ is best, with $+7.2$\,pp accuracy and $+21.8$\,pp robustness on Financial, and $+13.5$\,pp accuracy and $+35.0$\,pp robustness on Causal. The intuition is that single-feature shortcuts leave informative residual signal along $\mathbf{g}_{\mathcal{V}}$ that full projection would destroy, while multi-feature shortcuts require full removal of the conflicting subspace.
-
-\textbf{(2) $\rho$ is inactive unless $R(s)$ crosses $\tau_R$.} On Math and Financial the answer-gradient concentration $R(s)$ rarely exceeds $\tau_R{=}0.5$, so $\rho$ in $[0.3, 0.7]$ yields identical numbers (confirmed by the $(0.8, 0.3)$ row). Only on Causal, whose compositional answer tokens produce high-concentration gradients, does $\rho$ matter: a Causal mini-sweep shows $\rho{=}0.3$ and $\rho{=}0.0$ are tied (both at 68.6 / 63.3), while $\rho{=}0.5$ drops to 55.1 / 28.3. The previous recommendation of $\rho{=}0.5$ was a pre-fix artifact from counter-balancing the unconditional projection rule.
-
-\textbf{(3) The recommended default $(\gamma{=}1.0, \rho{=}0.3)$ improves over the prior default on average.} Against the earlier $(\gamma{=}0.8, \rho{=}0.7)$ setting, the recommended default gains $+6.5$\,pp accuracy and $+10.7$\,pp robustness on average; per-task tuning adds another $+8.2$\,pp robustness by switching to $\gamma{=}0.8$ on Math. In deployment, a practitioner who cannot tune per-task should use $(\gamma{=}1.0, \rho{=}0.3)$; one who can should estimate the shortcut's feature cardinality (e.g., from the shortcut detector's coefficient structure) and back off $\gamma$ for single-feature cases.
-
-%-----------------------------------------------------------------------------
-\subsection{ShortcutScore Validation}
+\subsection{ShortcutScore Validation and Sensitivity}
 \label{sec:exp_detection}
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=\textwidth]{results/figure3.png}
+    \includegraphics[width=0.9\linewidth]{results/figure3.png}
     \caption{Empirical validation of \textsc{ShortcutScore}. \textbf{(a)}~Score vs.\ true shortcut rate (Pearson $r=0.67$), showing monotonic correlation. \textbf{(b)}~Gradient alignment distribution: shortcut samples (red) skew negative; non-shortcut samples (green) cluster near zero. \textbf{(c)}~Exponential reweighting curve with $\lambda=3.0$.}
     \label{fig:analysis}
 \end{figure}
 
-\textsc{ShortcutScore} achieves an average detection F1 of 0.64 across three datasets, while the closely related Data Filtering approach achieves F1 of 0.69. Although comparable in detection, SART's advantage lies not in detection alone but in its \emph{corrective mechanism}: rather than discarding detected shortcut samples entirely (losing valuable training signal), SART simultaneously downweights their contribution and surgically corrects their gradient directions. This ``detect-and-correct'' paradigm preserves training data while neutralizing shortcuts, explaining SART's +17.8\,pp accuracy advantage over Data Filtering despite similar detection capability.
+\textsc{ShortcutScore} reaches an average detection F1 of 0.64---close to Data Filtering's 0.69---yet delivers a +17.8\,pp accuracy advantage over Data Filtering, because SART does not \emph{discard} flagged samples but down-weights them and projects their gradient, preserving any validation-aligned signal the sample still carries. Figure~\ref{fig:analysis}(a) confirms a monotonic $S(s)$--shortcut-rate correlation (Pearson $r{=}0.67$, $p{<}0.001$); panel~(b) shows shortcut gradients skewing toward negative alignment with $\mathbf{g}_{\mathcal{V}}$ while clean gradients cluster near zero. A longer analysis of why detection F1 decouples from downstream gains---why a \emph{lower-F1} action set can outperform a higher-F1 one when the action is soft-reweight + surgery rather than hard drop---appears in Appendix~\ref{sec:appendix_f1_decoupling}.
 
-Figure~\ref{fig:analysis}(a) confirms a positive monotonic correlation between $S(s)$ and the true shortcut rate (Pearson $r{=}0.67$, $p{<}0.001$). The gradient alignment distribution (Figure~\ref{fig:analysis}b) reveals clear separation: shortcut samples produce gradients that skew toward negative alignment with the validation objective, while non-shortcut samples cluster symmetrically near zero.
-
-\noindent\textbf{Why detection F1 decouples from downstream gains.}
-Table~\ref{tab:ablation} shows the Reweighting-Only variant reaching the highest standalone detection F1 (0.85), yet the full SART pipeline---which acts on a noisier F1 of 0.64---delivers substantially larger accuracy and robustness gains. We trace this decoupling to the difference between \emph{how a detection signal is acted on} rather than \emph{how accurate it is}. Reweighting-Only computes sharp per-sample weights with a single decision threshold, so the F1 cleanly reflects the classifier's separability, but the correction is confined to gradient \emph{magnitude}. The full method uses a smoother exponential weight together with conflict-only projection: the score sweep that computes F1 now mixes along-$\mathbf{g}_{\mathcal{V}}$ and across-$\mathbf{g}_{\mathcal{V}}$ effects in a single scalar, lowering the oracle F1 even though neither false-positive (weight slightly reduced on a benign sample) nor false-negative (uncorrected conflict still survives projection when $\mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}}\ge 0$) is catastrophic. Data Filtering exhibits the opposite imbalance: its F1 of 0.69 is achieved by \emph{dropping} the detected samples, which in high-FP regimes discards genuine reasoning signal wholesale---a cost that is invisible to the F1 metric but shows up directly in downstream accuracy. Higher detection F1 is therefore necessary but not sufficient; what matters is whether the action conditioned on the detector (drop vs.\ soft-reweight vs.\ surgery) preserves the information the detector got right while bounding the damage from the information it got wrong.
+\textbf{Hyperparameter sensitivity.} Under the conflict-only rule, the projection strength $\gamma$ should scale with the compositional complexity of the shortcut: $\gamma{=}0.8$ is best for single-feature Math (full projection over-erases useful residual signal), while $\gamma{=}1.0$ is best for multi-feature Financial and Causal, where the conflicting subspace must be fully removed. The answer-suppression coefficient $\rho$ is inactive unless $R(s){>}\tau_R$; it matters only on Causal, where $\rho{=}0{\sim}0.3$ both hit the top row and $\rho{=}0.5$ collapses robustness. The recommended default $(\gamma{=}1.0, \rho{=}0.3)$ improves over the prior default $(\gamma{=}0.8, \rho{=}0.7)$ by $+6.5$\,pp accuracy and $+10.7$\,pp robustness averaged across benchmarks; per-task tuning adds another $+8.2$\,pp robustness. Full sensitivity table and per-dataset breakdown are in Appendix~\ref{sec:appendix_sensitivity}.
 
 %-----------------------------------------------------------------------------
-\subsection{Real-World LLM Transfer on GSM8K}
+\subsection{Real-World LLM Transfer and Computational Cost}
 \label{sec:exp_llm_transfer}
 
-To test whether SART's gradient-level shortcut correction transfers beyond the synthetic benchmarks, we conduct a controlled-injection pilot on GSM8K with Qwen3-8B using LoRA rank-16 adapters on $q/k/v/o\text{-proj}$ layers (15.3M trainable parameters, $0.19\%$ of the backbone). Shortcut is the sum of all numbers in the question; 70\% of training samples are relabeled to the shortcut answer and the model is evaluated on the original true-answer test split. The setup is designed so that a capable base model would otherwise fully internalize the shortcut: standard fine-tuning collapses to $0.5\%$ clean accuracy with the generation pattern ``Adding the values: $x{+}y{+}z = s$. \texttt{\#\#\#\#} $s$'' on essentially every test item, confirming there is meaningful headroom for a correction mechanism to claim.
+\textbf{GSM8K pilot.} We test whether SART transfers beyond synthetic benchmarks via a controlled-injection pilot on GSM8K with Qwen3-8B + LoRA rank-16 adapters on $q/k/v/o$-proj (70\% sum-of-numbers shortcut relabeling, tested on original-answer splits). Two findings emerge, with full tables in Appendix~\ref{sec:appendix_llm_transfer}. \emph{Detection transfers cleanly}: \textsc{ShortcutScore} separates injected samples (mean $S{=}0.46$) from clean samples (mean $S{=}0.007$) by more than an order of magnitude, matching the synthetic separation. \emph{Correction does not move accuracy} across the full $(\gamma, \rho, \lambda)$ cross-section tested under a 3-epoch LoRA budget: answer-token suppression at $\rho{>}0$ destroys autoregressive generation (PPL rises five orders of magnitude), and batch-level conflict gating averages clean and shortcut gradients so the gate rarely fires on mixed batches. Promoting gating to per-sample fixes the batch-averaging artifact but still tracks SFT accuracy, and heavy reweighting ($\lambda{=}5$) closes no further gap. Appendix~\ref{sec:appendix_llm_transfer} records the result as a cleanly negative correction finding at 8B scale and enumerates three concrete follow-ups (numeric-only $\mathbf{g}_s^{\mathrm{ans}}$, hard-cut detection, larger trainable/epoch budget).
 
-\begin{table}[t]
-\centering
-\caption{Ablation on Qwen3-8B / GSM8K (70\% shortcut injection). Clean accuracy and clean perplexity on 200 held-out items. PPL is the primary indicator of whether the intervention preserves generation; accuracy indicates whether it breaks the shortcut.}
-\label{tab:llm_transfer}
-\small
-\begin{tabular}{lccccl}
-\toprule
-\textbf{Variant} & $\gamma$ & $\rho$ & \textbf{Acc.\ (\%)} & \textbf{PPL} & \textbf{Outcome} \\
-\midrule
-SFT (baseline)                          & --  & --  & 0.5 & 1.56                 & memorizes shortcut \\
-SART, default                           & 0.5 & 0.3 & 1.0 & $2.76{\times}10^{5}$ & generation collapsed \\
-SART, $\rho{=}0$                        & 0.5 & 0.0 & 1.0 & 1.54                 & generation ok, shortcut persists \\
-SART, reweight-only                     & 0   & 0   & 0.5 & 1.55                 & surgery inert at batch level \\
-SART, $\gamma{=}1$                      & 1.0 & 0.0 & 0.5 & 1.54                 & $\gamma$ is batch-level no-op \\
-SART, per-sample PCGrad                 & 1.0 & 0.0 & 0.5 & 1.54                 & gate fires, shortcut persists \\
-SART, per-sample + $\lambda{=}5$        & 1.0 & 0.0 & 0.5 & 1.53                 & heavy reweighting insufficient \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\textbf{Detection transfers; correction does not, across the full hyperparameter cross-section tested.} Phase~2 ShortcutScore separates the 70\% injected samples (mean $S = 0.46$) from the 30\% clean samples (mean $S = 0.007$) by more than an order of magnitude---the same kind of separation seen on the synthetic benchmarks. The correction step, however, does not move accuracy under any configuration in Table~\ref{tab:llm_transfer}. We trace this to two mechanical issues that surface when SART is applied unmodified to an autoregressive LLM:
-
-\emph{(1) Answer-token suppression (Section~\ref{sec:method}) is incompatible with autoregressive generation.} With $\rho > 0$ the suppression term subtracts gradient from the exact tokens that teach the model to emit the final numeric answer, and perplexity explodes by five orders of magnitude ($1.56 \to 2.76\times 10^{5}$). Setting $\rho = 0$ restores generation quality (PPL $\leq 1.55$) but of course disables the suppression component entirely.
-
-\emph{(2) Batch-level conflict gating averages away the shortcut signal.} Conflict-only projection (Eq.~\ref{eq:gradient_surgery}) is implemented on the batch-aggregated gradient $\mathbf{g}_{\mathrm{batch}}$: projection fires when $\mathbf{g}_{\mathrm{batch}}^\top \mathbf{g}_{\mathcal{V}} < 0$. On mixed batches containing both shortcut and clean samples, the clean samples' reasoning gradients align positively with $\mathbf{g}_{\mathcal{V}}$ and outvote the negatively-aligned shortcut gradients, so the gate almost never fires. Doubling the projection strength from $\gamma=0.5$ to $\gamma=1.0$ changes nothing because the gate condition is independent of $\gamma$; the two configurations produce identical per-sample training loss curves and identical accuracy/PPL on held-out data.
-
-Promoting the gate from batch-level to per-sample---tested in the fifth row---is the minimal fix that preserves SART's original theoretical argument (project only when the sample itself conflicts with the validation gradient, PCGrad-style) while removing the mixing artifact. Implementation-wise, it adds a single inner loop over the mini-batch at $\sim\!2{\times}$ the cost of the batch-level path. The per-sample gate does fire: the Phase~3 training loss stays $\sim\!20\%$ higher than under batch-level surgery at the same $\gamma$, indicating that gradient components are actually being projected. The test-time accuracy, however, still tracks SFT. The last row tests whether stronger reweighting closes the gap by raising $\lambda$ from 1 to 5 (mean shortcut sample weight drops from $\approx 0.64$ to $\approx 0.11$, and 97\% of training samples are now heavily down-weighted); it does not. Across the full hyperparameter cross-section tested, correction does not move accuracy.
-
-We read this as a cleanly negative correction result at 8B scale under a 3-epoch LoRA budget: \emph{given} that SFT fully collapses to the shortcut on this dataset, the gradient-level interventions SART specifies---soft reweighting and conflict-gated projection---are mechanically sound (all instrumentation reports the expected behavior) but insufficient to overturn the optimization asymmetry between a compact shortcut (``sum all numbers'') and multi-step arithmetic on a capable base model. Three concrete follow-ups fall out of the mechanism analysis above: (i) restrict $\mathbf{g}_s^{\mathrm{ans}}$ to the \emph{numeric} answer tokens so that $\rho > 0$ can be re-enabled without killing generation; (ii) promote detection to a hard cut (drop samples with $S(s) > \tau$) so that 100\% of the remaining training signal is shortcut-free rather than the $\lambda=5$ floor of $\approx 11\%$ contamination; (iii) expand the trainable parameter budget (LoRA rank or additional layers) and the training budget (10--20 epochs at low LR) so that the non-shortcut solution has room to out-fit the shortcut. We flag these as future work in Section~\ref{sec:conclusion} rather than patch the current method in place; the detection-side transfer is a clean positive result that we do want to keep separate from any subsequent correction-side claim.
-
-%-----------------------------------------------------------------------------
-\subsection{Computational Cost}
-\label{sec:exp_efficiency}
-
-SART completes in approximately 60 seconds per dataset on Apple M-series hardware (3.2M-parameter model, 2{,}000 training samples) and under 3 minutes per dataset on NVIDIA H100 NVL GPUs at server scale. The overhead relative to SFT is approximately $2.5{\times}$, arising from per-sample gradient computation during ShortcutScore evaluation and gradient projection during surgery. Validation gradients are recomputed every $k{=}5$ steps rather than per-step, keeping overhead manageable.
+\textbf{Computational cost.} SART completes in $\sim$60\,s per synthetic dataset on Apple M-series hardware and under 3\,min per dataset on NVIDIA H100 NVL GPUs, at $\sim$2.5$\times$ the cost of SFT. The overhead comes from per-sample gradient scoring and the surgery step; refreshing $\mathbf{g}_{\mathcal{V}}$ every $k{=}5$ steps (once per epoch for the LLM pilot) keeps the cost amortized.

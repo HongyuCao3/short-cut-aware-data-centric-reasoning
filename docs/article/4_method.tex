@@ -27,8 +27,7 @@ This step measures how much of the gradient signal is driven by answer tokens ve
 \end{equation}
 where $\ell_t$ is the token-level loss at position $t$. A high value of $R(s)$ indicates that the model's parameter updates are driven predominantly by answer prediction rather than by learning intermediate reasoning steps.
 
-\noindent\textbf{Graceful Degradation without CoT Supervision.}
-Eq.~(4) assumes access to a token-level answer/reasoning partition, which is naturally available for chain-of-thought-supervised datasets (e.g., GSM8K, MATH) and for any dataset where the final answer field can be string-matched back to a contiguous suffix of the target sequence. When such a split is unavailable---for instance, when only the final answer is supervised and no intermediate reasoning tokens exist ($T_{\mathrm{reason}}=\emptyset$)---the denominator in Eq.~(4) is no longer informative. In that regime we set $R(s){=}\tau_R$ (equivalently $C(s){=}0$), so that $S(s){=}\alpha\,B(s)$ degenerates to an \emph{alignment-only} ShortcutScore that still delivers the validation-gradient-based sample detection of Step~1. This gives a smooth fallback from a two-signal to a one-signal detector without requiring architectural changes, and lets SART apply to answer-only supervision in the same pipeline. When $T_{\mathrm{reason}}$ can be recovered heuristically (e.g., ``everything before the last numeric span'' for arithmetic tasks), we reinstate Eq.~(4) over the heuristic split.
+When a token-level answer/reasoning split is unavailable (answer-only supervision, $T_{\mathrm{reason}}{=}\emptyset$), we set $R(s){=}\tau_R$ so $S(s)$ degenerates gracefully to an alignment-only score; Appendix~\ref{sec:appendix_graceful} gives the derivation and heuristic-split recovery rules.
 
 \noindent\textbf{Step 3: ShortcutScore and Reweighted Objective.}
 We combine the two signals into the \textbf{ShortcutScore}:
@@ -43,7 +42,7 @@ The model parameters are updated at each step via:
 \begin{equation}
     \theta_{t+1} = \theta_t - \eta \sum_{s \in \text{batch}} w(s) \cdot \nabla_\theta \ell(\theta;\, s),
 \end{equation}
-where $\eta$ is the learning rate. Validation gradients $\mathbf{g}_{\mathcal{V}}$ are recomputed periodically to keep the alignment signal up to date without excessive overhead. A detailed training procedure is provided in Appendix~A.1.
+where $\eta$ is the learning rate. Validation gradients $\mathbf{g}_{\mathcal{V}}$ are recomputed periodically to keep the alignment signal up to date without excessive overhead. Algorithmic details appear in Appendix~\ref{sec:appendix_algorithm}.
 
 
 %-----------------------------------------------------------
@@ -75,21 +74,7 @@ For samples with high concentration $R(s) > \tau_R$, we decompose $\mathbf{g}_s$
 where $\rho \in [0,1]$ is the suppression coefficient. Setting $\rho=1$ entirely removes the answer token gradient contribution, forcing the model to update based solely on intermediate reasoning signals.
 
 \noindent\textbf{Combined Update Rule.}
-Surgery is applied directly at each training step: after computing the reweighted batch gradient $\sum_{s\in\text{batch}} w(s)\nabla_\theta\ell(\theta;s)$, we apply the conflict-only projection (Step 1) followed by answer-gradient suppression (Step 2), and then take the standard optimizer step. The validation gradient $\mathbf{g}_{\mathcal{V}}$ is refreshed every $k$ steps (Section~\ref{sec:exp_efficiency}) so the conflict test and projection direction remain accurate. Because both operations are applied on the already-reweighted gradient, surgery magnitude scales with sample weight automatically, without requiring an additional minimax subroutine. A full algorithmic description is provided in Appendix~A.2.
+Surgery is applied directly at each training step: after computing the reweighted batch gradient $\sum_{s\in\text{batch}} w(s)\nabla_\theta\ell(\theta;s)$, we apply the conflict-only projection (Step~1) followed by answer-gradient suppression (Step~2), and then take the standard optimizer step. The validation gradient $\mathbf{g}_{\mathcal{V}}$ is refreshed every $k$ steps (Section~\ref{sec:exp_llm_transfer}) so the conflict test and projection direction remain accurate. Because both operations are applied on the already-reweighted gradient, surgery magnitude scales with sample weight automatically, without requiring an additional minimax subroutine. Pseudocode for the combined SART step is in Appendix~\ref{sec:appendix_algorithm}.
 
-%-----------------------------------------------------------
-\subsection{Scalable Per-Sample Gradients for Pretrained LLMs}
-\label{sec:scalable_gradients}
-
-A naive implementation of SART stores a dense per-sample gradient vector of dimension $d = |\theta|$, which for a 7B-parameter model is $\sim$28\,GB in FP32 and prohibitive to materialize at batch scale. We keep the method tractable on pretrained LLMs through three concrete mechanisms.
-
-\noindent\textbf{LoRA-only gradient subspace.}
-We apply SART on top of parameter-efficient fine-tuning: the base model is frozen and trainable capacity is confined to LoRA adapters~\cite{hu2022lora} with rank $r{=}16$ on the attention projections, giving roughly $8{-}16$M trainable parameters for a 7B backbone. Because $\nabla_\theta \ell$ is identically zero on the frozen parameters, the per-sample gradient vector collapses from 28\,GB to $\sim$32\,MB without changing the ShortcutScore or surgery equations above. This also aligns SART with the dominant deployment mode of modern LLMs, where full fine-tuning is rarely feasible.
-
-\noindent\textbf{Random-projection sketches.}
-When even the LoRA-gradient footprint is inconvenient---e.g., across hundreds of samples in the scoring pass---we replace each vector by a fixed-seed Gaussian random projection of dimension $d_{\mathrm{sk}}{=}1024$. Under the Johnson--Lindenstrauss lemma, inner products $\langle \mathbf{g}_s, \mathbf{g}_{\mathcal{V}}\rangle$ and hence cosine alignment $A(s)$ are preserved within $\varepsilon$-error with high probability, so the ShortcutScore computed from sketches is a consistent estimator of its dense counterpart. The sketch is applied to $\mathbf{g}_s$, $\mathbf{g}_s^{\mathrm{ans}}$, $\mathbf{g}_s^{\mathrm{reason}}$, and $\mathbf{g}_{\mathcal{V}}$ in the scoring pass; surgery, which operates on dense gradients in-place at the batch level, is unaffected.
-
-\noindent\textbf{Periodic validation-gradient refresh.}
-$\mathbf{g}_{\mathcal{V}}$ changes slowly relative to the model parameters, so we recompute it every $k$ optimization steps (synthetic: $k{=}5$; LLM: $k{=}$ once per epoch). With $|\mathcal{V}|{\ll}|\mathcal{D}|$, this amortizes the cost of the only step that backpropagates through the validation set. Section~\ref{sec:exp_efficiency} reports the resulting wall-clock overhead against standard fine-tuning at both synthetic and pretrained-LLM scales.
-
-These three mechanisms are orthogonal to the ShortcutScore and surgery formulations above: any alternative proxy that preserves inner-product geometry---Fisher-diagonal reweighting, last-layer gradients, or implicit-differentiation approximations~\cite{koh2020understandingblackboxpredictionsinfluence}---can be slotted in without altering Eqs.~(5) or~(7).
+\paragraph{Scaling to pretrained LLMs.}
+A naive implementation stores a dense per-sample gradient of dimension $|\theta|$, which is $\sim$28\,GB in FP32 for a 7B backbone. We keep SART tractable on pretrained LLMs by (i) restricting trainable capacity to LoRA adapters~\cite{hu2022lora} so each per-sample gradient collapses to $\sim$32\,MB without altering Eqs.~(5) or~(\ref{eq:gradient_surgery}); (ii) optionally replacing gradients by fixed-seed Johnson--Lindenstrauss sketches of dimension $d_{\mathrm{sk}}{=}1024$ during scoring, which preserves the cosine alignment $A(s)$ up to $\varepsilon$-error; and (iii) refreshing $\mathbf{g}_{\mathcal{V}}$ every $k$ steps rather than every step, since it changes slowly relative to $\theta$. These three mechanisms are orthogonal to the \textsc{ShortcutScore} and surgery formulations---any alternative inner-product-preserving proxy (Fisher-diagonal, last-layer gradients, influence approximations~\cite{koh2020understandingblackboxpredictionsinfluence}) can be slotted in without changing the method. Full derivations and ablations appear in Appendix~\ref{sec:scalable_gradients}.
