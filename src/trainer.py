@@ -943,8 +943,8 @@ def train_our_method(model, dataset, use_reweighting=True, use_gradient_surgery=
     lr = _c.get('lr', C.lr)
     wd = _c.get('weight_decay', C.weight_decay)
 
-    warmup_epochs = max(5, epochs // 6)
-    main_epochs = epochs - warmup_epochs
+    warmup_epochs = _c.get('warmup_epochs', max(5, epochs // 6))
+    main_epochs = max(0, epochs - warmup_epochs)
 
     # Phase 1: Warmup
     if verbose:

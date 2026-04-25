@@ -1,0 +1,77 @@
+{
+  "Math-Arithmetic": {
+    "SFT": {
+      "accuracy_clean": 0.7593333333333333,
+      "robustness": 0.0,
+      "train_sec": 113.28839921951294
+    },
+    "RO_K3": {
+      "accuracy_clean": 0.7593333333333333,
+      "robustness": 0.0,
+      "train_sec": 244.31096124649048,
+      "warmup_epochs": 3
+    },
+    "RO_K8": {
+      "accuracy_clean": 0.7593333333333333,
+      "robustness": 0.0,
+      "train_sec": 244.42844891548157,
+      "warmup_epochs": 8
+    },
+    "RO_K30": {
+      "accuracy_clean": 0.7593333333333333,
+      "robustness": 0.0,
+      "train_sec": 249.9401273727417,
+      "warmup_epochs": 30
+    }
+  },
+  "Financial-Analysis": {
+    "SFT": {
+      "accuracy_clean": 0.49466666666666664,
+      "robustness": 0.0,
+      "train_sec": 111.5570878982544
+    },
+    "RO_K3": {
+      "accuracy_clean": 0.6,
+      "robustness": 0.17333333333333334,
+      "train_sec": 243.590491771698,
+      "warmup_epochs": 3
+    },
+    "RO_K8": {
+      "accuracy_clean": 0.5726666666666667,
+      "robustness": 0.14066666666666666,
+      "train_sec": 249.14878368377686,
+      "warmup_epochs": 8
+    },
+    "RO_K30": {
+      "accuracy_clean": 0.5153333333333333,
+      "robustness": 0.044,
+      "train_sec": 250.75170850753784,
+      "warmup_epochs": 30
+    }
+  },
+  "Causal-Reasoning": {
+    "SFT": {
+      "accuracy_clean": 0.5106666666666667,
+      "robustness": 0.019333333333333334,
+      "train_sec": 111.61292719841003
+    },
+    "RO_K3": {
+      "accuracy_clean": 0.5766666666666667,
+      "robustness": 0.15733333333333333,
+      "train_sec": 249.03152060508728,
+      "warmup_epochs": 3
+    },
+    "RO_K8": {
+      "accuracy_clean": 0.5573333333333333,
+      "robustness": 0.11866666666666667,
+      "train_sec": 250.03289127349854,
+      "warmup_epochs": 8
+    },
+    "RO_K30": {
+      "accuracy_clean": 0.5213333333333333,
+      "robustness": 0.038,
+      "train_sec": 245.23394227027893,
+      "warmup_epochs": 30
+    }
+  }
+}

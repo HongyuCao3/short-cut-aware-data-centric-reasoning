@@ -142,8 +142,9 @@ Each "⟹" now has its own evidence; the design choice no longer free-rides on t
 | Gap 3a — `S(s)` density overlay on panel (c); $\tau_A$ vline removed; $\lambda$ pinned to canonical | [x] done |
 | Gap 3b — (a)+(c) merged via twin y-axis; panel-(c) slot reused for Gap 2 FP-cell plot | [ ] deferred — pending resolution of measurement-time issue (see Gap 4) |
 | **Gap 4** — score-measurement-time issue: r flips sign between reduced and full budget | [x] **CLOSED** — paper's r=0.67 reproducible only at Math K=3, not as 3-ds aggregate |
-| **Gap 5 (new)** — if score calibration is dataset-specific, what drives Reweight-Only's +20.7 pp robustness? | [ ] OPEN — needs warmup-K sensitivity test of Reweight-Only ablation |
-| §5.2 prose updated to cite per-sample $r$, FP $A(s)$, and `% w(s)>0.5` | [ ] **BLOCKED on Gap 5** — and the rewrite is now paragraph-level, not number-swap |
+| **Gap 5** — if score calibration is dataset-specific, what drives Reweight-Only's +robustness? | [x] **CLOSED** — gain is K-driven, not score-driven; on Causal, higher r gives smaller gain |
+| **Gap 6 (new)** — does full SART (Reweight + Surgery) inherit Gap 5's K-decoupling, or does Surgery restore K-sensitivity? | [ ] OPEN — re-run full SART across same K values |
+| §5.2 prose updated to cite per-sample $r$, FP $A(s)$, and `% w(s)>0.5` | [ ] **needs paragraph-level rewrite** — score's role is much weaker than current text implies |
 | LaTeX comment marker in `5_experiment.tex` near `fig:analysis` | [x] added |
 | Sidebar entry registered in `docs/_quarto.yml` | [x] added |
 | **Reduced-budget rerun** of figure3.png (epochs=8, n_score=1500) | [x] done — `results/collected_data_synthetic_reduced.pkl` |
@@ -270,6 +271,60 @@ If this story is right, then **the paper's reported $r=0.67$ corresponds to a sp
 - **§5.2 paper text now needs a substantial rewrite, not a small update.** The $r=0.67$ headline must be qualified as "Math at K=3 warmup epochs," and the implicit "score is a stable rank signal across all 3 benchmarks" framing must be removed. Paragraph-level edit, not a number swap.
 - **Recommend changing the paper figure** to show the per-dataset $r$ vs $K$ curves (i.e., the `warmup_sweep.png` panels), not a single bin-scatter at one (cherry-picked) training state. This is the **honest** version of "empirical validation of ShortcutScore."
 - **Gap 4 is now CLOSED for the diagnostic question** ("where is $r=0.67$?") but **OPENS a deeper question (Gap 5)**: if the score's calibration is non-monotonic and dataset-specific, how does Phase 3's reweighting actually deliver +20.7 pp robustness in *Reweighting Only* ablations? Hypothesis: the gain comes from *gradient surgery's directional correction*, not from $S(s)$-driven reweighting. To test, re-run the *Reweighting-Only* baseline at multiple warmup-K values; if accuracy/robustness are insensitive to $K$, the score's calibration was never load-bearing for the empirical wins.
+
+---
+
+## Results — Reweight-Only K-Sensitivity (Gap 5 resolution)
+
+**Run config**: GPU 2 (H100), epochs=50 fixed total, $K \in \{3, 8, 30\}$ for warmup; SFT baseline as control. Same 3 datasets, same hyperparams as the warmup sweep ($\lambda=2.0$, $\tau_A=0.3$, $\tau_R=0.5$). Wall time **49 min**. Generation: `scripts/reweight_only_K_sweep.py`. Outputs: `results/reweight_K_sweep.{json,png}`. Implementation: small surgical change in `src/trainer.py:946` to let `cfg['warmup_epochs']` override the default formula.
+
+### Hypothesis answered
+
+**Q (Gap 5):** Is *Reweight-Only*'s gain over SFT a function of the score's $r$ calibration, or is it driven by something else?
+
+**Verdict: gain is empirically decoupled from $r$. The score's calibration is NOT load-bearing for the +robustness gain.**
+
+### Per-config accuracy / robustness vs SFT baseline
+
+| Dataset | Config | $K$ | acc | rob | $\Delta$ acc vs SFT | $\Delta$ rob vs SFT | $r_{\text{bin}}$ at this $K$ (from Gap 4) |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Math | SFT | — | $0.759$ | $0.000$ | — | — | — |
+| Math | RO | 3 | $0.759$ | $0.000$ | $0.0$ | $0.0$ | $\mathbf{+0.70}$ |
+| Math | RO | 8 | $0.759$ | $0.000$ | $0.0$ | $0.0$ | $+0.16$ |
+| Math | RO | 30 | $0.759$ | $0.000$ | $0.0$ | $0.0$ | $+0.16$ |
+| Financial | SFT | — | $0.495$ | $0.000$ | — | — | — |
+| Financial | RO | 3 | $\mathbf{0.600}$ | $\mathbf{0.173}$ | $+10.5$ | $+17.3$ | $+0.21$ |
+| Financial | RO | 8 | $0.573$ | $0.141$ | $+7.8$ | $+14.1$ | $\mathbf{-0.67}$ |
+| Financial | RO | 30 | $0.515$ | $0.044$ | $+2.0$ | $+4.4$ | $-0.27$ |
+| Causal | SFT | — | $0.511$ | $0.019$ | — | — | — |
+| Causal | RO | 3 | $\mathbf{0.577}$ | $\mathbf{0.157}$ | $+6.6$ | $+13.8$ | $+0.24$ |
+| Causal | RO | 8 | $0.557$ | $0.119$ | $+4.6$ | $+10.0$ | $+0.66$ |
+| Causal | RO | 30 | $0.521$ | $0.038$ | $+1.0$ | $+1.9$ | $\mathbf{+0.87}$ |
+| **Average** ($n_{\text{ds}}=3$) | RO | 3 | $0.645$ | $0.110$ | $+5.7$ | $+\mathbf{10.4}$ | (mixed) |
+| **Average** | RO | 8 | $0.630$ | $0.087$ | $+4.2$ | $+8.1$ | (mixed) |
+| **Average** | RO | 30 | $0.598$ | $0.027$ | $+1.0$ | $+2.1$ | (mixed) |
+
+### Insights
+
+- **Gain is monotonically decreasing in $K$ on every dataset** (Math is degenerate at zero; Financial $0.173 \to 0.141 \to 0.044$; Causal $0.157 \to 0.119 \to 0.038$). The relevant variable is $K$, not $r$.
+- **On Causal, $r$ and gain are *inversely* related.** $r_{\text{bin}}$ goes $+0.24 \to +0.66 \to +0.87$ as $K$ goes $3 \to 8 \to 30$. Robustness gain goes $+13.8 \to +10.0 \to +1.9$. The configuration with the *cleanest* score correlation gave the *smallest* gain — empirically refuting the "score quality drives the gain" reading.
+- **At Math K=3 (where $r=+0.70$ matches the paper's headline), Reweight-Only gives $0.000$ robustness gain.** The paper's most-cited piece of empirical validation of $S(s)$ corresponds to a configuration where the same $S(s)$ delivers no downstream improvement.
+- **The paper's reported +20.7 pp robustness for Reweight-Only is not reproducible from the committed code.** Our K=8 (paper's default warmup) average robustness gain is $+8.1$ pp; the paper claims $+20.7$ pp. The $\sim$2.5× gap is unexplained at this point — possibilities include $\lambda$ tuning, score-pass timing differences, or selection effects in the paper's reported numbers. (See "Caveats" below.)
+- **Math is degenerate** — Reweight-Only at any $K$ gives identical accuracy (0.7593) and zero robustness, exactly matching SFT. The model converges to the same shortcut-memorizing solution regardless of how samples are weighted. On 1-feature shortcuts, soft reweighting cannot break the symmetry that creates the shortcut basin in the first place.
+- **Likely true source of Reweight-Only's gain**: the *amount of weighted retraining time*, not the score. At K=3, the model trains for 47 epochs under the per-sample weight; at K=30, only 20. The weighted retraining acts as a regularizer / curriculum whose magnitude depends on duration, not weight quality. To verify, re-run RO at fixed $K=3$ with **random weights** drawn from the same marginal distribution; if random weights produce a similar gain, the score contributes nothing.
+
+### Caveats
+
+- **Reproduction gap with paper**: paper's Table 3 average robustness for Reweight-Only is $40.1\%$, not the $+20.7$ pp gain over $19.4\%$ SFT we'd compute from the table. Our SFT measured here gives $0.6\%$ average robustness vs paper's $19.4\%$ — different baselines, not comparable point-to-point. The decoupling result (gain is K-driven, not score-driven) survives the baseline mismatch because we measure **deltas** within our own runs. But the **absolute numbers** in our table are not directly comparable to the paper's Table 3.
+- **Sample size**: 3 K values × 3 datasets = 9 RO configurations + 3 SFT controls. Fine for showing a monotonic trend; not enough for confidence intervals. A finer K sweep + multiple seeds would strengthen the conclusion.
+- **One $\lambda$**: only $\lambda=2.0$ tested. Different $\lambda$ would scale the magnitude of weighting and could change the K-dependence shape.
+
+### Implications — Updated
+
+- **§5.2 prose now needs to qualify Reweight-Only's reported gain.** The gain is real (+8.1 pp avg robustness vs our SFT) but not driven by the score's quality. The paper's framing — that detection F1=0.64 + soft action delivers gains via accurate identification of shortcut samples — is not supported by the K-sweep evidence.
+- **§5.3 ablation Table 3** needs a footnote: "Reweight-Only" is also a function of *how long* the model trains under reweighting, not just *whether* reweighting is on.
+- **Gap 5 is CLOSED** with the answer: score calibration $\not\to$ gain. The score's role in SART is much weaker than the paper's narrative implies; the empirical gains likely come from gradient surgery's directional correction (which the K-sweep does not test) and / or the regularization effect of weighted retraining duration.
+- **New Gap 6 (open)**: replicate at full SART (Reweight + Surgery) across $K$. If full-SART is K-sensitive, surgery is the load-bearing component; if K-insensitive, both components are insensitive and the design's "shortcut detection + correction" framing needs deeper revision.
 
 ---
 
