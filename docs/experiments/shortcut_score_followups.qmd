@@ -140,12 +140,13 @@ Each "⟹" now has its own evidence; the design choice no longer free-rides on t
 | Gap 2 — 4-cell A(s) partition (TP / FP / TN / FN) plotted | [x] done |
 | Gap 2 — FP-cell mean $A(s)$, gate-fire rate, mean $w(s)$ logged to caption | [x] done |
 | Gap 3a — `S(s)` density overlay on panel (c); $\tau_A$ vline removed; $\lambda$ pinned to canonical | [x] done |
-| Gap 3b — (a)+(c) merged via twin y-axis; panel-(c) slot reused for Gap 2 FP-cell plot | [ ] deferred — reduced-budget result already informative; revisit after a full-budget rerun |
-| §5.2 prose updated to cite per-sample $r$, FP $A(s)$, and `% w(s)>0.5` | [ ] pending — wait for full-budget rerun before editing paper text |
+| Gap 3b — (a)+(c) merged via twin y-axis; panel-(c) slot reused for Gap 2 FP-cell plot | [ ] deferred — pending resolution of measurement-time issue (see Gap 4) |
+| **Gap 4 (new)** — score-measurement-time issue: r flips sign between reduced and full budget | [ ] **OPEN** — paper's r=0.67 is not reproducible at either of our budgets; root cause unidentified |
+| §5.2 prose updated to cite per-sample $r$, FP $A(s)$, and `% w(s)>0.5` | [ ] **BLOCKED on Gap 4** — cannot edit prose until r=0.67 is reproducible |
 | LaTeX comment marker in `5_experiment.tex` near `fig:analysis` | [x] added |
 | Sidebar entry registered in `docs/_quarto.yml` | [x] added |
-| **Reduced-budget rerun** of figure3.png (epochs=8, n_score=1500) | [x] done — `results/figure3.png`, `results/figure3_diagnostics.json` |
-| **Full-budget rerun** (epochs=50, n_score=10000) for paper-grade numbers | [ ] not started |
+| **Reduced-budget rerun** of figure3.png (epochs=8, n_score=1500) | [x] done — `results/collected_data_synthetic_reduced.pkl` |
+| **Full-budget rerun** (epochs=50, n_score=10000) for paper-grade numbers | [x] done — `results/figure3.png`, `results/collected_data_synthetic.pkl`, `results/figure3_diagnostics.json` |
 
 ---
 
@@ -172,6 +173,60 @@ Each "⟹" now has its own evidence; the design choice no longer free-rides on t
 - **Reduced budget**: 8 epochs (vs paper's 50), 1500 score samples per dataset (vs 10000). Bin $r = 0.51$ here vs $0.67$ in the paper — a clear ratio of $0.51/0.67 \approx 0.76$. Full-budget rerun will likely lift all three numbers, possibly converting Gap 1 from Partial to Confirmed and Gap 3a's margin from 2.4 pp to comfortable. Do not edit §5.2 prose against these numbers yet.
 - **Code/paper model-size drift**: paper §5.4 says "3.2M params (SmallGPT)" but `server` profile in `src/config.py` produces **18.96M**. Either the paper text is stale or `server` defaults drifted. Track separately; doesn't affect the diagnostic logic but breaks reproducibility on a clean checkout.
 - **Threshold degeneracy**: $\tau^* = 0$ collapsing F1 to "flag everything with $S > 0$" is partly an artifact of the score-min being effectively at 0 (since $B(s), C(s) \geq 0$ by construction). At full budget the score distribution is broader and a non-trivial $\tau^*$ may re-emerge — to be tested.
+
+---
+
+## Results — Full-Budget Rerun (Apr 25, 2026, GPU 2)
+
+**Run config**: `EXPERIMENT_SCALE=server`, **GPU 2 (H100 NVL)**, `epochs=50` (paper default), `score_max_samples=10000` (paper default). 3 datasets concatenated, $n=30000$ samples total. Wall time **12.4 min** end-to-end (Math 233.9 s, Financial 254.0 s, Causal 255.4 s).
+
+### Headline finding — **the sign of $r$ flipped**
+
+| Diagnostic | Reduced ($n{=}4500$) | Full ($n{=}30000$) | Direction |
+|---|---:|---:|---|
+| $r_{\text{bin}}$ | $+0.51$ | $\mathbf{-0.75}$ | **flipped** |
+| $r_{\text{sample}}$ | $+0.22$ | $\mathbf{-0.07}$ | **flipped** (now near-zero) |
+| $\tau_S^\ast$ | $0.00$ | $0.00$ | unchanged (degenerate) |
+| best $F1$ | $0.80$ | $0.82$ | $\sim$ same (driven by 70% shortcut prevalence, not score) |
+| FP mean $A(s)$ | $-0.19$ | $\mathbf{+0.018}$ | **flipped** (was negative, now near-zero) |
+| FP gate-fire rate | $63\%$ | $\mathbf{39\%}$ | $-24$ pp |
+| FP mean $w(s)$ | $0.44$ | $\mathbf{0.58}$ | $+0.14$ |
+| $\%\{w(s) > 0.5\}$ | $52.4\%$ | $\mathbf{79.3\%}$ | $+26.9$ pp |
+| 4-cell counts (TP / FP / TN / FN) | 2648 / 797 / 539 / 516 | $\mathbf{21061 / 8938 / 0 / 1}$ | TN cell collapsed |
+
+### Hypothesis Re-assessment
+
+| ID | Verdict (reduced) | Verdict (full) | Number (full) | Interpretation |
+|:--:|:--:|:--:|---|---|
+| **Gap 1** | Partial | **Rejected** | $r_{\text{sample}} = -0.07$ | Score is **uncorrelated to anti-correlated** with is_shortcut at the sample level. The "soft reweight on a noisy ranking" framing fails empirically: at full budget there is **no usable ranking**. |
+| **Gap 2** | Confirmed | **Inconclusive** | FP cell empty of TNs (TN $n=0$); FP mean $A = +0.02$ (≈ 0) | The 4-cell partition collapses because the F1-optimal threshold $\tau^\ast = 0$ flags 99.997% of samples; only $1$ sample remains as FN; TN cell is empty. The FP-cell statistics are essentially the gradient population mean, not a meaningful safety probe. |
+| **Gap 3a** | Confirmed (barely) | **Confirmed (comfortably)** | $79.3\%$ at $w > 0.5$ | $\lambda = 2.0$ leaves the bulk of samples close to full weight at full budget — even softer than the reduced run suggested. Soft framing is intact. *But:* if Gap 1 fails, this only tells us the soft action is harmless, not that it's helpful. |
+
+### What just got revealed — the **measurement-time issue (Gap 4)**
+
+The bin scatter in panel (a) of `results/figure3.png` is **monotonically decreasing**: low-$S$ bins have shortcut rate $\approx 1.0$; high-$S$ bins have shortcut rate $\approx 0.3$. The score is **inverted** relative to the design intent.
+
+Mechanistic story (proposed, needs verification):
+
+> Phase 2 captures `collected_data` *after* warmup. At reduced budget (5 warmup epochs) the model is still under-trained — shortcut samples have systematically negative $A(s)$ (gradient anti-aligned with $\mathbf{g}_{\mathcal V}$) because the model is still being pulled toward the validation-improving direction *away from* the shortcut direction. So $S(s) = \alpha \max(0, \tau_A - A(s))$ is high precisely on shortcut samples — the design works.
+>
+> At full budget (8 warmup epochs of a 50-epoch run), the model has effectively **converged** on the synthetic task. Both shortcut and non-shortcut gradients now cluster around $A(s) \approx 0$ — the model has learned both populations equally well. The few samples with high $S(s)$ are the residual *hard* samples (those the model still struggles with), which are disproportionately the *non-shortcut* compositional reasoning samples — so $S(s)$ now anti-correlates with is_shortcut.
+
+If this story is right, then **the paper's reported $r=0.67$ corresponds to a specific training point** (somewhere between under-trained and converged) that §5.2 does not document. The published figure and the published code's full-budget output are inconsistent.
+
+### Open questions for Gap 4
+
+1. **Where in training is $r$ maximally positive?** Sweep warmup epochs $\in \{1, 2, 3, 5, 8, 12, 20\}$, recompute $r_{\text{bin}}$ and $r_{\text{sample}}$ at each. Does it match $0.67$ at some specific point?
+2. **Does Phase 3's reweighting still work despite the inverted score?** Re-evaluate the SART model's accuracy / robustness — if numbers are still good, the score's correlation with is_shortcut may not be the operative quantity (maybe the gradient surgery dominates, or the score's correlation with *gradient hardness* is what helps).
+3. **Should `g_V` be recomputed periodically during Phase 3?** The current code freezes `g_V` at warmup-end. If the validation direction shifts as training proceeds, the score's reference frame becomes stale.
+4. **Is the paper figure from `local` profile (smaller model, fewer epochs)?** `local` profile has 277K params + 30 epochs + 200 score samples — convergence may not be reached, preserving the positive $r$.
+
+### Implications for the paper
+
+- **Cannot edit §5.2 prose** until Gap 4 is resolved. The current text reports $r=0.67$ as if it's a stable property; we cannot reproduce it from the committed `server` configuration at any of the budgets we have run.
+- **Gap 3b (figure restructure) is on hold.** Restructuring the figure is moot if the underlying numbers are not reproducible.
+- **Method-section claim "S(s) ranks shortcuts"** needs a footnote: the ranking is a function of training state, and the score must be measured at the right state to be valid. This is a non-trivial robustness condition the paper does not currently flag.
+- **PCGrad rerun + per-task best numbers in `pcgrad_rerun.qmd`** are unaffected because they were generated end-to-end (training + eval) and report task-level metrics, not the score's correlation. But the *mechanistic story* in `pcgrad_rerun.qmd` ("shortcut gradients skew negative") is now in tension with the full-budget panel (b) showing TP and FP gradients essentially overlapping around $A \approx 0$.
 
 ---
 
