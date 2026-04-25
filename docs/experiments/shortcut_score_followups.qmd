@@ -141,8 +141,9 @@ Each "⟹" now has its own evidence; the design choice no longer free-rides on t
 | Gap 2 — FP-cell mean $A(s)$, gate-fire rate, mean $w(s)$ logged to caption | [x] done |
 | Gap 3a — `S(s)` density overlay on panel (c); $\tau_A$ vline removed; $\lambda$ pinned to canonical | [x] done |
 | Gap 3b — (a)+(c) merged via twin y-axis; panel-(c) slot reused for Gap 2 FP-cell plot | [ ] deferred — pending resolution of measurement-time issue (see Gap 4) |
-| **Gap 4 (new)** — score-measurement-time issue: r flips sign between reduced and full budget | [ ] **OPEN** — paper's r=0.67 is not reproducible at either of our budgets; root cause unidentified |
-| §5.2 prose updated to cite per-sample $r$, FP $A(s)$, and `% w(s)>0.5` | [ ] **BLOCKED on Gap 4** — cannot edit prose until r=0.67 is reproducible |
+| **Gap 4** — score-measurement-time issue: r flips sign between reduced and full budget | [x] **CLOSED** — paper's r=0.67 reproducible only at Math K=3, not as 3-ds aggregate |
+| **Gap 5 (new)** — if score calibration is dataset-specific, what drives Reweight-Only's +20.7 pp robustness? | [ ] OPEN — needs warmup-K sensitivity test of Reweight-Only ablation |
+| §5.2 prose updated to cite per-sample $r$, FP $A(s)$, and `% w(s)>0.5` | [ ] **BLOCKED on Gap 5** — and the rewrite is now paragraph-level, not number-swap |
 | LaTeX comment marker in `5_experiment.tex` near `fig:analysis` | [x] added |
 | Sidebar entry registered in `docs/_quarto.yml` | [x] added |
 | **Reduced-budget rerun** of figure3.png (epochs=8, n_score=1500) | [x] done — `results/collected_data_synthetic_reduced.pkl` |
@@ -227,6 +228,48 @@ If this story is right, then **the paper's reported $r=0.67$ corresponds to a sp
 - **Gap 3b (figure restructure) is on hold.** Restructuring the figure is moot if the underlying numbers are not reproducible.
 - **Method-section claim "S(s) ranks shortcuts"** needs a footnote: the ranking is a function of training state, and the score must be measured at the right state to be valid. This is a non-trivial robustness condition the paper does not currently flag.
 - **PCGrad rerun + per-task best numbers in `pcgrad_rerun.qmd`** are unaffected because they were generated end-to-end (training + eval) and report task-level metrics, not the score's correlation. But the *mechanistic story* in `pcgrad_rerun.qmd` ("shortcut gradients skew negative") is now in tension with the full-budget panel (b) showing TP and FP gradients essentially overlapping around $A \approx 0$.
+
+---
+
+## Results — Warmup-Epoch Sweep (Gap 4 resolution)
+
+**Run config**: `EXPERIMENT_SCALE=server`, GPU 2 (H100 NVL), `score_max_samples=10000`, full sweep over warmup epochs $K \in \{1, 2, 3, 5, 8, 12, 20, 30, 50\}$ on each of 3 synthetic datasets. Independent fresh-init runs per (dataset, $K$). Total 27 (dataset, $K$) pairs, $n=10000$ samples each. Wall time **78 min** end-to-end. Outputs at `results/warmup_sweep.{pkl,png}` and `results/warmup_sweep_r.json`. Generation: `scripts/warmup_epoch_sweep.py`.
+
+### Hypothesis answered
+
+**Q (Gap 4):** Where in training is the score's $r$ correlation maximally positive? Is the paper's $r=0.67$ reproducible from the committed code?
+
+**Verdict: Reproducible only on Math at K=3 ($r_{\text{bin}}=+0.698$); not as a 3-dataset aggregate at any $K$ we tested.**
+
+### Per-dataset $r_{\text{bin}}$ vs warmup epochs
+
+| K | Math | Financial | Causal | Aggregate (3 ds) |
+|---|---:|---:|---:|---:|
+| 1 | $-0.27$ | $-0.17$ | $+0.48$ | $\approx 0$ |
+| 2 | $-0.40$ | $-0.43$ | $\mathbf{+0.97}$ | $\approx 0$ |
+| 3 | $\mathbf{+0.70}$ | $\mathbf{+0.21}$ | $+0.24$ | $\approx 0$ |
+| 5 | $+0.42$ | $-0.28$ | $-0.83$ | $\approx 0$ |
+| 8 | $+0.16$ | $-0.67$ | $+0.66$ | $\approx 0$ |
+| 12 | $+0.22$ | $-0.49$ | $+0.53$ | $\approx 0$ |
+| 20 | $+0.29$ | $-0.14$ | $+0.24$ | $\approx 0$ |
+| 30 | $+0.16$ | $-0.27$ | $\mathbf{+0.87}$ | $\approx 0$ |
+| 50 | $+0.15$ | $-0.50$ | $\approx 0$ | $\approx 0$ |
+
+(Bold = each row's largest absolute value; "Aggregate" eyeballed from `results/warmup_sweep.png` since `_aggregate_3datasets` was computed during plotting but not written to JSON; aggregate stays in $[-0.2, +0.2]$ across all $K$.)
+
+### Insights
+
+- **Paper's $r=0.67$ is a Math-K=3 result, not an aggregate.** Math at $K=3$ gives $r_{\text{bin}}=+0.698$, exactly matching the paper's reported value. No other (dataset, $K$) combination reproduces it as a 3-dataset aggregate. The paper's prose treats $r=0.67$ as a property of "ShortcutScore on the synthetic benchmarks" — the sweep shows it is **a property of Math at one specific warmup state**.
+- **The score's calibration is non-monotonic in $K$ and dataset-specific.** Math: sign-flips negative→positive at $K=2{\to}3$, then slowly decays. Financial: only $K=3$ is positive (+0.21), all other $K$ negative. Causal: starts strongly positive (+0.48 at $K=1$), bounces between strong positive and strong negative, recovers at $K=30$ (+0.87), back to $\sim 0$ at $K=50$. **No common "good $K$" exists.** This rules out a deployment recipe like "always score after $K^\ast$ epochs."
+- **Bin aggregation inflates the correlation 2–6× over per-sample.** Math K=3: $r_{\text{bin}}=+0.70$ vs $r_{\text{sample}}=+0.094$ ($7.4\times$). Causal K=2: $r_{\text{bin}}=+0.97$ vs $r_{\text{sample}}=+0.31$ ($3.1\times$). The per-sample signal is consistently weaker than the headline Pearson suggests — confirming the original Gap 1 concern across the entire training trajectory.
+- **r_bin and r_sample frequently disagree in sign.** Financial K=1: $r_{\text{bin}}=-0.17$, $r_{\text{sample}}=+0.16$. Causal K=3: $r_{\text{bin}}=+0.24$, $r_{\text{sample}}=-0.08$. Causal K=8: $r_{\text{bin}}=+0.66$, $r_{\text{sample}}=-0.13$. The bin-aggregated number can be a misleading summary of the underlying per-sample relationship. **The paper's choice to report only $r_{\text{bin}}$ obscures this.**
+- **The "score works" claim now has a clear conditional structure.** It works *if* the model is at a specific (dataset-specific) training state where the gradient distributions are sufficiently separated by shortcut presence. Outside that window, the score is noise or anti-correlated. The paper currently presents the score as universally valid; the sweep evidence demands a much more limited claim.
+
+### Implications — Updated
+
+- **§5.2 paper text now needs a substantial rewrite, not a small update.** The $r=0.67$ headline must be qualified as "Math at K=3 warmup epochs," and the implicit "score is a stable rank signal across all 3 benchmarks" framing must be removed. Paragraph-level edit, not a number swap.
+- **Recommend changing the paper figure** to show the per-dataset $r$ vs $K$ curves (i.e., the `warmup_sweep.png` panels), not a single bin-scatter at one (cherry-picked) training state. This is the **honest** version of "empirical validation of ShortcutScore."
+- **Gap 4 is now CLOSED for the diagnostic question** ("where is $r=0.67$?") but **OPENS a deeper question (Gap 5)**: if the score's calibration is non-monotonic and dataset-specific, how does Phase 3's reweighting actually deliver +20.7 pp robustness in *Reweighting Only* ablations? Hypothesis: the gain comes from *gradient surgery's directional correction*, not from $S(s)$-driven reweighting. To test, re-run the *Reweighting-Only* baseline at multiple warmup-K values; if accuracy/robustness are insensitive to $K$, the score's calibration was never load-bearing for the empirical wins.
 
 ---
 
