@@ -135,15 +135,43 @@ Each "⟹" now has its own evidence; the design choice no longer free-rides on t
 
 | Item | State |
 |---|---|
-| Gap 1 — per-sample Pearson computed in `generate_figure3` | [ ] not started |
-| Gap 1 — hexbin / raster scatter rendered behind the 20-bin scatter | [ ] not started |
-| Gap 2 — 4-cell A(s) partition (TP / FP / TN / FN) plotted | [ ] not started |
-| Gap 2 — FP-cell mean $A(s)$, gate-fire rate, mean $w(s)$ logged to caption | [ ] not started |
-| Gap 3a — `S(s)` density overlay on panel (c); $\tau_A$ vline removed; $\lambda$ pinned to canonical | [ ] not started |
-| Gap 3b — (a)+(c) merged via twin y-axis; panel-(c) slot reused for Gap 2 FP-cell plot | [ ] not started |
-| §5.2 prose updated to cite per-sample $r$, FP $A(s)$, and `% w(s)>0.5` | [ ] not started |
+| Gap 1 — per-sample Pearson computed in `generate_figure3` | [x] done |
+| Gap 1 — raster scatter rendered behind the 20-bin scatter | [x] done |
+| Gap 2 — 4-cell A(s) partition (TP / FP / TN / FN) plotted | [x] done |
+| Gap 2 — FP-cell mean $A(s)$, gate-fire rate, mean $w(s)$ logged to caption | [x] done |
+| Gap 3a — `S(s)` density overlay on panel (c); $\tau_A$ vline removed; $\lambda$ pinned to canonical | [x] done |
+| Gap 3b — (a)+(c) merged via twin y-axis; panel-(c) slot reused for Gap 2 FP-cell plot | [ ] deferred — reduced-budget result already informative; revisit after a full-budget rerun |
+| §5.2 prose updated to cite per-sample $r$, FP $A(s)$, and `% w(s)>0.5` | [ ] pending — wait for full-budget rerun before editing paper text |
 | LaTeX comment marker in `5_experiment.tex` near `fig:analysis` | [x] added |
 | Sidebar entry registered in `docs/_quarto.yml` | [x] added |
+| **Reduced-budget rerun** of figure3.png (epochs=8, n_score=1500) | [x] done — `results/figure3.png`, `results/figure3_diagnostics.json` |
+| **Full-budget rerun** (epochs=50, n_score=10000) for paper-grade numbers | [ ] not started |
+
+---
+
+## Results — First Run (Reduced Budget)
+
+**Run config**: `EXPERIMENT_SCALE=server`, CPU, `epochs=8`, `score_max_samples=1500`, $\lambda=2.0$, $\tau_A=0.3$, $\tau_R=0.5$, $\alpha=\beta=1.0$. SmallGPT (server profile is **18.96M params**, not the 3.2M the paper §5.4 reports — separate code/paper drift). 3 datasets concatenated, $n=4500$ samples total. Wall time 67 min on 24-core CPU.
+
+### Hypothesis Assessment
+
+| ID | Verdict | Number | Falsifiable threshold | Mechanism |
+|:--:|:--:|---|---|---|
+| **Gap 1** | **Partial** | $r_{\text{sample}} = 0.22$ ($r_{\text{bin}} = 0.51$) | $\geq 0.30$ confirmed, $< 0.20$ rejected | Per-sample noise is **2.3× larger** than bin-aggregated correlation suggests. The "soft reweight tolerates a noisy detector" claim is not flat-rejected, but the per-sample signal sits in the partial zone — paper text should soften the framing or re-run at full budget. |
+| **Gap 2** | **Confirmed, with bonus insight** | $\bar A_{\text{FP}} = -0.19$, gate-fire $= 63\%$, $\bar w_{\text{FP}} = 0.44$ | $\bar A_{\text{FP}} \leq 0.05$ confirmed, $> 0.10$ rejected | False positives are **negative-aligned**, not positive-aligned as the original concern hypothesized. Conflict-only surgery actively fires on 63% of FPs and projects their conflicting component — exactly the same correction it applies to true shortcuts. **The "iatrogenic harm on FPs" worry is empirically absent.** Bonus: F1-optimal threshold collapses to $\tau^* = 0$ at $F1 = 0.80$ — implies the score's discriminative power at this budget is approximately the **sign of $A(s)$**, with $B(s) = \max(0, \tau_A - A(s))$ dominating $S(s)$. |
+| **Gap 3a** | **Confirmed (barely)** | $\%\{w(s) > 0.5\} = 52.4\%$ | $50\%$–$85\%$ confirmed; $> 85\%$ partial; $< 50\%$ rejected | The "soft" framing survives by 2.4 pp. Almost half of samples are downweighted to $\leq$ half — $\lambda = 2.0$ is on the aggressive end of "soft." Worth noting in §5.2 prose: the action is "soft on the median, hard on the high-S tail," not uniformly soft. |
+
+### Insights from this run
+
+- **Per-sample $r$ is much smaller than the bin-aggregated $r$.** Bin aggregation inflates Pearson by averaging within-bin variance away — at this budget, bin $r=0.51$ corresponds to per-sample $r=0.22$ (ratio $\sim 2.3\times$). The $r$ in the paper figure ($0.67$ at full budget) is similarly bin-aggregated; the per-sample $r$ at full budget is unmeasured but the same $\sim 2{-}3\times$ inflation is plausible. **Implication for the claim chain:** "rank validity at sample level" is presently weakly evidenced, not strongly evidenced.
+- **Conflict-only surgery is robust to detector errors by mechanism, not by accident.** FPs land in the same negative-$A$ region as TPs ($\bar A_{\text{FP}} = -0.19$ vs $\bar A_{\text{TP}}$ on the same negative side), so the gate $\mathbf{g}_s^\top \mathbf{g}_{\mathcal V} < 0$ fires on them and corrects the same conflict it would correct on a true positive. The fear that "surgery destroys validation-aligned signal on misclassified clean samples" is inactive: those samples are not, in fact, validation-aligned.
+- **The score is approximately a sign-detector on $A(s)$ at reduced budget.** $\tau^* = 0$ with $F1 = 0.80$ means flagging "all samples with $S > 0$" (≈ all samples with $A < \tau_A$) achieves near-best F1 — the discriminative work inside $S(s) = \alpha \max(0, \tau_A - A) + \beta \max(0, R - \tau_R)$ is essentially done by the first term. This explains why the paper's $F1=0.64$ "noisy detector" framing is empirically OK: the score is not really a detector, it's a soft sign of the alignment-deficit. Whether this collapses or recovers at full training budget is an open question.
+
+### Caveats
+
+- **Reduced budget**: 8 epochs (vs paper's 50), 1500 score samples per dataset (vs 10000). Bin $r = 0.51$ here vs $0.67$ in the paper — a clear ratio of $0.51/0.67 \approx 0.76$. Full-budget rerun will likely lift all three numbers, possibly converting Gap 1 from Partial to Confirmed and Gap 3a's margin from 2.4 pp to comfortable. Do not edit §5.2 prose against these numbers yet.
+- **Code/paper model-size drift**: paper §5.4 says "3.2M params (SmallGPT)" but `server` profile in `src/config.py` produces **18.96M**. Either the paper text is stale or `server` defaults drifted. Track separately; doesn't affect the diagnostic logic but breaks reproducibility on a clean checkout.
+- **Threshold degeneracy**: $\tau^* = 0$ collapsing F1 to "flag everything with $S > 0$" is partly an artifact of the score-min being effectively at 0 (since $B(s), C(s) \geq 0$ by construction). At full budget the score distribution is broader and a non-trivial $\tau^*$ may re-emerge — to be tested.
 
 ---
 
