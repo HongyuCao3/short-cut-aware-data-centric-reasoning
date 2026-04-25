@@ -102,6 +102,24 @@ Both components individually beat SFT---\emph{Reweighting Only} adds +6.4\,pp ac
 
 \textsc{ShortcutScore} reaches an average detection F1 of 0.64---close to Data Filtering's 0.69---yet delivers a +17.8\,pp accuracy advantage over Data Filtering, because SART does not \emph{discard} flagged samples but down-weights them and projects their gradient, preserving any validation-aligned signal the sample still carries. Figure~\ref{fig:analysis}(a) confirms a monotonic $S(s)$--shortcut-rate correlation (Pearson $r{=}0.67$, $p{<}0.001$); panel~(b) shows shortcut gradients skewing toward negative alignment with $\mathbf{g}_{\mathcal{V}}$ while clean gradients cluster near zero. A longer analysis of why detection F1 decouples from downstream gains---why a \emph{lower-F1} action set can outperform a higher-F1 one when the action is soft-reweight + surgery rather than hard drop---appears in Appendix~\ref{sec:appendix_f1_decoupling}.
 
+% --- FOLLOW-UP MARKER (see docs/experiments/shortcut_score_followups.qmd) ----
+% Figure~\ref{fig:analysis} establishes (a) S(s) is a valid RANK signal and (b)
+% shortcut gradients have directional anti-alignment with g_V. The leap from
+% these two facts to the design choice "soft reweight + conflict-only surgery"
+% relies on two robustness conditions that are NOT directly evidenced here:
+%   Gap 1: panel (a)'s r=0.67 is computed on 20 bin-mean points (np.corrcoef on
+%          bin_centers in src/visualize.py:267); per-sample Pearson is unreported.
+%          The soft-reweight argument needs per-sample noise to be bounded, not
+%          just the bin-aggregated correlation.
+%   Gap 2: panel (b) splits A(s) by ground-truth is_shortcut. The clinically
+%          interesting cell (high S(s) AND is_shortcut=0, i.e. false positives)
+%          is silently averaged into the green bar. Whether surgery+reweight
+%          destroy validation-aligned signal on FPs has never been measured.
+% Both gaps are diagnostics on the already-collected gradient cache (no
+% retraining). Falsifiable thresholds and a ~5-line src/visualize.py change list
+% live in docs/experiments/shortcut_score_followups.qmd.
+% -----------------------------------------------------------------------------
+
 \textbf{Hyperparameter sensitivity.} Under the conflict-only rule, the projection strength $\gamma$ should scale with the compositional complexity of the shortcut: $\gamma{=}0.8$ is best for single-feature Math (full projection over-erases useful residual signal), while $\gamma{=}1.0$ is best for multi-feature Financial and Causal, where the conflicting subspace must be fully removed. The answer-suppression coefficient $\rho$ is inactive unless $R(s){>}\tau_R$; it matters only on Causal, where $\rho{=}0{\sim}0.3$ both hit the top row and $\rho{=}0.5$ collapses robustness. The recommended default $(\gamma{=}1.0, \rho{=}0.3)$ improves over the prior default $(\gamma{=}0.8, \rho{=}0.7)$ by $+6.5$\,pp accuracy and $+10.7$\,pp robustness averaged across benchmarks; per-task tuning adds another $+8.2$\,pp robustness. Full sensitivity table and per-dataset breakdown are in Appendix~\ref{sec:appendix_sensitivity}.
 
 %-----------------------------------------------------------------------------

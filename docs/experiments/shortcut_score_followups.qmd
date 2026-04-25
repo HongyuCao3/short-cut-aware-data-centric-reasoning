@@ -1,0 +1,117 @@
+---
+title: "Figure 2 Calibration Gaps — Per-Sample r and FP Alignment"
+---
+
+## What — Document Identity
+
+- **Document**: Two follow-up diagnostics that close the logical chain between Figure~2 (`fig:analysis` in `docs/article/5_experiment.tex`, image at `docs/article/results/figure3.png`) and the SART design choice "soft reweight + conflict-only gradient surgery."
+- **Code touched**: `src/visualize.py:235` (`generate_figure3`). Both diagnostics reuse the existing `collected_data['scores'] / ['is_shortcut'] / ['alignments']` cache — no retraining, no fresh forward pass.
+- **Marker in paper**: LaTeX comment block immediately after the §5.2 paragraph that first references panels (a) and (b) of `fig:analysis`.
+
+## Why — Document Purpose
+
+Figure 2 is currently asked to do more work than it strictly proves. The paper's implicit reasoning chain is:
+
+1. **(a)** $S(s)$ correlates monotonically with the true shortcut rate ⟹ $S(s)$ is a usable ranking signal.
+2. **(b)** Shortcut samples (red) skew negative on $A(s) = \cos(\mathbf{g}_s, \mathbf{g}_{\mathcal V})$ ⟹ surgery has a directional target.
+3. **Table 3 ablation** ⟹ reweighting + surgery are super-additive (+26.7 pp robustness synergy).
+
+But the design choice "soft reweight (not hard drop) + conflict-only surgery (not magnitude-only)" requires **two further robustness conditions** that none of (a), (b), or Table 3 evidence:
+
+- **R1: per-sample noise on $S(s)$ is bounded** — without this, the soft-reweight curve $w(s) = e^{-\lambda S}$ is being applied to a near-random per-sample signal, even if the bin-aggregated $r$ looks healthy.
+- **R2: false-positive samples (high $S(s)$, ground-truth `is_shortcut`=0) do not carry validation-aligned gradients** — without this, surgery + reweight may be silently destroying clean signal on every misclassified sample, and "F1=0.64 is fine because the action is soft" is unproven.
+
+Gap 1 closes R1, Gap 2 closes R2. Together they convert the leap from "(a) + (b)" to "soft + surgery" into an evidenced chain.
+
+---
+
+## Gap 1 — Per-Sample $S(s)$ Pearson is Missing
+
+**Problem.** Figure 2(a)'s reported $r=0.67$ is computed on **20 bin-mean points**, not the underlying ~10K samples. The relevant code at `src/visualize.py:262-267` first bins `(scores, is_shortcut)` into 20 equal-width bins of $S(s)$, then takes the mean of `is_shortcut` within each bin, and finally calls `np.corrcoef(bin_centers, bin_shortcut_rates)`. Bin aggregation systematically inflates Pearson by averaging out within-bin variance: a bin-aggregated $r=0.67$ is fully compatible with a per-sample $r$ of 0.20 or lower. The downstream "soft reweight is robust to a noisy detector" argument depends on **per-sample** noise, not bin-aggregated noise.
+
+**Proposed Diagnostic.** Compute Pearson at the per-sample level on the same `(scores, is_shortcut)` arrays, and render a hexbin / rasterized scatter alongside the existing 20-bin plot.
+
+**Falsifiable Success Criterion.**
+- **Confirmed (R1 holds)**: per-sample $r_{\text{sample}} \geq 0.30$. Soft-reweight robustness claim survives — there is moderate-effect ranking at the sample level, $w(s)=e^{-\lambda S}$ is acting on a real signal.
+- **Rejected (R1 fails)**: $r_{\text{sample}} < 0.20$. Most of the bin-aggregated $r=0.67$ was an aggregation artifact. The claim "soft reweight tolerates a noisy detector" needs to be retracted or restated as "ranking on subgroup means," and per-sample reweighting becomes a justified follow-up to revisit.
+
+**How to Run.** In `src/visualize.py:235-272` (`generate_figure3`), insert before the binning block:
+```python
+from scipy.stats import pearsonr
+r_sample, p_sample = pearsonr(scores, is_sc.astype(float))
+```
+Append `r_sample` to the panel (a) title (`f'(a) ShortcutScore vs Shortcut Rate\\n(r_bin={r:.2f}, r_sample={r_sample:.2f})'`). Optionally add a hexbin layer behind the 20-bin scatter via `axes[0].hexbin(scores, is_sc, gridsize=40, alpha=0.3, cmap='Greys')`. Re-emit `figure3.png`. Cost: zero retraining, ≈10 s.
+
+**Expected directional read.** Likely to land in $[0.20, 0.45]$. A value at the low end says the bin-mean framing is doing more work than the per-sample signal warrants and the paper should soften the (a) claim; a value at the high end fully cleans up R1.
+
+---
+
+## Gap 2 — Conditional Alignment Distribution for False Positives is Missing
+
+**Problem.** Figure 2(b) splits the alignment histogram by **ground-truth `is_shortcut` label** — green vs red. The cell that actually matters for "is the action set safe under detector errors" is the **false positives**: samples that $S(s)$ would *act on* (high score) but that are *clean* in ground truth. These are silently averaged into the green "Non-shortcut" bar.
+
+There are two distinct mechanisms by which the action set can hurt false positives:
+
+1. **Surgery harm**: only fires if $\mathbf{g}_s^\top \mathbf{g}_{\mathcal V} < 0$ (conflict-only gating, post-PCGrad fix). FPs with $A(s) > 0$ are safe from surgery. FPs with $A(s) < 0$ have their conflicting component projected out — same as a true shortcut would, so the harm is bounded by "we'd have done this anyway."
+2. **Reweight harm**: fires whenever $S(s)$ is high, regardless of $A(s)$. An FP with $A(s) > 0$ has its validation-aligned gradient down-weighted to $w \approx e^{-\lambda S}$, **erasing** signal the model should have learned from.
+
+Mechanism 2 is the silent cost. (b) does not show it.
+
+**Proposed Diagnostic.** Partition the gradient cache into four cells against a fixed decision threshold $\tau_S^*$ (the same threshold that produces the F1=0.64 figure):
+
+| Cell | $S(s) > \tau_S^*$ | $S(s) \leq \tau_S^*$ |
+|---|---|---|
+| `is_shortcut = 1` | **TP** | FN |
+| `is_shortcut = 0` | **FP** ← target cell | TN |
+
+Render four overlaid $A(s)$ densities. Report for each cell: mean $A(s)$, fraction with $A(s) < 0$ (gate-fire rate, i.e. how often surgery actually projects), mean $w(s) = e^{-\lambda S(s)}$ (how much reweight the cell suffers).
+
+**Falsifiable Success Criterion.**
+- **Confirmed (R2 holds, action set is safe on FPs)**: FP cell mean $A(s) \leq 0.05$ AND fraction of FPs with $A(s) > 0.20$ is $\leq 15\%$. Surgery rarely fires on FPs (or fires only on already-misaligned FPs, which is fine), and the reweight-harm tail is small. Detector errors are absorbed gracefully.
+- **Partial**: FP mean $A(s) \in (0.05, 0.10]$ — non-trivial fraction of FPs carry positive alignment that the reweight curve is shrinking; the F1=0.64 → +17.8 pp accuracy story has a measurable hidden cost we should quote.
+- **Rejected (R2 fails)**: FP mean $A(s) > 0.10$ AND $> 30\%$ of FPs with $A(s) > 0.20$. The action set is iatrogenic on misclassified clean samples; "soft reweight tolerates F1=0.64" needs a stronger argument or a calibrated threshold.
+
+**How to Run.** In `src/visualize.py:274-287`, replace the binary `sc_align / nsc_align` split with the 4-cell split. Need a $\tau_S^*$ — read it from `src/utils/gradient_ops.py` if hard-coded there, otherwise derive from the F1-maximising point on the precision-recall curve. Plot four overlapping histograms (TP red solid, FN red dashed, TN green dashed, FP green solid). Caption gets one extra row: `FP mean A(s) = X.XX, gate-fire rate = YY%, mean w(s) = Z.ZZ`. Cost: zero retraining, ≈30 s.
+
+**Expected directional read.** The conflict-only gate on the design side is mechanically fine on FPs (it just doesn't fire), so the failure mode would be **reweight-only harm**. If FPs cluster around $A(s) \in [0.0, 0.3]$ — typical for clean samples per panel (b) — then we will see measurable reweight-harm and R2 lands in **Partial**, which is honest material for the paper rather than a flat win.
+
+---
+
+## Why These Gaps Matter for the Causal Chain
+
+Before these diagnostics, the paper says:
+
+> (a) ⟹ $S(s)$ ranks shortcuts. (b) ⟹ surgery has a target. Table 3 ⟹ joint design wins. Therefore: soft reweight + conflict-only surgery.
+
+After these diagnostics, the chain becomes:
+
+> (a) bin-r=0.67 + **per-sample r ≥ 0.30** ⟹ $S(s)$ ranks shortcuts at the sample level → soft reweight has a real signal to act on.
+> (b) shortcut gradients skew negative ⟹ surgery has a target.
+> **FP cell A(s) bounded above 0** ⟹ action set's collateral damage on misclassified clean samples is small.
+> Table 3 super-additivity ⟹ joint design pays off.
+
+Each "⟹" now has its own evidence; the design choice no longer free-rides on the action-set's success.
+
+---
+
+## Status
+
+| Item | State |
+|---|---|
+| Per-sample Pearson computed in `generate_figure3` | [ ] not started |
+| Hexbin / raster scatter rendered behind the 20-bin scatter | [ ] not started |
+| 4-cell A(s) partition (TP / FP / TN / FN) plotted | [ ] not started |
+| FP-cell mean $A(s)$, gate-fire rate, mean $w(s)$ logged to caption | [ ] not started |
+| §5.2 prose updated to cite per-sample $r$ and FP $A(s)$ | [ ] not started |
+| LaTeX comment marker in `5_experiment.tex` near `fig:analysis` | [x] added |
+| Sidebar entry registered in `docs/_quarto.yml` | [x] added |
+
+---
+
+## Connections
+
+- **Triggering source**: `docs/article/5_experiment.tex` §5.2 `sec:exp_detection`, figure label `fig:analysis`. The LaTeX comment block immediately after that paragraph names both gaps and points back here.
+- **Sibling open issues**: [HP Follow-Ups](hyperparam_followups.qmd) — three open hyperparameter-selection issues from §5.3 ($\tau_A / \tau_R / \alpha / \beta$ scale mismatch, $\rho$ inconsistency, $\gamma$ unobservable selection).
+- **Related closed analysis**: [PCGrad Rerun](pcgrad_rerun.qmd) (the rerun that exposed the $\rho$ inconsistency), [Ablation](ablation.qmd) (Table 3 super-additivity, currently the only joint-design evidence).
+- **Method docs**: [Method/ShortcutScore](../method/shortcut_score.qmd), [Method/Gradient Surgery](../method/gradient_surgery.qmd).
+- **Code anchors**: `src/visualize.py:235` (figure generator), `src/utils/gradient_ops.py:155` (`compute_shortcut_score`), `src/utils/gradient_ops.py:315` (`apply_gradient_surgery`).

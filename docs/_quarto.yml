@@ -54,6 +54,8 @@ website:
             href: experiments/hyperparam.qmd
           - text: "HP Follow-Ups"
             href: experiments/hyperparam_followups.qmd
+          - text: "Score Follow-Ups"
+            href: experiments/shortcut_score_followups.qmd
       - section: "Guides"
         contents:
           - text: "Server Guide"
