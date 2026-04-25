@@ -1,11 +1,11 @@
 ---
-title: "Figure 2 Calibration Gaps — Per-Sample r and FP Alignment"
+title: "Figure 2 Follow-Ups — Per-Sample r, FP Alignment, and Panel (c) Restructure"
 ---
 
 ## What — Document Identity
 
-- **Document**: Two follow-up diagnostics that close the logical chain between Figure~2 (`fig:analysis` in `docs/article/5_experiment.tex`, image at `docs/article/results/figure3.png`) and the SART design choice "soft reweight + conflict-only gradient surgery."
-- **Code touched**: `src/visualize.py:235` (`generate_figure3`). Both diagnostics reuse the existing `collected_data['scores'] / ['is_shortcut'] / ['alignments']` cache — no retraining, no fresh forward pass.
+- **Document**: Three follow-up items that close the logical chain between Figure~2 (`fig:analysis` in `docs/article/5_experiment.tex`, image at `docs/article/results/figure3.png`) and the SART design choice "soft reweight + conflict-only gradient surgery." Gap 1 and Gap 2 add missing diagnostics; Gap 3 restructures panel (c), which currently carries no empirical content.
+- **Code touched**: `src/visualize.py:235` (`generate_figure3`). All three reuse the existing `collected_data['scores'] / ['is_shortcut'] / ['alignments']` cache — no retraining, no fresh forward pass.
 - **Marker in paper**: LaTeX comment block immediately after the §5.2 paragraph that first references panels (a) and (b) of `fig:analysis`.
 
 ## Why — Document Purpose
@@ -77,6 +77,42 @@ Render four overlaid $A(s)$ densities. Report for each cell: mean $A(s)$, fracti
 
 ---
 
+## Gap 3 — Panel (c) is a Schematic, Not Empirical Validation
+
+**Problem.** Three sub-issues in the current panel (c):
+
+1. **Zero data**: the curve is generated purely from the formula at `src/visualize.py:289-298` (`np.linspace(0, 3, 100)` then `np.exp(-C.lambda_ * S_range)`). No reference to `collected_data` anywhere. Yet panel (c) sits inside a figure captioned "Empirical validation of \textsc{ShortcutScore}" — it is the only sub-panel that validates nothing.
+2. **Misplaced threshold line**: the orange `axvline(x=C.tau_A, ...)` (`src/visualize.py:294`) draws $\tau_A=0.3$ on the *S(s)* x-axis. But $\tau_A$ is a threshold on $A(s)$ inside $B(s) = \max(0, \tau_A - A(s))$ — different unit, different meaning. $S=0.3$ is not equivalent to $A=0.3$; the line is conceptually misplaced (or, charitably, an unlabelled visual anchor that reads as a threshold).
+3. **Source-of-truth drift**: rendered curve uses $\lambda=2.0$ (current `src/config.py` default at render time), but §5.2 states $\lambda=3.0$. Either the figure or the prose is stale.
+
+**Proposed Fixes (two paths).**
+
+- **3a — low-cost in-place fix.** Overlay `collected_data['scores']` density histogram on the existing curve via twin y-axis; remove the misplaced $\tau_A$ vline; regenerate with the canonical $\lambda$. This converts (c) from "schematic" to "schematic + sample density," and lets a reader see *where samples actually sit* on the reweighting curve.
+- **3b — structural restructure.** Merge the $w(s)$ curve into panel (a) as a twin y-axis (panels share the $S(s)$ x-axis already), freeing the panel-(c) slot. Use the freed slot for the **Gap 2 FP-cell A(s) distribution** plot. Demote the pure-schematic curve to an appendix figure under §3 / method-illustration. Net effect: figure 2 becomes more compact, more empirical, and answers the FP-safety question from Gap 2 in the same view.
+
+**Falsifiable Success Criterion.**
+
+- **3a confirmed**: 50% – 85% of samples land at $w(s) > 0.5$. The "soft" framing is real — most samples retain over half their weight, only a high-S tail is meaningfully suppressed. The exponential is doing what the paper claims.
+- **3a partial**: > 85% of samples at $w(s) > 0.5$. λ is too soft; reweighting is mostly cosmetic on the design-target distribution and Table 3's "Reweight Only +6.4 acc / +20.7 rob" must be coming from a small high-S tail. Worth saying explicitly in the paper (and worth re-tuning λ).
+- **3a rejected**: < 50% at $w(s) > 0.5$. λ is effectively a hard filter dressed in soft clothing — most samples are downweighted to half or below. The "soft, not hard drop" narrative is overstated and the paper needs to either re-tune or rebrand.
+- **3b confirmed**: merged (a)+(c) twin-axis panel preserves readability — legend ≤ 6 entries, tick density ≤ 7 per axis, and the freed slot holds the FP-cell histogram with a captioned mean $A(s)$ + gate-fire rate. Reviewer-readable in one glance.
+- **3b rejected**: twin axis becomes illegible — fall back to faceted small-multiples (1×3 stays, but (c) becomes the FP-cell plot and the schematic moves entirely to appendix).
+
+**How to Run.**
+
+- *3a:* in `src/visualize.py:289-298`, before plotting the curve, add
+  ```python
+  ax_density = axes[2].twinx()
+  ax_density.hist(scores, bins=40, alpha=0.3, density=True, color='gray')
+  ax_density.set_ylabel('S(s) density', color='gray')
+  ```
+  drop the `axvline(x=C.tau_A, ...)` call, and pin `λ` to read from `C.lambda_` so the title and curve agree with the canonical config. Cost: zero retraining, ≈10 s, ~15 lines.
+- *3b:* introduce twin y-axis on `axes[0]` for `np.exp(-C.lambda_ * S_range)`; replace `axes[2]` body with the Gap 2 FP-cell histogram (TP red solid, FP green solid, TN green dashed, FN red dashed) and a caption line reporting `FP mean A(s) = X.XX, gate-fire rate = YY%`. Update §5.2 prose: replace the panel-(c) reference with the (a)-twin-axis reference, and add one sentence on FP-cell safety. Cost: ≈40 lines + caption rewrite.
+
+**Expected directional read.** Likely 3a lands in 60–80% of samples at $w > 0.5$ — the "soft" framing survives, but a chart of where samples actually live makes the panel earn its place in an "empirical validation" figure. 3b is the structurally cleaner long-term home; do 3a first if the paper's figure freeze is near, and convert to 3b on the next round.
+
+---
+
 ## Why These Gaps Matter for the Causal Chain
 
 Before these diagnostics, the paper says:
@@ -88,9 +124,10 @@ After these diagnostics, the chain becomes:
 > (a) bin-r=0.67 + **per-sample r ≥ 0.30** ⟹ $S(s)$ ranks shortcuts at the sample level → soft reweight has a real signal to act on.
 > (b) shortcut gradients skew negative ⟹ surgery has a target.
 > **FP cell A(s) bounded above 0** ⟹ action set's collateral damage on misclassified clean samples is small.
+> **(c) S(s) density × $w(s)$ curve** ⟹ "soft" is a measured property of the action distribution, not a label.
 > Table 3 super-additivity ⟹ joint design pays off.
 
-Each "⟹" now has its own evidence; the design choice no longer free-rides on the action-set's success.
+Each "⟹" now has its own evidence; the design choice no longer free-rides on the action-set's success, and figure 2 stops mixing schematic and empirical content under one "validation" caption.
 
 ---
 
@@ -98,11 +135,13 @@ Each "⟹" now has its own evidence; the design choice no longer free-rides on t
 
 | Item | State |
 |---|---|
-| Per-sample Pearson computed in `generate_figure3` | [ ] not started |
-| Hexbin / raster scatter rendered behind the 20-bin scatter | [ ] not started |
-| 4-cell A(s) partition (TP / FP / TN / FN) plotted | [ ] not started |
-| FP-cell mean $A(s)$, gate-fire rate, mean $w(s)$ logged to caption | [ ] not started |
-| §5.2 prose updated to cite per-sample $r$ and FP $A(s)$ | [ ] not started |
+| Gap 1 — per-sample Pearson computed in `generate_figure3` | [ ] not started |
+| Gap 1 — hexbin / raster scatter rendered behind the 20-bin scatter | [ ] not started |
+| Gap 2 — 4-cell A(s) partition (TP / FP / TN / FN) plotted | [ ] not started |
+| Gap 2 — FP-cell mean $A(s)$, gate-fire rate, mean $w(s)$ logged to caption | [ ] not started |
+| Gap 3a — `S(s)` density overlay on panel (c); $\tau_A$ vline removed; $\lambda$ pinned to canonical | [ ] not started |
+| Gap 3b — (a)+(c) merged via twin y-axis; panel-(c) slot reused for Gap 2 FP-cell plot | [ ] not started |
+| §5.2 prose updated to cite per-sample $r$, FP $A(s)$, and `% w(s)>0.5` | [ ] not started |
 | LaTeX comment marker in `5_experiment.tex` near `fig:analysis` | [x] added |
 | Sidebar entry registered in `docs/_quarto.yml` | [x] added |
 

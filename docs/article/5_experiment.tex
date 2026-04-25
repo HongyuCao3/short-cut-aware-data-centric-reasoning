@@ -106,7 +106,9 @@ Both components individually beat SFT---\emph{Reweighting Only} adds +6.4\,pp ac
 % Figure~\ref{fig:analysis} establishes (a) S(s) is a valid RANK signal and (b)
 % shortcut gradients have directional anti-alignment with g_V. The leap from
 % these two facts to the design choice "soft reweight + conflict-only surgery"
-% relies on two robustness conditions that are NOT directly evidenced here:
+% relies on robustness conditions that are NOT directly evidenced here, and
+% panel (c) is a schematic that carries no empirical content despite sitting
+% under an "Empirical validation" caption:
 %   Gap 1: panel (a)'s r=0.67 is computed on 20 bin-mean points (np.corrcoef on
 %          bin_centers in src/visualize.py:267); per-sample Pearson is unreported.
 %          The soft-reweight argument needs per-sample noise to be bounded, not
@@ -115,9 +117,15 @@ Both components individually beat SFT---\emph{Reweighting Only} adds +6.4\,pp ac
 %          interesting cell (high S(s) AND is_shortcut=0, i.e. false positives)
 %          is silently averaged into the green bar. Whether surgery+reweight
 %          destroy validation-aligned signal on FPs has never been measured.
-% Both gaps are diagnostics on the already-collected gradient cache (no
-% retraining). Falsifiable thresholds and a ~5-line src/visualize.py change list
-% live in docs/experiments/shortcut_score_followups.qmd.
+%   Gap 3: panel (c) is generated from the formula np.exp(-lambda*S) with no
+%          reference to collected_data; the vline at tau_A=0.3 is on the wrong
+%          axis (tau_A is a threshold on A(s), not S(s)); rendered lambda=2.0
+%          disagrees with the paper's stated lambda=3.0. Two fixes: (3a) overlay
+%          actual S(s) density on the curve; (3b) merge w(s) into panel (a) as
+%          a twin y-axis, freeing the (c) slot for the Gap 2 FP-cell plot.
+% All three are diagnostics on the already-collected gradient cache (no
+% retraining). Falsifiable thresholds and a ~15-40-line src/visualize.py change
+% list live in docs/experiments/shortcut_score_followups.qmd.
 % -----------------------------------------------------------------------------
 
 \textbf{Hyperparameter sensitivity.} Under the conflict-only rule, the projection strength $\gamma$ should scale with the compositional complexity of the shortcut: $\gamma{=}0.8$ is best for single-feature Math (full projection over-erases useful residual signal), while $\gamma{=}1.0$ is best for multi-feature Financial and Causal, where the conflicting subspace must be fully removed. The answer-suppression coefficient $\rho$ is inactive unless $R(s){>}\tau_R$; it matters only on Causal, where $\rho{=}0{\sim}0.3$ both hit the top row and $\rho{=}0.5$ collapses robustness. The recommended default $(\gamma{=}1.0, \rho{=}0.3)$ improves over the prior default $(\gamma{=}0.8, \rho{=}0.7)$ by $+6.5$\,pp accuracy and $+10.7$\,pp robustness averaged across benchmarks; per-task tuning adds another $+8.2$\,pp robustness. Full sensitivity table and per-dataset breakdown are in Appendix~\ref{sec:appendix_sensitivity}.
