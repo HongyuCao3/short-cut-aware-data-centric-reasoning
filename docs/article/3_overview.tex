@@ -1,35 +1,80 @@
 \section{Overview}
 
 % =============================================================================
-% PAPER-LEVEL TODO INDEX (Apr 25, 2026)
-% Cross-refs into docs/experiments/shortcut_score_followups.qmd and
-% hyperparam_followups.qmd. Each item also has a ----TODO---- block in the
-% relevant section; this index is the quick map.
+% PAPER-LEVEL TODO INDEX  (last updated 2026-04-25, commit after 1a44f69)
 %
-%   §5.2 (sec:exp_detection)
-%     - Paragraph-level rewrite: r=0.67 framing is empirically refuted.
-%       Replace with per-dataset r-vs-K curves (results/warmup_sweep.png).
-%     - Ablation Table 3 footnote: Reweight-Only is K-dependent.
-%     - Reproduction gap: paper's +20.7 pp robustness for Reweight-Only
-%       not reproducible at K=8 default (we measure +8.1 pp).
+% Each item has a more detailed --TODO-- block at the relevant LaTeX site;
+% this index is the quick map. Cross-refs:
+%   docs/experiments/shortcut_score_followups.qmd  (Gaps 1..6)
+%   docs/experiments/hyperparam_followups.qmd      (Issues 1..3)
+%   docs/experiments/pcgrad_rerun.qmd              (PCGrad / 12-baseline)
+%   docs/experiments/llm_gsm8k.qmd                 (LLM transfer follow-ups)
 %
-%   §5.3 (sec:exp_sensitivity)
-%     - Issue 1: tau_A / tau_R / alpha / beta scale-mismatch (hyperparam_followups.qmd).
-%     - Issue 2: rho=0.5 (main text) vs rho=0.3 (appendix recommended).
-%       Pick Option A (single default) vs Option B (per-task tuning).
-%     - Issue 3: gamma depends on unobservable shortcut compositional complexity.
+% [DONE]   3_overview.tex figure replaced with TikZ method illustration
+%          (figures/sart_method_figure.{tex,png}); original PNG preserved
+%          (figures/short_cut_aware_framework.png is untouched).
 %
-%   Open experiments (run when GPU is free):
-%     - Gap 6: full SART (Reweight + Surgery) K-sensitivity sweep.
-%       Decides whether surgery is the load-bearing component.
-%     - 12-baseline rerun under PCGrad-fixed (gamma=1.0, rho=0.3) defaults
-%       (pcgrad_rerun.qmd, currently at SART-only verification).
-%     - LLM transfer follow-ups: numeric-only g_s_ans; hard-cut detection;
-%       larger LoRA/epoch budget on Qwen3-8B GSM8K (llm_gsm8k.qmd).
+% [OPEN]   §5.2 (sec:exp_detection) — paragraph-level rewrite.
+%          Why open: Gap 4 sweep (commit 1c8e7c8) showed r=0.67 is reproducible
+%          ONLY at Math K=3, never as 3-dataset aggregate; Gap 5 (commit
+%          3e27cf9) showed Reweight-Only's +robustness gain is decoupled from
+%          the score's r calibration. Current §5.2 prose treats r=0.67 as a
+%          stable property and attributes the gain to score-driven correction;
+%          both framings are empirically refuted.
+%          Action: replace the bin-scatter at one cherry-picked state with the
+%          per-dataset r-vs-K curves (results/warmup_sweep.png), and recast
+%          the "F1=0.64 + soft action" account into a "weighted-retraining-
+%          duration" account. This is pure prose work — no GPU needed.
 %
-%   Figure restructure:
-%     - Gap 3b: merge w(s) curve into figure 2(a) as twin axis; reuse the
-%       freed (c) slot for the FP-cell A(s) plot. On hold pending Gap 6.
+% [OPEN]   §5.3 (sec:exp_sensitivity) — three hyperparameter follow-ups.
+%          Issue 1: tau_A / tau_R / alpha / beta scale-mismatch.
+%          Issue 2: rho=0.5 (main) vs rho=0.3 (appendix). Decision pending:
+%                   Option A (single default) vs Option B (per-task tuning).
+%          Issue 3: gamma depends on unobservable shortcut compositional
+%                   complexity at deployment.
+%          Issue 2 is the highest-priority one (internal inconsistency that
+%          a referee will flag immediately).
+%
+% [OPEN]   §5 — reproduction gap on Reweight-Only's reported +20.7 pp
+%          robustness vs our K=8 measurement (+8.1 pp). ~2.5x gap unexplained.
+%          Possible causes: lambda tuning, score-pass timing, selection
+%          effects in the original numbers.
+%
+% [OPEN]   Gap 6: full SART (Reweight + Surgery) K-sensitivity sweep.
+%          ----- See longer note in 5_experiment.tex §5.2 TODO block. -----
+%          A "K-sensitivity sweep" varies the warmup-K hyperparameter, runs
+%          the full method end-to-end at each K, and measures the final
+%          accuracy / robustness. The OUTPUT is a metric-vs-K curve. The
+%          PURPOSE here is mechanism diagnosis — does full SART's accuracy
+%          / robustness depend on the score's calibration at that K? — NOT
+%          method selection (we already know the score's calibration is
+%          dataset-specific; recommending one K as a deployment default is
+%          ruled out by Gap 4). Three possible outcomes:
+%            (a) Full SART is K-sensitive in the same way as Reweight-Only:
+%                surgery is also score-independent. The whole "detection +
+%                correction" framing needs deeper revision.
+%            (b) Full SART is K-sensitive in a way that tracks the score's
+%                r at each K: surgery is the load-bearing component, and
+%                the score's calibration matters specifically for surgery
+%                (not for reweight). Method retains its core claim.
+%            (c) Full SART is K-INsensitive (flat curve): both components
+%                decouple from score quality; the gain is purely from
+%                training-time effects, and the paper's narrative around
+%                S(s) needs broad revision.
+%          Cost: ~50 min on a clean H100 NVL (mirrors reweight_only_K_sweep).
+%          Script: copy scripts/reweight_only_K_sweep.py with
+%          use_gradient_surgery=True.
+%
+% [OPEN]   12-baseline rerun under PCGrad-fixed (gamma=1.0, rho=0.3) defaults
+%          (see pcgrad_rerun.qmd; currently SART-only is verified, full
+%          baseline table is not).
+%
+% [OPEN]   LLM transfer follow-ups: numeric-only g_s_ans; hard-cut detection;
+%          larger LoRA/epoch budget on Qwen3-8B GSM8K (llm_gsm8k.qmd).
+%
+% [HOLD]   Gap 3b — figure 2 structural restructure (merge w(s) into panel
+%          (a) as twin axis; reuse panel (c) slot for FP-cell A(s) plot).
+%          On hold pending Gap 6 outcome.
 % =============================================================================
 
 \begin{figure}
