@@ -1,0 +1,77 @@
+{
+  "Math-Arithmetic": {
+    "SFT": {
+      "accuracy_clean": 0.7593333333333333,
+      "robustness": 0.0,
+      "train_sec": 77.68033027648926
+    },
+    "SART_K3": {
+      "accuracy_clean": 0.8353333333333334,
+      "robustness": 0.2653333333333333,
+      "train_sec": 237.2500081062317,
+      "warmup_epochs": 3
+    },
+    "SART_K8": {
+      "accuracy_clean": 0.8226666666666667,
+      "robustness": 0.30133333333333334,
+      "train_sec": 245.05639719963074,
+      "warmup_epochs": 8
+    },
+    "SART_K30": {
+      "accuracy_clean": 0.7706666666666667,
+      "robustness": 0.037333333333333336,
+      "train_sec": 248.09278512001038,
+      "warmup_epochs": 30
+    }
+  },
+  "Financial-Analysis": {
+    "SFT": {
+      "accuracy_clean": 0.49466666666666664,
+      "robustness": 0.0,
+      "train_sec": 80.3899507522583
+    },
+    "SART_K3": {
+      "accuracy_clean": 0.676,
+      "robustness": 0.32866666666666666,
+      "train_sec": 263.77657866477966,
+      "warmup_epochs": 3
+    },
+    "SART_K8": {
+      "accuracy_clean": 0.7113333333333334,
+      "robustness": 0.41733333333333333,
+      "train_sec": 261.8002851009369,
+      "warmup_epochs": 8
+    },
+    "SART_K30": {
+      "accuracy_clean": 0.7346666666666667,
+      "robustness": 0.462,
+      "train_sec": 256.6461524963379,
+      "warmup_epochs": 30
+    }
+  },
+  "Causal-Reasoning": {
+    "SFT": {
+      "accuracy_clean": 0.5106666666666667,
+      "robustness": 0.019333333333333334,
+      "train_sec": 83.05172920227051
+    },
+    "SART_K3": {
+      "accuracy_clean": 0.7093333333333334,
+      "robustness": 0.49266666666666664,
+      "train_sec": 262.7617332935333,
+      "warmup_epochs": 3
+    },
+    "SART_K8": {
+      "accuracy_clean": 0.6073333333333333,
+      "robustness": 0.5046666666666667,
+      "train_sec": 262.1917767524719,
+      "warmup_epochs": 8
+    },
+    "SART_K30": {
+      "accuracy_clean": 0.5353333333333333,
+      "robustness": 0.06733333333333333,
+      "train_sec": 259.44321036338806,
+      "warmup_epochs": 30
+    }
+  }
+}

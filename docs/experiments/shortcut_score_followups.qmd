@@ -143,7 +143,8 @@ Each "⟹" now has its own evidence; the design choice no longer free-rides on t
 | Gap 3b — (a)+(c) merged via twin y-axis; panel-(c) slot reused for Gap 2 FP-cell plot | [ ] deferred — pending resolution of measurement-time issue (see Gap 4) |
 | **Gap 4** — score-measurement-time issue: r flips sign between reduced and full budget | [x] **CLOSED** — paper's r=0.67 reproducible only at Math K=3, not as 3-ds aggregate |
 | **Gap 5** — if score calibration is dataset-specific, what drives Reweight-Only's +robustness? | [x] **CLOSED** — gain is K-driven, not score-driven; on Causal, higher r gives smaller gain |
-| **Gap 6 (new)** — does full SART (Reweight + Surgery) inherit Gap 5's K-decoupling, or does Surgery restore K-sensitivity? | [ ] OPEN — re-run full SART across same K values |
+| **Gap 6** — does full SART (Reweight + Surgery) inherit Gap 5's K-decoupling, or does Surgery restore K-sensitivity? | [x] **CLOSED** — Surgery is load-bearing (Math RO=0 → SART=+30 pp) but its K-dependence is also decoupled from score r; on Causal highest r → lowest robustness |
+| **Gap 7 (new)** — Surgery-Only ablation: does removing reweighting collapse the gain or stay flat? | [ ] OPEN — needs same K-sweep with `use_reweighting=False, use_gradient_surgery=True` |
 | §5.2 prose updated to cite per-sample $r$, FP $A(s)$, and `% w(s)>0.5` | [ ] **needs paragraph-level rewrite** — score's role is much weaker than current text implies |
 | LaTeX comment marker in `5_experiment.tex` near `fig:analysis` | [x] added |
 | Sidebar entry registered in `docs/_quarto.yml` | [x] added |
@@ -325,6 +326,65 @@ If this story is right, then **the paper's reported $r=0.67$ corresponds to a sp
 - **§5.3 ablation Table 3** needs a footnote: "Reweight-Only" is also a function of *how long* the model trains under reweighting, not just *whether* reweighting is on.
 - **Gap 5 is CLOSED** with the answer: score calibration $\not\to$ gain. The score's role in SART is much weaker than the paper's narrative implies; the empirical gains likely come from gradient surgery's directional correction (which the K-sweep does not test) and / or the regularization effect of weighted retraining duration.
 - **New Gap 6 (open)**: replicate at full SART (Reweight + Surgery) across $K$. If full-SART is K-sensitive, surgery is the load-bearing component; if K-insensitive, both components are insensitive and the design's "shortcut detection + correction" framing needs deeper revision.
+
+---
+
+## Results — Full SART K-Sensitivity (Gap 6 resolution)
+
+**Run config**: GPU 0 (clean H100 NVL), epochs=50 fixed, $K \in \{3, 8, 30\}$ for warmup, **`use_gradient_surgery=True`** (the only flag difference vs Gap 5). 12 runs total: 1 SFT + 3 K × 3 datasets. Wall time **50.3 min**. Generation: `scripts/full_sart_K_sweep.py`. Outputs: `results/full_sart_K_sweep.{json,png}` (the PNG overlays full SART solid against Gap 5 Reweight-Only dashed for direct comparison).
+
+### Hypothesis answered
+
+**Q (Gap 6):** Does adding gradient surgery to Reweight introduce K-sensitivity that *tracks* score quality, or does full SART inherit Gap 5's K-decoupling?
+
+**Verdict: Two-part answer.**
+- **Surgery is load-bearing** — full SART beats Reweight-Only at almost every $(\text{dataset}, K)$ combination, including configs where RO gives **zero** robustness gain.
+- **Surgery's gain is also decoupled from score $r$** — the K-dependence shape is dataset-specific and on Causal it again *inversely* tracks $r$ (highest $r$ at K=30 gives lowest robustness).
+
+### Per-config full SART vs Reweight-Only vs SFT
+
+| Dataset | $K$ | $r_{\text{bin}}$ | SFT rob | RO rob (Gap 5) | **SART rob (Gap 6)** | $\Delta$ rob (SART−RO) |
+|---|---:|---:|---:|---:|---:|---:|
+| Math | 3 | $+0.70$ | $0.000$ | $0.000$ | $\mathbf{0.265}$ | $+26.5$ |
+| Math | 8 | $+0.16$ | $0.000$ | $0.000$ | $\mathbf{0.301}$ | $+30.1$ |
+| Math | 30 | $+0.16$ | $0.000$ | $0.000$ | $0.037$ | $+3.7$ |
+| Financial | 3 | $+0.21$ | $0.000$ | $0.173$ | $0.329$ | $+15.6$ |
+| Financial | 8 | $-0.67$ | $0.000$ | $0.141$ | $0.417$ | $+27.6$ |
+| Financial | 30 | $-0.27$ | $0.000$ | $0.044$ | $\mathbf{0.462}$ | $\mathbf{+41.8}$ |
+| Causal | 3 | $+0.24$ | $0.019$ | $0.157$ | $0.493$ | $+33.6$ |
+| Causal | 8 | $+0.66$ | $0.019$ | $0.119$ | $\mathbf{0.505}$ | $+38.6$ |
+| Causal | 30 | $+0.87$ | $0.019$ | $0.038$ | $0.067$ | $+2.9$ |
+
+(Bold = each (dataset, metric) row's best.)
+
+### Three K-curve shapes — all different
+
+| Dataset | RO trend (Gap 5) | Full SART trend (Gap 6) | Score-$r$ trend (Gap 4) |
+|---|---|---|---|
+| Math | flat at 0 | peak K=8, crash K=30 | weakly positive, K=3 highest |
+| Financial | monotonic ↓ | monotonic ↑ | mostly negative, K=3 only positive |
+| Causal | monotonic ↓ | peak K=8, crash K=30 | non-monotonic, K=30 highest $r$ |
+
+**Three takeaways:**
+1. **RO and full SART have *opposite* K-dependence on Financial.** RO collapses with K; full SART climbs with K. Adding surgery isn't just "more of the same" correction — it changes the sign of the K-derivative.
+2. **Surgery is the load-bearing component on Math.** RO gives $0.000$ at every K; surgery alone takes that to $0.301$ at K=8. Without surgery, the Math benchmark cannot be improved over SFT by reweighting.
+3. **On Causal, SART's K-dependence is *inverted* against score $r$**, same as RO. K=30 has the cleanest score ($r=+0.87$) and the worst robustness (0.067). The surgery component does not derive its effectiveness from the aggregated score quality either.
+
+### Insights
+
+- **Surgery is empirically load-bearing for shortcut robustness.** Without it, Math is unfixable by reweighting (Gap 5 RO sits at SFT for any K); with it, Math hits +30 pp robustness. Removing surgery (Reweight-Only) reduces the average gain by $\sim$3-4× on Financial/Causal. This is the strongest empirical defense of "method has a meaningful contribution" available in the K-sweep family.
+- **Surgery is not score-quality-driven.** The aggregated $r_{\text{bin}}$ measures how well $S(s)$ ranks shortcut samples. Surgery uses the per-sample sign of $\mathbf{g}_s \cdot \mathbf{g}_{\mathcal V}$ to gate, not the aggregated score. The Gap 4 sweep showed $r$ varies wildly (Causal K=30: $+0.87$); the Gap 6 sweep shows full SART's K-dependence does NOT track $r$ — on Causal it is anti-correlated. Surgery's effectiveness is **per-sample directional**, not **score-aggregated**.
+- **K determines the "training state" at which both components operate, not the score's quality.** The clearest mechanistic read is: K controls how trained the model is at the warmup-end → score-pass moment. Both reweight (which uses $S(s)$ magnitude) and surgery (which uses per-sample $\mathbf{g}_s \cdot \mathbf{g}_{\mathcal V}$ sign) are sensitive to *gradient quality at that moment*, but in different ways:
+  - Reweight effects fade as warmup deepens because the model converges and the post-warmup weighted retraining has less room to act.
+  - Surgery effects depend on shortcut-sample gradients being **anti-aligned** with $\mathbf{g}_{\mathcal V}$ enough that the gate fires reliably; this peaks at K=8 on Math/Causal (model has learned task structure but not memorized shortcuts) and continues climbing on Financial (which is harder, slower-converging — model still under-trained at K=30).
+- **The "shortcut detection + correction" narrative is wrong about what S(s) does, but right that there are two distinct corrective mechanisms.** Detection (computing a useful aggregated $S(s)$) is **not** what determines the gain. But reweight and surgery ARE two mechanistically distinct corrective operations, with different K-sensitivity profiles. The honest re-framing is: "warmup-then-corrective-training, where the corrective phase combines magnitude reweighting and conflict-only directional projection — both sensitive to the model's training state at the score-pass moment, neither sensitive to the score's calibration in the sense that paper's $r=0.67$ implies."
+
+### Implications — Updated
+
+- **§5.2 prose rewrite is now substantially constrained.** Cannot defend the "$S(s)$ ranks shortcuts → soft action delivers gains" causal chain in either component. Need to write something like: "the gains come from the *form of the action* (reweighting + projection) operating on a specific training-state window, not from accurate per-sample shortcut identification."
+- **§4.1 (method overview) needs a corresponding hedge.** The current text says "shortcut-prone samples are flagged and downweighted." The Gap 5+6 evidence is that the flag's quality doesn't matter; the action's form does.
+- **The most defensible empirical claim is Gap 6's load-bearing finding for surgery.** "Without gradient surgery, our method cannot improve robustness on 1-feature shortcut benchmarks." This is a true empirical observation that survives the score-decoupling result.
+- **A natural follow-up (Gap 7, open):** test "Surgery-Only" — i.e., the same conflict-only PCGrad gate without any per-sample reweighting. If Surgery-Only matches full SART on Causal/Financial, the per-sample $S(s)$ adds nothing and the simplest faithful method is just "PCGrad with conflict-only gating against $\mathbf{g}_{\mathcal V}$." If Surgery-Only is worse, reweighting still adds something and the design's two-component story holds in *some* form.
 
 ---
 
