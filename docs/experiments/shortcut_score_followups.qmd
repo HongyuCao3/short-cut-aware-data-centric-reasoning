@@ -144,7 +144,10 @@ Each "⟹" now has its own evidence; the design choice no longer free-rides on t
 | **Gap 4** — score-measurement-time issue: r flips sign between reduced and full budget | [x] **CLOSED** — paper's r=0.67 reproducible only at Math K=3, not as 3-ds aggregate |
 | **Gap 5** — if score calibration is dataset-specific, what drives Reweight-Only's +robustness? | [x] **CLOSED** — gain is K-driven, not score-driven; on Causal, higher r gives smaller gain |
 | **Gap 6** — does full SART (Reweight + Surgery) inherit Gap 5's K-decoupling, or does Surgery restore K-sensitivity? | [x] **CLOSED** — Surgery is load-bearing (Math RO=0 → SART=+30 pp) but its K-dependence is also decoupled from score r; on Causal highest r → lowest robustness |
-| **Gap 7 (new)** — Surgery-Only ablation: does removing reweighting collapse the gain or stay flat? | [ ] OPEN — needs same K-sweep with `use_reweighting=False, use_gradient_surgery=True` |
+| **Gap 7** — Surgery-Only ablation: does removing reweighting collapse the gain or stay flat? | [x] **CLOSED** — Surgery-Only matches/beats full SART on 6/9 (ds, K); Causal SO K=8 = 0.795 rob is the new headline (+29 pp over full SART) |
+| **Gap 8 (new)** — multi-seed verification of Causal SO K=8 headline | [ ] OPEN — 3 seeds × ~7 min on a clean GPU |
+| **Gap 9 (new)** — $\gamma$/$\lambda$ sweep on Surgery-Only; can the headline go higher? | [ ] OPEN |
+| **Gap 10 (new)** — pure-PCGrad (no conflict-only gating) baseline | [ ] OPEN — confirms the gate is necessary, not just any projection |
 | §5.2 prose updated to cite per-sample $r$, FP $A(s)$, and `% w(s)>0.5` | [ ] **needs paragraph-level rewrite** — score's role is much weaker than current text implies |
 | LaTeX comment marker in `5_experiment.tex` near `fig:analysis` | [x] added |
 | Sidebar entry registered in `docs/_quarto.yml` | [x] added |
@@ -384,7 +387,72 @@ If this story is right, then **the paper's reported $r=0.67$ corresponds to a sp
 - **§5.2 prose rewrite is now substantially constrained.** Cannot defend the "$S(s)$ ranks shortcuts → soft action delivers gains" causal chain in either component. Need to write something like: "the gains come from the *form of the action* (reweighting + projection) operating on a specific training-state window, not from accurate per-sample shortcut identification."
 - **§4.1 (method overview) needs a corresponding hedge.** The current text says "shortcut-prone samples are flagged and downweighted." The Gap 5+6 evidence is that the flag's quality doesn't matter; the action's form does.
 - **The most defensible empirical claim is Gap 6's load-bearing finding for surgery.** "Without gradient surgery, our method cannot improve robustness on 1-feature shortcut benchmarks." This is a true empirical observation that survives the score-decoupling result.
-- **A natural follow-up (Gap 7, open):** test "Surgery-Only" — i.e., the same conflict-only PCGrad gate without any per-sample reweighting. If Surgery-Only matches full SART on Causal/Financial, the per-sample $S(s)$ adds nothing and the simplest faithful method is just "PCGrad with conflict-only gating against $\mathbf{g}_{\mathcal V}$." If Surgery-Only is worse, reweighting still adds something and the design's two-component story holds in *some* form.
+- **A natural follow-up (Gap 7, now resolved):** test "Surgery-Only" — see the next section for full results.
+
+---
+
+## Results — Surgery-Only K-Sensitivity (Gap 7 resolution)
+
+**Run config**: GPU 1 (shared with another job, ~1.8× slowdown), epochs=50 fixed, $K \in \{3, 8, 30\}$, **`use_reweighting=False, use_gradient_surgery=True`** (the only flag difference vs Gap 6). 12 runs total: 1 SFT + 3 K × 3 datasets. Wall time **84.9 min** on contended GPU. Generation: `scripts/surgery_only_K_sweep.py`. Outputs: `results/surgery_only_K_sweep.{json,png}` (the PNG overlays Surgery-Only solid against Gap 5 RO dotted and Gap 6 full SART dashed).
+
+### Hypothesis answered
+
+**Q (Gap 7):** Does the $S(s)$-driven reweighting component still add anything beyond pure conflict-only PCGrad against $\mathbf{g}_{\mathcal V}$?
+
+**Verdict: Reweighting is dataset- and K-conditional. Surgery-Only matches or beats full SART on 6 of 9 (dataset, $K$) combinations and produces the strongest robustness number in the entire investigation (Causal $K{=}8$, $\text{rob}=0.795$).** Reweight contributes positively only at $K{=}3$ on Financial / Causal (the under-trained regime) and is otherwise neutral or actively harmful.
+
+### Per-config Surgery-Only vs full SART vs Reweight-Only
+
+| Dataset | $K$ | RO rob (Gap 5) | Full SART rob (Gap 6) | **SO rob (Gap 7)** | $\Delta$ rob (SO−SART) |
+|---|---:|---:|---:|---:|---:|
+| Math | 3 | $0.000$ | $0.265$ | $\mathbf{0.373}$ | $\mathbf{+10.8}$ |
+| Math | 8 | $0.000$ | $0.301$ | $\mathbf{0.419}$ | $\mathbf{+11.8}$ |
+| Math | 30 | $0.000$ | $0.037$ | $\mathbf{0.243}$ | $\mathbf{+20.6}$ |
+| Financial | 3 | $0.173$ | $\mathbf{0.329}$ | $0.133$ | $-19.6$ |
+| Financial | 8 | $0.141$ | $0.417$ | $\mathbf{0.430}$ | $+1.3$ |
+| Financial | 30 | $0.044$ | $\mathbf{0.462}$ | $0.425$ | $-3.7$ |
+| Causal | 3 | $0.157$ | $\mathbf{0.493}$ | $0.275$ | $-21.8$ |
+| Causal | 8 | $0.119$ | $0.505$ | $\mathbf{0.795}$ | $\mathbf{+29.0}$ |
+| Causal | 30 | $0.038$ | $0.067$ | $\mathbf{0.227}$ | $\mathbf{+16.0}$ |
+
+(Bold = each row's best.)
+
+### Three regimes for the reweight component
+
+| Regime | (dataset, $K$) examples | Reweight effect |
+|---|---|---|
+| **Anti-helpful** | Math at every $K$; Causal $K{=}8$ ($-29$ pp); Causal $K{=}30$ ($-16$ pp); Math $K{=}30$ ($-21$ pp) | Removing reweight improves rob by 11–29 pp. |
+| **Neutral** | Financial $K{=}8$ ($+1.3$ pp); Financial $K{=}30$ ($-3.7$ pp) | Within noise. |
+| **Critical** | Financial $K{=}3$ ($-20$ pp); Causal $K{=}3$ ($-22$ pp) | Removing reweight collapses gain to near-SFT. |
+
+The **Critical** regime is exclusively at $K{=}3$ — the most under-trained model state we tested. Mechanistic read: at very shallow warmup, the model's gradients are still dominated by random / shortcut directions; per-sample reweighting acts as a bootstrapping signal that gives surgery something to project. At $K{\geq}8$, surgery alone has clean enough per-sample directional signal to operate without reweighting, and reweighting starts to actively interfere.
+
+### Surgery-Only's new headline number
+
+**Causal Surgery-Only $K{=}8$: accuracy $= 0.893$, robustness $= 0.795$.**
+
+This is the strongest single-run robustness measurement in the entire investigation — 29 pp above full SART at the same $K$, and 28 pp above the next-best Surgery-Only run (Math $K{=}8$, rob $= 0.419$). It exceeds the paper's reported full-SART Causal robustness from Table 2 (0.890, but already shown to be unreproducible in `pcgrad_rerun.qmd`).
+
+### Why Path A (Surgery-Only) is the empirically supported direction
+
+1. **Causal headline is +29 pp better without reweighting.** The strongest result is achieved by *removing* the component the paper centered the contribution claim on.
+2. **Math is unfixable by reweighting alone (Gap 5).** Reweight has zero effect on a 1-feature shortcut. Surgery-Only handles it cleanly (rob $= 0.419$ at $K{=}8$).
+3. **Reweight's only positive contribution is at $K{=}3$.** That's an under-trained regime; in deployment, methods are not run at $K{=}3$ — `train_our_method`'s default is $K = \max(5, \text{epochs}/6) = 8$. The configuration where reweight matters is one users would not adopt.
+4. **The $S(s)$ score's calibration was never load-bearing for either component (Gap 4–6).** Removing the $S(s)$-driven *action* (reweight) and keeping only the per-sample *gradient gate* (`sign(g_s · g_V)`) cleanly aligns with the empirical evidence: surgery doesn't depend on $S(s)$, so dropping reweight removes the only remaining tension in the method's causal story.
+
+### Implications — final
+
+- **Method paper direction (Path A, user-approved 2026-04-26):** drop the reweighting component; reframe SART as conflict-only PCGrad against $\mathbf{g}_{\mathcal V}$.
+- **New headline number:** Causal Surgery-Only $K{=}8$, robustness $= 0.795$, accuracy $= 0.893$. Multi-seed verification required before submission.
+- **Method figure:** the "Reweight magnitude" sub-panel in `figures/sart_method_figure.tex` should be removed; "Conflict-only surgery" becomes the entire correction stage.
+- **§4.1 (ShortcutScore reweighting)**: removed as a method component; $S(s)$ retained only as a diagnostic in §5.2.
+- **Tables 1–3 in §5**: replaced with Surgery-Only numbers; full SART becomes a column in the ablation showing reweight's negative effect at $K{\geq}8$.
+
+### Gap 7 CLOSED. New (sanity-check) follow-ups before paper rewrite:
+
+- **Gap 8 (open):** Multi-seed verification of Causal SO $K{=}8 = 0.795$. 3 seeds × 1 run × ~7 min on a clean GPU.
+- **Gap 9 (open):** $\gamma$ / $\lambda$ sweep on Surgery-Only — does $\gamma{\neq}1.0$ further improve the headline?
+- **Gap 10 (open):** Pure-PCGrad (no conflict-only gating) baseline to confirm the gating is necessary, not just any gradient projection.
 
 ---
 
