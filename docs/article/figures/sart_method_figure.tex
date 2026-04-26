@@ -11,12 +11,12 @@
 % inside the diagram beyond the small per-stage hyperparameter labels.
 %
 % Compile: pdflatex -interaction=nonstopmode sart_method_figure.tex
-% Output:  sart_method_figure.pdf  (referenced from 3_overview.tex)
+% Output:  sart_method_figure.pdf  +  sart_method_figure.png (300 DPI)
 % =============================================================================
 \documentclass[border=4pt]{standalone}
 \usepackage{tikz}
 \usepackage{amsmath,amssymb}
-\usetikzlibrary{arrows.meta,positioning,shapes.geometric,shapes.symbols,decorations.pathreplacing,calc}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,shapes.symbols,calc}
 
 \begin{document}
 \begin{tikzpicture}[
@@ -27,19 +27,21 @@
                        rounded corners=3pt},
   chip/.style        ={draw, rounded corners=1.5pt, minimum width=0.55cm,
                        minimum height=0.30cm, inner sep=0pt},
-  scorechip/.style   ={chip, fill=blue!22, minimum width=0.85cm,
+  scorechip/.style   ={chip, fill=blue!22, minimum width=0.95cm,
+                       minimum height=0.50cm, font=\footnotesize\bfseries},
+  novelchip/.style   ={chip, fill=orange!22, minimum width=0.95cm,
                        minimum height=0.42cm, font=\footnotesize},
-  novelchip/.style   ={chip, fill=orange!22, minimum width=0.85cm,
-                       minimum height=0.42cm, font=\footnotesize},
-  graychip/.style    ={chip, fill=gray!18, minimum width=0.85cm,
-                       minimum height=0.42cm, font=\footnotesize},
-  ansbar/.style      ={draw, rounded corners=1pt, fill=yellow!28,
-                       minimum width=0.20cm, minimum height=0.26cm,
+  inputchip/.style   ={chip, fill=gray!12, minimum width=0.85cm,
+                       minimum height=0.46cm, font=\footnotesize},
+  outchip/.style     ={chip, fill=green!28, minimum width=0.85cm,
+                       minimum height=0.46cm, font=\footnotesize},
+  ansbar/.style      ={draw, rounded corners=1pt, fill=yellow!35,
+                       minimum width=0.22cm, minimum height=0.28cm,
                        inner sep=0pt, font=\tiny},
   reasonbar/.style   ={draw, rounded corners=1pt, fill=blue!18,
-                       minimum width=0.20cm, minimum height=0.26cm,
+                       minimum width=0.22cm, minimum height=0.28cm,
                        inner sep=0pt, font=\tiny},
-  databox/.style     ={draw, thick, rounded corners=4pt, fill=blue!8,
+  iconbox/.style     ={draw, thick, rounded corners=4pt, fill=blue!8,
                        inner sep=4pt},
   novelbox/.style    ={draw, thick, rounded corners=4pt, fill=orange!10,
                        inner sep=4pt},
@@ -47,147 +49,147 @@
                        inner sep=4pt},
   novelflag/.style   ={draw, rounded corners=1pt, fill=orange!22,
                        font=\scriptsize\bfseries, inner sep=2.5pt, align=center},
-  hyptag/.style      ={font=\tiny, align=center, text=black!75},
+  hyptag/.style      ={font=\scriptsize, align=center, text=black!70},
   flow/.style        ={->, thick, line width=0.7pt},
   thinflow/.style    ={->, thin, line width=0.5pt},
   stagearrow/.style  ={->, line width=1.0pt, draw=black!75},
-  surgerykeep/.style ={->, line width=1.0pt, draw=green!55!black},
-  surgerydrop/.style ={->, dashed, line width=0.8pt, draw=red!70!black},
-  gvarrow/.style     ={->, line width=0.9pt, draw=blue!55!black},
-  gsarrow/.style     ={->, line width=0.9pt, draw=orange!75!black},
+  surgerykeep/.style ={->, line width=1.1pt, draw=green!50!black},
+  surgerydrop/.style ={->, dashed, line width=0.9pt, draw=red!70!black},
+  gvarrow/.style     ={->, line width=1.0pt, draw=blue!55!black},
+  gsarrow/.style     ={->, line width=1.0pt, draw=orange!75!black},
 ]
 
 % =====================================================================
-% Panel 1: Score gradient signatures
-% Boundary x-range: (-2.40, 2.40), center 0.00
+% Panel 1: SCORE  —  boundary x-range (-2.55, 2.65), center 0.05
 % =====================================================================
-\node[title] (T1) at (0.00, 2.30) {Step 1 (Score):\\Gradient Signatures};
-\draw[panelbox] (-2.40, 1.65) rectangle (2.40, -1.65);
+\node[title] (T1) at (0.05, 2.30) {Step 1 (Score):\\Gradient Signatures};
+\draw[panelbox] (-2.55, 1.70) rectangle (2.65, -1.70);
 
-% Input: a sample's gradient g_s
-\node[font=\scriptsize, align=center] (gsLabel) at (-1.95, 1.10) {sample $s$};
-\node[chip, fill=gray!12, minimum width=0.85cm, minimum height=0.42cm, font=\footnotesize] (gsIn) at (-1.95, 0.55) {$\mathbf{g}_s$};
+% Input chip and label (top-left)
+\node[font=\scriptsize, anchor=south] at (-2.10, 0.92) {sample $s$};
+\node[inputchip] (gsIn) at (-2.10, 0.50) {$\mathbf{g}_s$};
 
-% Sub-icon A(s): cosine alignment with g_V
-\node[databox, minimum width=2.10cm, minimum height=0.95cm] (boxA) at (-0.30, 0.85) {};
-\node[font=\scriptsize\bfseries, anchor=north west] at (-1.30, 1.30) {$A(s)$};
-% two arrows representing g_s and g_V at an angle (alignment / cosine)
-\coordinate (origA) at (-0.85, 0.55);
-\draw[gsarrow] (origA) -- ++(60:0.55) node[right, font=\tiny, inner sep=1pt] {$\mathbf{g}_s$};
-\draw[gvarrow] (origA) -- ++(20:0.55) node[right, font=\tiny, inner sep=1pt] {$\mathbf{g}_{\mathcal V}$};
-\draw[draw=gray!60, thin] (origA) ++(20:0.20) arc (20:60:0.20);
-\node[font=\tiny, anchor=west] at (0.10, 0.85) {cosine};
-\node[font=\tiny, anchor=west] at (0.10, 0.62) {overlap};
+% --- A(s) sub-icon (top, alignment / cosine) ---
+\node[iconbox, minimum width=2.40cm, minimum height=1.05cm] (boxA) at (-0.20, 0.78) {};
+\node[font=\footnotesize\bfseries, anchor=west, text=black!85] at (-1.35, 1.05) {$A(s)$};
+\node[font=\tiny, anchor=west, text=black!55] at (-1.35, 0.83) {alignment};
+% small angular vectors, centered in the box right of the header
+\coordinate (origA) at (-0.20, 0.55);
+\draw[gsarrow] (origA) -- ++(60:0.55);
+\draw[gvarrow] (origA) -- ++(15:0.65);
+\draw[gray!60, thin] (origA) ++(15:0.22) arc (15:60:0.22);
+\node[font=\tiny, anchor=south, text=orange!75!black] at ($(origA) + (60:0.55)$) {$\mathbf{g}_s$};
+\node[font=\tiny, anchor=west, text=blue!55!black] at ($(origA) + (15:0.70)$) {$\mathbf{g}_{\mathcal V}$};
 
-% Sub-icon R(s): answer-token concentration
-\node[databox, minimum width=2.10cm, minimum height=0.95cm] (boxR) at (-0.30, -0.30) {};
-\node[font=\scriptsize\bfseries, anchor=north west] at (-1.30, 0.15) {$R(s)$};
-% token row with answer highlighted
-\node[reasonbar] at (-1.10, -0.55) {};
-\node[reasonbar] at (-0.85, -0.55) {};
-\node[reasonbar] at (-0.60, -0.55) {};
-\node[reasonbar] at (-0.35, -0.55) {};
-\node[ansbar, minimum height=0.42cm] (ansbar) at (-0.05, -0.55) {};
-\node[font=\tiny, anchor=west] at (0.20, -0.30) {answer-token};
-\node[font=\tiny, anchor=west] at (0.20, -0.50) {gradient mass};
+% --- R(s) sub-icon (bottom, answer-token concentration) ---
+\node[iconbox, minimum width=2.40cm, minimum height=1.05cm] (boxR) at (-0.20, -0.42) {};
+\node[font=\footnotesize\bfseries, anchor=west, text=black!85] at (-1.35, -0.20) {$R(s)$};
+\node[font=\tiny, anchor=west, text=black!55] at (-1.35, -0.42) {answer mass};
+% token row inside the icon: 4 small "reasoning" cells + 1 highlighted "answer" cell at the right end
+\node[reasonbar] at (-0.18, -0.45) {};
+\node[reasonbar] at ( 0.07, -0.45) {};
+\node[reasonbar] at ( 0.32, -0.45) {};
+\node[reasonbar] at ( 0.57, -0.45) {};
+\node[ansbar, minimum width=0.32cm, minimum height=0.55cm] (ansbar) at (0.86, -0.45) {};
+\node[font=\tiny, anchor=center, text=black!55] at (0.20, -0.85) {energy concentrates on answer};
 
-% S(s) output chip on the right
-\node[scorechip] (Sout) at (1.85, 0.30) {$S(s)$};
+% S(s) output chip on the right of the panel
+\node[scorechip] (Sout) at (2.20, 0.12) {$S(s)$};
 
-% Arrows: g_s into both sub-icons
-\draw[thinflow] (gsIn.east) -| ($(boxA.west)+(0,0)$);
-\draw[thinflow] (gsIn.east) -| ($(boxR.west)+(0,0)$);
+% Arrows: g_s flows into both icons
+\draw[thinflow] (gsIn.east) -| ($(boxA.west)+(0.0,0)$);
+\draw[thinflow] (gsIn.east) -| ($(boxR.west)+(0.0,0)$);
 % Sub-icons combine into S(s)
-\draw[flow] (boxA.east) -| ($(Sout.north)+(0,0)$);
-\draw[flow] (boxR.east) -| ($(Sout.south)+(0,0)$);
+\draw[flow] (boxA.east) -| (Sout.north);
+\draw[flow] (boxR.east) -| (Sout.south);
 
-% Hyperparameter footer (bottom row)
-\node[hyptag] at (0.00, -1.42) {$\tau_A{=}0.3,\ \tau_R{=}0.5,\ \alpha{=}\beta{=}1.0$};
+% Hyperparameter footer
+\node[hyptag] at (0.05, -1.50) {$\tau_A{=}0.3,\ \tau_R{=}0.5,\ \alpha{=}\beta{=}1.0$};
 
 % =====================================================================
-% Panel 2: Correct magnitude + direction (NOVEL)
-% Boundary x-range: (2.80, 8.80), center 5.80
+% Panel 2: CORRECT  —  boundary x-range (3.05, 9.35), center 6.20  (NOVEL)
 % =====================================================================
-\node[title] (T2) at (5.80, 2.30) {Step 2 (Correct):\\Magnitude $+$ Direction};
-\draw[panelbox] (2.80, 1.65) rectangle (8.80, -1.65);
-\node[novelflag] at (5.80, 1.30) {Novel: SART correction};
+\node[title] (T2) at (6.20, 2.30) {Step 2 (Correct):\\Magnitude $+$ Direction};
+\draw[panelbox] (3.05, 1.70) rectangle (9.35, -1.70);
+\node[novelflag] at (6.20, 1.35) {Novel: SART correction};
 
-% --- Sub-panel 2a: magnitude reweight (left half) ---
-\node[novelbox, minimum width=2.50cm, minimum height=2.10cm] (boxRW) at (4.15, -0.20) {};
-\node[font=\scriptsize\bfseries, anchor=north] at (4.15, 0.78) {Reweight magnitude};
-% input g_s arrow (long)
-\draw[gsarrow] (3.30, 0.30) -- (4.65, 0.30) node[right=-1pt, font=\tiny] {$\mathbf{g}_s$};
-% w(s) chip (the multiplier)
-\node[novelchip, font=\scriptsize] (wchip) at (4.15, -0.20) {$w(s){=}e^{-\lambda S}$};
-% output: shorter arrow (downweighted) — placed below w(s) chip
-\draw[gsarrow, line width=0.7pt] (3.65, -0.75) -- (4.05, -0.75) node[right=-1pt, font=\tiny] {$w\,\mathbf{g}_s$};
-\node[font=\tiny, anchor=west, text=black!60] at (3.30, -1.00) {magnitude shrinks};
+% --- 2a: magnitude reweight (left half) ---
+\node[novelbox, minimum width=2.55cm, minimum height=2.00cm] (boxRW) at (4.55, -0.20) {};
+\node[font=\scriptsize\bfseries, anchor=north] at (4.55, 0.78) {Reweight magnitude};
+% pre arrow: full-length g_s
+\draw[gsarrow, line width=1.1pt] (3.55, 0.30) -- (5.05, 0.30) node[right=-1pt, font=\tiny] {$\mathbf{g}_s$};
+% weight chip
+\node[novelchip, font=\scriptsize] (wchip) at (4.55, -0.20) {$w(s){=}e^{-\lambda S}$};
+% post arrow: shorter, signaling shrunk magnitude
+\draw[gsarrow, line width=0.7pt] (3.85, -0.75) -- (4.65, -0.75) node[right=-1pt, font=\tiny] {$w\,\mathbf{g}_s$};
+\node[font=\tiny, anchor=center, text=black!55] at (4.55, -1.05) {magnitude shrinks};
 
-% --- Sub-panel 2b: direction surgery (right half) ---
-\node[novelbox, minimum width=2.85cm, minimum height=2.10cm] (boxSurg) at (7.30, -0.20) {};
-\node[font=\scriptsize\bfseries, anchor=north] at (7.30, 0.78) {Conflict-only surgery};
-% Coordinate frame for the surgery diagram
-\coordinate (surgOrig) at (6.40, -0.50);
-% g_V (target direction)
-\draw[gvarrow] (surgOrig) -- ++(15:1.05) coordinate (gvTip);
-\node[font=\tiny, anchor=south west, inner sep=1pt] at ($(surgOrig)!0.85!(gvTip)$) {$\mathbf{g}_{\mathcal V}$};
-% g_s (anti-aligned, obtuse angle from g_V)
-\draw[gsarrow] (surgOrig) -- ++(115:0.95) coordinate (gsTip);
-\node[font=\tiny, anchor=east, inner sep=1pt] at ($(surgOrig)!0.85!(gsTip)$) {$\mathbf{g}_s$};
-% decompose g_s: keep parallel-to-g_V component (solid green) + drop perpendicular conflicting (dashed red)
-% projection of g_s on g_V is small/negative — conceptually:
-%   keep arrow runs along +g_V direction with small magnitude (or zero), but visualize the kept axis
-%   drop arrow is the conflicting component (the part anti-aligned with g_V)
-\draw[surgerykeep] (surgOrig) -- ++(15:0.45) node[right=-2pt, font=\tiny, text=green!45!black] {keep};
-\draw[surgerydrop] (gsTip) -- ($(surgOrig) + (15:0.45)$);
-\node[font=\tiny, text=red!70!black] at (6.95, 0.20) {project out};
-% gate condition badge
+% --- 2b: conflict-only surgery (right half) ---
+\node[novelbox, minimum width=3.10cm, minimum height=2.00cm] (boxSurg) at (7.65, -0.20) {};
+\node[font=\scriptsize\bfseries, anchor=north] at (7.65, 0.78) {Conflict-only surgery};
+% Surgery diagram coordinates — origin lower-left of the sub-panel
+\coordinate (surgOrig) at (6.65, -0.70);
+% g_V points right-up (validation direction)
+\draw[gvarrow] (surgOrig) -- ++(15:1.10) coordinate (gvTip);
+\node[font=\tiny, anchor=south west, inner sep=1pt, text=blue!55!black]
+     at ($(surgOrig)+(15:1.10)$) {$\mathbf{g}_{\mathcal V}$};
+% g_s points up-left (anti-aligned)
+\draw[gsarrow] (surgOrig) -- ++(125:0.95) coordinate (gsTip);
+\node[font=\tiny, anchor=east, inner sep=1pt, text=orange!75!black]
+     at ($(surgOrig)+(125:0.95)$) {$\mathbf{g}_s$};
+% keep component along +g_V
+\draw[surgerykeep] (surgOrig) -- ++(15:0.40)
+     node[right=-2pt, font=\tiny, text=green!40!black] {keep};
+% conflicting component (project out): from gsTip back along -g_V direction
+\draw[surgerydrop] (gsTip) -- ($(surgOrig) + (15:0.40)$);
+\node[font=\tiny, text=red!70!black, anchor=south] at (7.40, 0.20) {project out};
+% gate condition (center-bottom of surgery sub-panel)
 \node[font=\tiny, align=center, draw=red!50, fill=red!10, rounded corners=1pt,
-      inner sep=1.5pt] (gate) at (8.05, -1.10) {gate fires iff\\$\mathbf{g}_s\!\cdot\!\mathbf{g}_{\mathcal V} \!<\! 0$};
+      inner sep=2pt] (gate) at (8.55, -0.95)
+     {gate fires iff\\$\mathbf{g}_s\!\cdot\!\mathbf{g}_{\mathcal V} \!<\! 0$};
 
-% Hyperparameter footer (bottom row)
-\node[hyptag] at (5.80, -1.42) {$\lambda{=}2.0,\ \ \gamma{=}1.0$ (full projection)};
+% Hyperparameter footer
+\node[hyptag] at (6.20, -1.50) {$\lambda{=}2.0,\ \ \gamma{=}1.0\ \text{(full projection)}$};
 
 % =====================================================================
-% Panel 3: Apply correction
-% Boundary x-range: (9.20, 13.40), center 11.30
+% Panel 3: APPLY  —  boundary x-range (9.75, 13.95), center 11.85
 % =====================================================================
-\node[title] (T3) at (11.30, 2.30) {Step 3 (Apply):\\Weighted Update};
-\draw[panelbox] (9.20, 1.65) rectangle (13.40, -1.65);
+\node[title] (T3) at (11.85, 2.30) {Step 3 (Apply):\\Weighted Update};
+\draw[panelbox] (9.75, 1.70) rectangle (13.95, -1.70);
 
-% Input: corrected gradient
-\node[novelchip, font=\footnotesize] (gprime) at (9.85, 0.50) {$w(s)\,\mathbf{g}'_s$};
-\node[font=\scriptsize, align=center] at (9.85, 0.00) {corrected\\gradient};
+% Input: corrected gradient chip
+\node[novelchip, font=\footnotesize] (gprime) at (10.30, 0.50) {$w(s)\,\mathbf{g}'_s$};
+\node[font=\scriptsize, align=center, anchor=north] at (10.30, 0.20) {corrected\\gradient};
 
 % Update box
-\node[applybox, minimum width=2.30cm, minimum height=1.20cm] (upd) at (11.85, 0.30) {};
-\node[font=\footnotesize\bfseries] at (11.85, 0.55) {SGD / Adam};
-\node[font=\footnotesize] at (11.85, 0.10) {$\theta \leftarrow \theta - \eta\, w(s)\,\mathbf{g}'_s$};
+\node[applybox, minimum width=2.45cm, minimum height=1.20cm] (upd) at (12.45, 0.30) {};
+\node[font=\footnotesize\bfseries] at (12.45, 0.55) {SGD / Adam};
+\node[font=\footnotesize] at (12.45, 0.10) {$\theta \!\leftarrow\! \theta - \eta\, w(s)\,\mathbf{g}'_s$};
 
-% Output: updated theta
-\node[chip, fill=green!28, minimum width=0.85cm, minimum height=0.42cm, font=\footnotesize] (thetaOut) at (12.95, -0.85) {$\theta'$};
-\node[font=\scriptsize, anchor=east] at (11.85, -0.85) {next step};
+% Output chip
+\node[outchip] (thetaOut) at (13.40, -0.85) {$\theta'$};
+\node[font=\scriptsize, anchor=east] at (12.45, -0.85) {next step};
 
 \draw[flow] (gprime.east) -- (upd.west);
 \draw[flow] (upd.south) |- (thetaOut.west);
 
-% Hyperparameter footer (note: total epochs = 50, warmup = max(5, epochs/6))
-\node[hyptag] at (11.30, -1.42) {standard optimizer step};
+% Hyperparameter footer
+\node[hyptag] at (11.85, -1.50) {standard optimizer step};
 
 % =====================================================================
-% Title-row inter-panel arrows (above all boundary tops)
+% Title-row inter-panel arrows
 % =====================================================================
 \draw[stagearrow] (T1.east) -- (T2.west);
 \draw[stagearrow] (T2.east) -- (T3.west);
 
 % =====================================================================
-% Inter-panel content flow: S(s) -> reweight; (g_s, g_V) -> surgery; out -> apply
+% Inter-panel content flow
 % =====================================================================
 % S(s) chip flows into reweight w(s)
 \draw[flow, draw=blue!60!black] (Sout.east) -- (wchip.west);
-\node[font=\tiny, anchor=south, text=blue!55!black] at (2.95, -0.13) {into $w$};
+\node[font=\tiny, anchor=south, text=blue!55!black] at (3.30, -0.07) {into $w$};
 
-% Apply panel input from surgery output: surgery -> corrected gradient chip
+% Surgery panel output flows into corrected gradient chip
 \draw[flow] (boxSurg.east) -- (gprime.west);
 
 \end{tikzpicture}
