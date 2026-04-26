@@ -102,6 +102,47 @@ Both components individually beat SFT---\emph{Reweighting Only} adds +6.4\,pp ac
 
 \textsc{ShortcutScore} reaches an average detection F1 of 0.64---close to Data Filtering's 0.69---yet delivers a +17.8\,pp accuracy advantage over Data Filtering, because SART does not \emph{discard} flagged samples but down-weights them and projects their gradient, preserving any validation-aligned signal the sample still carries. Figure~\ref{fig:analysis}(a) confirms a monotonic $S(s)$--shortcut-rate correlation (Pearson $r{=}0.67$, $p{<}0.001$); panel~(b) shows shortcut gradients skewing toward negative alignment with $\mathbf{g}_{\mathcal{V}}$ while clean gradients cluster near zero. A longer analysis of why detection F1 decouples from downstream gains---why a \emph{lower-F1} action set can outperform a higher-F1 one when the action is soft-reweight + surgery rather than hard drop---appears in Appendix~\ref{sec:appendix_f1_decoupling}.
 
+% ============================================================================
+% TODO: PARAGRAPH-LEVEL REWRITE NEEDED (commits 8ebdfb3, 1c8e7c8, 3e27cf9).
+%   Empirical follow-ups from docs/experiments/shortcut_score_followups.qmd
+%   refute the framing of the paragraph above on three points:
+%
+%   1. r=0.67 is NOT a property of "S(s) on the synthetic benchmarks" — it is
+%      reproducible only at Math K=3 warmup epochs. The 3-dataset aggregate
+%      r stays in [-0.2, +0.2] across all warmup K we tested. See
+%      results/warmup_sweep.png and shortcut_score_followups.qmd Results
+%      section "Warmup-Epoch Sweep".
+%
+%   2. Per-sample r is 2-7x smaller than the bin-aggregated r the paper
+%      reports. At Math K=3: r_bin=+0.698 vs r_sample=+0.094. The current
+%      number obscures per-sample noise.
+%
+%   3. The implicit story "F1=0.64 + soft action delivers gains via accurate
+%      shortcut identification" is empirically refuted by the Reweight-Only
+%      K-sweep (results/reweight_K_sweep.{json,png}). On Causal, r ranges
+%      from +0.24 (K=3) to +0.87 (K=30), but robustness gain MOVES IN THE
+%      OPPOSITE DIRECTION (+13.8 pp at K=3, +1.9 pp at K=30). Score
+%      calibration is empirically not load-bearing.
+%
+%   Recommended rewrite: replace the bin-scatter at one cherry-picked state
+%   with the per-dataset r-vs-K curves at results/warmup_sweep.png; replace
+%   the F1=0.64 framing with a duration-of-weighted-retraining account; cite
+%   the K-sweep table for delta-vs-SFT numbers.
+% ============================================================================
+%
+% TODO: GAP 6 (open). Run the same K sweep on full SART (Reweight + Surgery,
+%   not Reweight-Only). If full SART is K-insensitive, surgery is also score-
+%   independent and the entire "detection + correction" framing needs deeper
+%   revision. Script: copy scripts/reweight_only_K_sweep.py with
+%   use_gradient_surgery=True. Cost: ~50 min on a clean H100 NVL. See
+%   shortcut_score_followups.qmd Status table.
+%
+% TODO: REPRODUCTION GAP. Paper's Reweight-Only avg robustness gain over SFT
+%   is +20.7 pp (Table 3); our measurement at K=8 (paper default) is +8.1 pp.
+%   ~2.5x gap. Possible causes: lambda tuning, score-pass timing, selection
+%   effects in the original numbers. Needs a clean reproduction pass with
+%   multiple seeds before the paper's ablation table can stand.
+
 % --- FOLLOW-UP MARKER (see docs/experiments/shortcut_score_followups.qmd) ----
 % Figure~\ref{fig:analysis} establishes (a) S(s) is a valid RANK signal and (b)
 % shortcut gradients have directional anti-alignment with g_V. The leap from
@@ -129,6 +170,30 @@ Both components individually beat SFT---\emph{Reweighting Only} adds +6.4\,pp ac
 % -----------------------------------------------------------------------------
 
 \textbf{Hyperparameter sensitivity.} Under the conflict-only rule, the projection strength $\gamma$ should scale with the compositional complexity of the shortcut: $\gamma{=}0.8$ is best for single-feature Math (full projection over-erases useful residual signal), while $\gamma{=}1.0$ is best for multi-feature Financial and Causal, where the conflicting subspace must be fully removed. The answer-suppression coefficient $\rho$ is inactive unless $R(s){>}\tau_R$; it matters only on Causal, where $\rho{=}0{\sim}0.3$ both hit the top row and $\rho{=}0.5$ collapses robustness. The recommended default $(\gamma{=}1.0, \rho{=}0.3)$ improves over the prior default $(\gamma{=}0.8, \rho{=}0.7)$ by $+6.5$\,pp accuracy and $+10.7$\,pp robustness averaged across benchmarks; per-task tuning adds another $+8.2$\,pp robustness. Full sensitivity table and per-dataset breakdown are in Appendix~\ref{sec:appendix_sensitivity}.
+
+% TODO: HYPERPARAMETER FOLLOW-UPS (open, see docs/experiments/hyperparam_followups.qmd):
+%
+%   Issue 1 — tau_A / tau_R / alpha / beta hard-coded with no selection rule.
+%     B(s) ∈ [0, 1.3] vs C(s) ∈ [0, 0.5]; alpha=beta=1.0 silently gives
+%     B(s) ~2.6x more relative weight. Proposed fix: per-batch quantile
+%     selectors + z-score normalization for B and C separately.
+%
+%   Issue 2 — rho=0.5 (this paragraph, §5) vs rho=0.3 (Appendix
+%     recommended default). Internal inconsistency. Decision: Option A
+%     (single default rho=0.3) vs Option B (per-task tuning admitted into
+%     the headline table). Option A flips main-text numbers from
+%     92.5/87.9 to 75.9/50.5; Option B to 76.3/58.7. Pick before submission.
+%
+%   Issue 3 — gamma depends on "shortcut compositional complexity" which is
+%     not directly observable at deployment. Proposed diagnostic:
+%     spectral-rank or detector-coefficient-sparsity to auto-pick gamma.
+%
+% TODO: ABLATION TABLE 3 footnote needed. Reweight-Only's gain over SFT is
+%   K-dependent (decreases monotonically with warmup epochs K, NOT with
+%   score's r). The "Reweight Only" row implicitly fixes K at the default
+%   max(5, epochs//6); its number is not invariant to that choice. See
+%   results/reweight_K_sweep.{json,png} and shortcut_score_followups.qmd
+%   "Reweight-Only K-Sensitivity".
 
 %-----------------------------------------------------------------------------
 \subsection{Real-World LLM Transfer and Computational Cost}

@@ -1,8 +1,40 @@
 \section{Overview}
 
+% =============================================================================
+% PAPER-LEVEL TODO INDEX (Apr 25, 2026)
+% Cross-refs into docs/experiments/shortcut_score_followups.qmd and
+% hyperparam_followups.qmd. Each item also has a ----TODO---- block in the
+% relevant section; this index is the quick map.
+%
+%   §5.2 (sec:exp_detection)
+%     - Paragraph-level rewrite: r=0.67 framing is empirically refuted.
+%       Replace with per-dataset r-vs-K curves (results/warmup_sweep.png).
+%     - Ablation Table 3 footnote: Reweight-Only is K-dependent.
+%     - Reproduction gap: paper's +20.7 pp robustness for Reweight-Only
+%       not reproducible at K=8 default (we measure +8.1 pp).
+%
+%   §5.3 (sec:exp_sensitivity)
+%     - Issue 1: tau_A / tau_R / alpha / beta scale-mismatch (hyperparam_followups.qmd).
+%     - Issue 2: rho=0.5 (main text) vs rho=0.3 (appendix recommended).
+%       Pick Option A (single default) vs Option B (per-task tuning).
+%     - Issue 3: gamma depends on unobservable shortcut compositional complexity.
+%
+%   Open experiments (run when GPU is free):
+%     - Gap 6: full SART (Reweight + Surgery) K-sensitivity sweep.
+%       Decides whether surgery is the load-bearing component.
+%     - 12-baseline rerun under PCGrad-fixed (gamma=1.0, rho=0.3) defaults
+%       (pcgrad_rerun.qmd, currently at SART-only verification).
+%     - LLM transfer follow-ups: numeric-only g_s_ans; hard-cut detection;
+%       larger LoRA/epoch budget on Qwen3-8B GSM8K (llm_gsm8k.qmd).
+%
+%   Figure restructure:
+%     - Gap 3b: merge w(s) curve into figure 2(a) as twin axis; reuse the
+%       freed (c) slot for the FP-cell A(s) plot. On hold pending Gap 6.
+% =============================================================================
+
 \begin{figure}
     \centering
-    \includegraphics[width=\linewidth]{figures/short_cut_aware_framework.png}
+    \includegraphics[width=\linewidth]{figures/sart_method_figure.png}
     \caption{
     Overview of SART. (A) Per-sample gradient alignment with validation gradients and answer-token concentration.
     (B) \textsc{ShortcutScore} combines both signals to flag shortcut-prone samples.
