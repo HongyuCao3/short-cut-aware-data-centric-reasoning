@@ -1,65 +1,57 @@
 ---
-title: "Ablation Study"
+title: "消融研究（§5.3）"
+format: html
 ---
 
-## What — Experiment Identity
+> **本页对应论文 §5.3 Ablation Study，主图 Table 4。**
 
-- **Experiment**: Isolate the contribution of each SART component (Reweighting vs. Gradient Surgery) by removing one at a time
+> 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
 
-## Why — Experiment Purpose
+## 实验回答的问题
 
-- **Claim addressed**: Claim 2 — Reweighting and Surgery are super-additive (+26.7pp synergy bonus on robustness)
+> **Reweighting 与 Gradient Surgery 是 SART 缺一不可的两个组件吗？两者是「线性叠加」还是「超加性」？**
 
----
+## 这个实验为论文支撑了什么
 
-## Results — Table 3: Component Ablation
+- **机制解释**：两组件**超加性**（合一比单独 +sum 多 +26.7 pp robustness），这与 §3 给出的 design 解释「reweight 调量、surgery 调向、互补不重叠」**严格一致**。
+- **方法选择动机**：单独 Reweighting Only 与 [Data Filtering]{.term data-tip="Data Filtering — Warmup 后丢掉置信度过高的样本；典型「硬丢」基线。"} 已经差不多（+20.7 / +14 pp rob）；要达到 headline 的 +40.2 pp，**必须** 加 surgery。
+- **有趣发现**：Reweight Only 的检测 F1 = **0.85**（最高），合 SART 反而降到 0.64 —— **「检测 F1 越高 ≠ 下游收益越高」**。这一发现支撑论文论 detection F1 与 robust gain 解耦。
 
-| Configuration | Accuracy | Robustness | Grad. Align. | SC Det. F1 |
-|--------------|----------|------------|-------------|------------|
-| SFT (Baseline) | 68.8% | 19.4% | -0.08 | — |
-| + Reweighting Only | 75.2% | 40.1% | -0.06 | 0.85 |
-| + Gradient Surgery Only | 73.5% | 40.5% | -0.14 | 0.82 |
-| **SART (Full)** | **92.5%** | **87.9%** | **-0.03** | **0.64** |
+## 主表（论文 Table 4，三数据集平均）
 
----
+| 配置 | Accuracy ↑ | Robustness ↑ | $|$Grad. Align.$|$ ↓ | SC Det. F1 |
+|------|------------|--------------|----------------------|------------|
+| [SFT]{.term data-tip="SFT — Supervised Fine-Tuning，标准 token-级 NLL 训练，不做任何鲁棒处理。"} (Baseline) | 68.8 | 19.4  | 0.08 | – |
+| + [Reweighting Only]{.term data-tip="Reweighting Only — 只用 ShortcutScore 做指数 reweight，不做 surgery。"}    | 75.2 | 40.1  | 0.06 | 0.85 |
+| + [Gradient Surgery Only]{.term data-tip="Gradient Surgery Only — 只用冲突门控投影 + 答案-token 抑制，不做 reweight。"} | 73.5 | 40.5  | 0.14 | 0.82 |
+| **SART (Full)**             | **92.5** | **87.9**  | **0.03** | 0.64 |
 
-## Analysis
+**如何看表**
 
-<details>
-<summary><strong>Super-Additive Synergy</strong></summary>
+- **行**：SFT → 单组件 → 全开。
+- **Acc / Rob 列**：越大越好；
+- [$|\cos(\mathbf{g}_s,\mathbf{g}_{\mathcal{V}})|$]{.term data-tip="|grad align| — 训练集逐样本梯度与 g_V 的余弦绝对值；越接近 0 = 更新方向既不系统对齐也不系统反对齐验证方向。"} 列：**越接近 0 越好** —— 表示梯度被推到「中性」流形上；
+- F1 列：越高越好（但**不要直接把 F1 当 robustness driver**，见下「趋势的含义」）。
 
-| Metric | Reweighting | Surgery | Sum | Full SART | Synergy |
-|--------|------------|---------|-----|-----------|---------|
-| Robustness gain | +20.7pp | +21.1pp | 41.8pp | **+68.5pp** | **+26.7pp** |
-| Accuracy gain | +6.4pp | +4.7pp | 11.1pp | **+23.7pp** | **+12.6pp** |
+**趋势的含义**
 
-The synergy arises because the two mechanisms operate on **complementary axes**:
+- 单 Reweighting → +20.7 pp rob；单 Surgery → +21.1 pp rob；**和 = 41.8 pp**。
+- 全开 → **+68.5 pp rob** —— **超出和 +26.7 pp**（64% 超加性）。
+- accuracy 也呈 +12.6 pp 超加性。
+- |grad align| 从 0.08 → 0.03（2.7×）：训练动力学被推到中性更新流形。
+- F1 反向变化（0.85 → 0.64）：检测「精度」**不是** 下游 gain 的直接驱动 —— 真正驱动是「保留 shortcut 样本里的可迁移分量 + 切除冲突分量」。
 
-- Reweighting adjusts *how much* each sample contributes to the loss
-- Surgery adjusts *in which direction* each gradient update proceeds
+## 主要发现（论文原文）
 
-When combined, reweighted gradients are more amenable to precise surgical correction, and surgery amplifies the effect of reweighting by eliminating residual shortcut directions.
+> **两组件是 SART 必备的；其相互作用是超加性的（+26.7 pp synergy）。reweight 调 how-much，surgery 调 in-which-direction —— reweight 后的样本梯度更适合精确做 surgery；surgery 也消除了 reweight 后残余的 shortcut 方向。**
 
-</details>
+- 缺 Reweighting：rob 只 40.5%（–47.4 pp 全开）；
+- 缺 Surgery：rob 只 40.1%（–47.7 pp 全开）；
+- 两条 drop 几乎对称 → 两组件 **同等重要**。
 
-<details>
-<summary><strong>Gradient Alignment Improvement</strong></summary>
+> **driver**：reweight 把 shortcut 梯度的 **量** 缩到不主导 batch；这给 surgery 留出「不被 shortcut 噪声压住」的工作空间，使其投影更准。surgery 又把 reweight 后样本里仍存在的 **冲突分量** 切掉，让样本里的 **可迁移分量** 完整保留。两者各自处理一个轴 —— 量 / 方向 —— 自然产生超加。
 
-The full method achieves near-zero gradient misalignment (-0.03), a **2.7x improvement** over SFT (-0.08).
+## 相关诊断
 
-Removing either component causes catastrophic degradation:
-
-- Without Reweighting: -19.0pp accuracy, -47.4pp robustness
-- Without Surgery: -17.3pp accuracy, -47.7pp robustness
-
-Both components are essential and contribute approximately equally.
-
-</details>
-
-<details>
-<summary><strong>Claim Status</strong></summary>
-
-- **Claim 2 status**: Confirmed — synergy bonus of +26.7pp (64% more than the sum of parts)
-- Both components are independently beneficial but dramatically better together
-
-</details>
+- 单 Reweighting 的 +20.7 pp rob **是 K-依赖的**（Warmup epoch K 越大，gain 越小）；详见 [ShortcutScore 验证（§5.4）](shortcut_score_validation.qmd) 的 K-sweep。
+- 全 SART 的 K-sensitivity：full SART 在 Math/Causal 上 K-sensitive，但 **轨迹不跟 score r 走** —— surgery 是 load-bearing，但与 score 的校准 *解耦*，参看 [ShortcutScore 验证（§5.4）](shortcut_score_validation.qmd) 末段。

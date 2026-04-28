@@ -1,75 +1,68 @@
 ---
-title: "LLM Transfer — SART on Qwen3-8B (LoRA) / GSM8K"
+title: "LLM 迁移：Qwen3-8B / GSM8K（§5.5）"
+format: html
 ---
 
-## What — Experiment Identity
+> **本页对应论文 §5.5 Real-World LLM Transfer + 附录 §B.6。**
 
-- **Experiment**: Transfer SART to a capable pretrained LLM (Qwen3-8B + LoRA rank-16 on q/k/v/o-proj) on GSM8K with 70% shortcut injection, to verify whether the synthetic-benchmark gains hold when the base model has enough capacity to exhibit a *real* shortcut-vs-reasoning choice (rather than the GPT-2 capacity floor documented in `realworld.qmd`).
-- **Code**: `run_llm.py`, `src/model_peft.py`, `src/trainer_peft.py`. Launcher env vars: `LLM_MODEL`, `NO_QUANT`, `DATASET`, `ABLATION`, `SART_GAMMA`, `SART_RHO`, `SART_SCORE_MAX`.
-- **Setup**: 5,979 train / 1,494 val / 659 clean-test / 652 perturbed-test. Shortcut = sum-of-all-numbers in the question. Natural correlation 1.3% (shortcut rarely equals true answer). Training: 1 warmup epoch + 2 SART epochs, batch 2 × 8 grad-accum = 16 effective, LR 2e-4, bfloat16 (no 4-bit).
-- **Eval**: HF greedy decode, max_gen=256, accuracy parsed via `#### <number>`; clean/perturbed PPL on held-out test splits.
+> 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
 
-## Why — Experiment Purpose
+## 实验回答的问题
 
-- **Claim addressed**: P0-3 — does the PCGrad-fixed SART (§4.2, γ/ρ defaults inherited from synthetic) preserve the paper's shortcut-correction advantage on a generative LLM task where the base model would otherwise collapse to the shortcut under 70% corrupted labels?
+> **SART 的两路核心机制 —— 检测几何（[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"}）与方向修正（[conflict-only projection]{.term data-tip="冲突门控投影 — 只在内积 < 0 时才执行投影，避免把已经对齐的有用方向也擦掉。"}）—— 在 8B 量级、自然语言推理任务（GSM8K）上还成立吗？**
 
----
+## 这个实验为论文支撑了什么
 
-## Headline Finding
+- **机制解释**：检测几何 **完整迁移**：Qwen3-8B + [LoRA]{.term data-tip="Low-Rank Adaptation — Hu 等 2022，仅训练注入到大模型中的低秩适配器；逐样本梯度只在 LoRA 上计算，省内存。"} 上，注入 shortcut 样本（$\bar S = 0.46$）与干净样本（$\bar S = 0.007$）分离 ≥60×，与 synthetic 上的几何分离同量级。
+- **方法选择动机**：方向修正在 LLM 上有 **生成边界** —— [$\rho$]{.term data-tip="ρ — 答案-token 梯度抑制强度，ρ=1 完全去掉答案-token 梯度贡献。论文 main 用 0.5。"} > 0 会破坏 autoregressive 生成（PPL 升 5 个数量级）；batch 级 conflict gating 被 batch 平均效应中和，门很少触发。建议 LLM 上用 **per-sample gating + $\rho=0$** 变体。
+- **有趣发现**：检测信号迁移、修正信号不迁移 —— 这把方法的两路成分 **独立验证** 在 8B 上：score 有效，但 surgery 的 LLM 形态需要重新工程。
 
-**Detection transfers cleanly to Qwen3-8B; correction does not, across the full hyperparameter cross-section tested.** Phase-2 ShortcutScore separates injected from clean samples by more than an order of magnitude (mean 0.46 vs 0.007), matching the synthetic benchmark's detection strength. But six training configurations—default $(\gamma{=}0.5,\rho{=}0.3)$ which collapses generation (PPL $2.76\times 10^5$); $(\gamma{=}0.5,\rho{=}0)$; reweighting-only $(\gamma{=}0,\rho{=}0)$; $(\gamma{=}1.0,\rho{=}0)$; per-sample PCGrad $(\gamma{=}1.0,\rho{=}0,\lambda{=}1)$; per-sample PCGrad at $\lambda{=}5$—all converge to the same SFT-baseline accuracy (0.5% clean / 0% perturbed, PPL $\approx 1.54$) with the model perfectly learning the sum-of-numbers shortcut. This is a **robust negative correction result** across gating granularity ($\gamma$), projection strength, and reweighting strength ($\lambda$). Two separable mechanical issues underlie it: (a) answer-token suppression is incompatible with autoregressive generation when $\rho>0$; (b) even with $\rho=0$ and the gating fixes applied, SART's remaining machinery cannot outweigh the asymmetry between a compact shortcut and multi-step arithmetic on an 8B LoRA head under a 3-epoch budget. The paper should report this honestly as a transfer limitation with three concrete mechanical follow-ups (below).
+## 实验设置
 
----
+| 维度 | 取值 |
+|------|------|
+| 模型 | Qwen3-8B + [LoRA]{.term data-tip="Low-Rank Adaptation — Hu 等 2022，仅训练注入到大模型中的低秩适配器；逐样本梯度只在 LoRA 上计算，省内存。"} rank-16 (q/k/v/o-proj) |
+| 数据 | GSM8K，70% sum-of-numbers shortcut 受控注入；测试在原答案 split 上 |
+| 训练 | 3-epoch LoRA budget；每 epoch refresh 一次 [$\mathbf{g}_{\mathcal{V}}$]{.term data-tip="g_V — 验证集梯度 ∇_θ (1/|V|) Σ ℓ(θ;v)；代表「能改善真规则泛化」的更新方向。"} |
+| 工程优化 | LoRA + 可选 [JL sketch]{.term data-tip="JL sketch — 固定种子的随机投影，维持任意一对向量的内积/余弦在 ε 误差内；用来压缩梯度。"}（[LLM 工程优化](../method/vram_reduction.qmd) 给出常数） |
 
-## Results — Runs Completed So Far
+## 主要发现
 
-| Method | γ | ρ | Clean Acc | Perturbed Acc | Clean PPL | Notes |
-|---|---|---|---|---|---|---|
-| SFT (baseline) | — | — | 0.5% | 0.0% | 1.56 | Model perfectly memorizes shortcut: "Adding the values: X+Y+Z = sum. #### sum" |
-| SART-Full (LLMConfig default) | 0.5 | 0.3 | 1.0% | 1.5% | 275,720 | Generation collapsed; output = "Adding the values: … #### 他们会他们会…" (token loop) |
-| **SART-Full (ρ=0)** | **0.5** | **0.0** | **1.0%** | **0.0%** | **1.54 / 1.53** | **Generation restored but shortcut uncorrected; PRED=107 vs GT=14 on Ginger-Amy sample, i.e. exactly the sum 100+4+3** |
-| **SART-Reweight-only** | **0** | **0** | **0.5%** | **0.0%** | **1.55 / 1.55** | **Identical generation samples to ρ=0 run (PRED=107, 3203, 34) → γ=0.5 batch-level PCGrad is inert on mixed-shortcut batches** |
-| **SART-Full (γ=1.0, ρ=0)** | **1.0** | **0** | **0.5%** | **0.0%** | **1.54 / 1.53** | **Identical to γ=0.5 to within one sample. γ is a no-op on this task because the gate (`g_batch @ g_V < 0`) almost never fires on mixed batches — the conclusion holds regardless of γ magnitude. Confirms that batch-level conflict averaging is the binding constraint, not projection strength.** |
-| **SART-Full (per-sample PCGrad, γ=1.0, ρ=0, λ=1)** | **1.0** | **0** | **0.5%** | **0.0%** | **1.54 / 1.54** | **Epoch-1 loss 0.103 vs batch-level's 0.086 confirms per-sample projection IS firing and modifying gradients; still converges to the shortcut. Mechanistic fix works as designed but does not produce a correction at default λ=1. Cost 48 min, ~2× batch-level.** |
-| **SART-Full (per-sample PCGrad, γ=1.0, ρ=0, λ=5)** | **1.0** | **0** | **0.5%** | **0.0%** | **1.53 / 1.53** | **Mean shortcut sample weight dropped to $\approx 0.11$; 5814/5979 training samples at w<0.5. Epoch 1 loss 0.031 vs 0.103 (λ=1) confirms reweighting is aggressive. Shortcut STILL wins at test time. Rules out reweighting strength as the missing knob at this scale.** |
+### (1) 检测几何 ≥60× 分离
 
----
+- $\bar S(\text{injected}) = 0.46$；
+- $\bar S(\text{clean}) = 0.007$；
+- 比例 ≈ 60×，与 synthetic 上 shortcut 样本相对干净样本的 $A(s)$ 偏移量级一致；
+- → [ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"} 的几何信号 **完整迁移到 8B**。
 
-## Mechanism — Why ρ=0.3 Breaks Generation
+### (2) 修正信号在 LLM 上有边界
 
-`_apply_batch_surgery` in [trainer_peft.py](../../src/trainer_peft.py) computes `g_ans` by backward on the loss restricted to answer-mask tokens, then subtracts `ρ · g_ans` from the batch gradient when `R_batch = ‖g_ans‖ / (‖g_ans‖ + ‖g_reason‖)` exceeds `τ_R=0.5`. On GSM8K with an 8B Qwen model, the answer segment after `####` is 1–3 tokens carrying unique numeric signal, so `‖g_ans‖` dominates `‖g_batch‖` almost every step and `R_batch` sits far above 0.5. Answer suppression therefore fires constantly, and ρ=0.3 subtracts a nontrivial fraction of the *only* gradient component that teaches the model to emit the final answer token correctly. The model keeps the reasoning scaffold (`Adding the values: …`) — that part of the gradient is untouched — but loses the signal that selects the closing number, degenerating into the repeated-token pattern visible in the GEN samples.
+- $\rho > 0$ → autoregressive 生成 PPL **升 5 个数量级**：原因是答案 token 也要预测下一个 prefix，把答案-token 梯度抑制 = 把生成监督关掉。
+- batch 级 [conflict-only projection]{.term data-tip="冲突门控投影 — 只在内积 < 0 时才执行投影，避免把已经对齐的有用方向也擦掉。"}：在 mixed batch 上，clean 与 shortcut 梯度被 batch-average 中和 → $\mathbf{g}_{\text{batch}}^\top \mathbf{g}_{\mathcal{V}} \approx 0$ 而不显著为负 → 门几乎不触发。
+- 提升到 **per-sample gating** 修复 batch 平均假象，但 accuracy 仍 track SFT；高 [$\lambda$]{.term data-tip="λ — 指数 reweighting 强度；越大 → shortcut 样本被压得越狠。论文默认 3.0。"}（5）也没继续涨。
 
-On SmallGPT the same code is benign: "answer" is a single classification logit, so suppressing its gradient merely down-weights the logit vs. reasoning features without preventing the model from producing any answer at all. The classification vs. generation asymmetry is the root cause of the transfer failure, not a hyperparameter defect.
+> **结论**：**检测信号迁移；修正信号在 8B / 3-epoch LoRA 配置下没有把 accuracy 推上去**。
 
----
+### (3) 三条具体后续
 
-## Why Reweighting + γ Surgery Doesn't Break the Shortcut
+| 修复 | 直觉 |
+|------|------|
+| 把 $\mathbf{g}_s^{\mathrm{ans}}$ 限制到 *数字* 答案 token | 让 $\rho>0$ 不杀生成，仅抑制 number-only 蓄意 shortcut |
+| **hard-cut detection**：高 $S(s)$ 直接零权 | 检测信号有了，但 soft reweight 在 LoRA 3-epoch 预算下不够强 |
+| 更大 LoRA / epoch budget | 现 budget 下 reweight + surgery 都 under-trained |
 
-Phase 2 scoring cleanly separates shortcut from non-shortcut samples (mean ShortcutScore 0.4513 on 373 injected samples vs. 0.0071 on 127 clean samples, F1 separation comparable to the synthetic benchmarks). Detection is not the weak link. Two hypotheses, examined in sequence:
+## 主要发现（论文原文）
 
-1. **Batch-level PCGrad is too coarse for mixed-shortcut batches.** The original `apply_gradient_surgery` fires only when the *batch-averaged* `g_batch` has negative dot product with `g_V`. Clean-sample reasoning gradients align positively with `g_V` (they teach the same multi-step arithmetic as the clean val set), so the average across a 70/30 mixed batch sits at a small *positive* alignment — the gate never fires, even when individual shortcut samples would trigger it. **Verdict: true but not sufficient.** A per-sample PCGrad gate was implemented in `_apply_persample_gradient_surgery_peft`; the resulting per-sample run (γ=1.0, ρ=0, λ=1) shows meaningfully different training dynamics (Epoch-1 loss 0.103 vs 0.086 under batch-level at the same γ) confirming projection now fires, yet final accuracy remains at 0.5% and generation still emits the shortcut sum. So the batch-level artifact is real, but removing it alone is not enough.
+> **检测信号迁移到 8B（注入样本与干净样本的 ShortcutScore 分离 ≥60×）；但 correction 在 3-epoch LoRA 预算下不把 accuracy 推上 SFT —— 在 8B 上记录为 cleanly negative correction 结果，并列出三条具体修复方向。**
 
-2. **Shortcut simplicity + soft reweighting fails at 8B scale.** "Sum all numbers in the question" has near-zero description length in a Qwen3-8B LoRA head. The exponential reweighting $w = e^{-\lambda S}$ at the LLMConfig default $\lambda{=}1$ only down-scales the mean shortcut sample's loss contribution from 1.0 to $e^{-0.45} \approx 0.64$, which still leaves enough shortcut signal in three fine-tuning epochs for the model to converge to it. On SmallGPT the true reasoning rule and the shortcut have comparable implementation cost in the network, so a gentle reweighting tip is enough; on an 8B model that asymmetry collapses. This is the first-order explanation once Hypothesis 1 has been controlled for. The λ=5 run (in flight) drops the mean shortcut weight to $e^{-2.25} \approx 0.11$ and tests whether strengthening reweighting alone closes the gap.
+- 检测：8B-OK；
+- 修正：8B-NO（在当前预算 / 实现下）；
+- 修复方向：上面三条 follow-up。
 
-## Implications for Paper §5.2
+> **driver**：synthetic 上 [ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"} 与 [conflict-only projection]{.term data-tip="冲突门控投影 — 只在内积 < 0 时才执行投影，避免把已经对齐的有用方向也擦掉。"} 都从「逐样本梯度可见」中获益；LLM batch 训练里 batch-平均把 surgery 的可观测信号 wash 掉，**所以方法的两路成分需要独立工程化**：score 走 LoRA + sketch 即可保持几何；surgery 要走 per-sample 而不是 batch、并把 $\mathbf{g}_s^{\mathrm{ans}}$ 限制到数字 token。
 
-- The `realworld.qmd` GPT-2 results hit a capacity floor (all methods ≈ 0–3%) — they cannot distinguish SART's correction mechanism from noise.
-- The Qwen3-8B SFT baseline confirms the intended experimental setup works: base model *does* have the capacity to learn the task and, given 70% shortcut-labeled training data, perfectly internalizes the shortcut (acc ≈ 0%). This is the first real-world setup where shortcut correction has measurable headroom.
-- Answer suppression (ρ > 0) should not be applied unmodified to generative tasks. Two paths forward: (a) ρ=0 for LLM experiments and rely on reweighting + alignment surgery alone; (b) redefine `g_ans` to cover only the *numeric* answer token(s) rather than the full post-`####` span, and enforce `R_batch` threshold using a decomposition instead of the current norm-ratio approximation.
-- The negative result on correction (conditional on preserved generation) is itself a publishable finding: detection transfers cleanly, correction does not, and the mechanism explanation is tight. §7 limitations should state this honestly rather than hide it.
+## 计算成本
 
-## Status and Next Steps
-
-- [x] SFT baseline on Qwen3-8B / GSM8K (acc=0.5% / PPL 1.56 — shortcut fully learned)
-- [x] SART-Full at LLMConfig default ρ=0.3 (diagnosed collapse, mechanism explained)
-- [x] SART-Full at ρ=0 (generation restored, shortcut uncorrected)
-- [x] SART-Reweight-only (matches ρ=0 to within 1 sample; γ=0.5 surgery inert)
-- [x] SART at γ=1.0 + ρ=0 (identical to γ=0.5; batch-level gate never fires regardless of γ)
-- [x] Per-sample PCGrad gate implemented (`src/trainer_peft.py::_apply_persample_gradient_surgery_peft`) and tested — gate fires (training loss +20%), shortcut still wins at test time
-- [x] Per-sample + λ=5 reweighting (mean shortcut weight ≈ 0.11) — also fails; reweighting strength is not the bottleneck
-
-Three remaining mechanical follow-ups, none of which were run due to scope:
-
-- [ ] **Redefine $g_{\mathrm{ans}}$ to numeric-answer tokens only.** Current implementation includes the entire post-`####` span; on GSM8K that is just 1–4 numeric tokens but in the `_compute_sample_scores_peft` pipeline the answer mask can include whitespace/newlines that carry disproportionate gradient mass. Restricting to digits + sign would sharpen the C(s) signal and might let ρ>0 be used without killing generation.
-- [ ] **Harder detection threshold** (drop instead of soft-reweight). A straight Data-Filtering-style cut of `S(s) > τ` samples, with τ calibrated so that ≤10% of training data is dropped, removes the residual shortcut-fitting signal that soft reweighting (even at λ=5) leaves behind. This is a structurally different intervention than SART's soft-reweighting doctrine but may be what 8B-scale shortcut correction actually requires.
-- [ ] **Longer training budget and/or larger trainable parameter set.** The current 1+2 epoch LoRA rank-16 setup may be too constrained: the shortcut basin is deep enough that any fraction of shortcut-weighted samples fits it. Either more epochs (10–20) at low LR, or expanding LoRA to rank-32 on more layers, could flip the balance.
+- synthetic：$\sim$60 s / 数据集（Apple M），$\sim$3 min / 数据集（H100 NVL）；约 [SFT]{.term data-tip="SFT — Supervised Fine-Tuning，标准 token-级 NLL 训练，不做任何鲁棒处理。"} 的 2.5×；
+- LLM：每 epoch refresh $\mathbf{g}_{\mathcal{V}}$（不是每 step） + LoRA 限制可训参数 → 主要 overhead 来自 score 的 backward；
+- 详见 [LLM 工程优化](../method/vram_reduction.qmd) 的常数表。

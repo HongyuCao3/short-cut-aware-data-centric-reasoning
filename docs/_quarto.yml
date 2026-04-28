@@ -2,14 +2,29 @@ project:
   type: website
   output-dir: _site
 
+format:
+  html:
+    theme:
+      dark: darkly
+      light: cosmo
+    toggle: true
+    toc: true
+    toc-depth: 3
+    toc-title: "本页目录"
+    css:
+      - styles/tooltip.css
+      - styles/custom.css
+    highlight-style: github-dark
+    fig-align: center
+
 website:
-  title: "SART — Shortcut-Aware Reasoning Training"
+  title: "SART — 短路径感知推理训练"
   page-navigation: true
   navbar:
     background: dark
     foreground: light
     left:
-      - text: "Home"
+      - text: "首页"
         href: index.qmd
     right:
       - icon: github
@@ -20,55 +35,55 @@ website:
     collapse-level: 1
     background: dark
     contents:
-      - text: "Dashboard"
+      - text: "首页 / Dashboard"
         href: index.qmd
-      - section: "Research"
+      - text: "动机（§1）"
+        href: motivation.qmd
+      - section: "问题定义（§2）"
         contents:
-          - text: "Task Definition"
+          - text: "SART 形式化"
             href: task_definition.qmd
-          - text: "Literature Review"
-            href: literature_review.qmd
-          - text: "Claims"
-            href: claims.qmd
-      - section: "Method"
+      - section: "方法（§3 / §4）"
         contents:
-          - text: "Overview"
+          - text: "方法总览（§3）"
             href: method/overview.qmd
-          - text: "ShortcutScore"
+          - text: "ShortcutScore（§4.1）"
             href: method/shortcut_score.qmd
-          - text: "Gradient Surgery"
+          - text: "Gradient Surgery（§4.2）"
             href: method/gradient_surgery.qmd
-          - text: "VRAM Reduction"
+          - text: "LLM 工程优化（§4 末段）"
             href: method/vram_reduction.qmd
-      - section: "Experiments"
+      - section: "实验（§5）"
         contents:
-          - text: "Dashboard"
+          - text: "实验导航（§5.1）"
             href: experiments/overview.qmd
-          - text: "Main Results"
+          - text: "主结果（§5.2）"
             href: experiments/main.qmd
-          - text: "Real-World Results"
-            href: experiments/realworld.qmd
-          - text: "Ablation Study"
+          - text: "消融研究（§5.3）"
             href: experiments/ablation.qmd
-          - text: "HP Sensitivity"
+          - text: "ShortcutScore 验证（§5.4）"
+            href: experiments/shortcut_score_validation.qmd
+          - text: "超参敏感性（§5.4）"
             href: experiments/hyperparam.qmd
-          - text: "HP Follow-Ups"
-            href: experiments/hyperparam_followups.qmd
-          - text: "Score Follow-Ups"
-            href: experiments/shortcut_score_followups.qmd
-      - section: "Guides"
+          - text: "LLM 迁移：GSM8K（§5.5）"
+            href: experiments/llm_gsm8k.qmd
+      - section: "相关工作（§6）"
         contents:
+          - text: "相关工作梳理"
+            href: related_work.qmd
+      - section: "结论与展望（§7）"
+        contents:
+          - text: "结论 / 局限 / 展望"
+            href: conclusion.qmd
+      - text: "术语表"
+        href: glossary.qmd
+      - section: "其他"
+        contents:
+          - text: "论点 / Claims"
+            href: claims.qmd
           - text: "Server Guide"
             href: guides/server_guide.qmd
           - text: "SLURM Guide"
             href: guides/slurm_guide.qmd
 
-format:
-  html:
-    theme: darkly
-    toc: true
-    toc-depth: 3
-    toc-title: "On this page"
-    css: styles/custom.css
-    highlight-style: github-dark
-    fig-align: center
+bibliography: references.bib

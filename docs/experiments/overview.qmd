@@ -1,129 +1,56 @@
 ---
-title: "Experiment Dashboard"
+title: "实验导航（§5.1 设置 + dashboard）"
+format: html
 ---
 
-## Experiment Suite
+> **本页对应论文 §5.1 Experimental Setup + 实验主题导航。**
 
-| Experiment | Purpose | Claim Addressed |
-|-----------|---------|-----------------|
-| Main Results (Table 1-2) | Compare SART vs. 11 baselines on synthetic data | H1: SART outperforms all baselines |
-| Real-World Results | Evaluate on GSM8K, AQuA, SVAMP, StrategyQA with GPT-2 | H1 generalization to real NLP tasks |
-| Ablation Study (Table 3) | Isolate component contributions | Claim 2: super-additive synergy |
-| HP Sensitivity (Table 4) | Identify operating regime | Robustness of hyperparameters |
+> 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
 
-```{dot}
-//| label: fig-experiment-suite
-//| fig-cap: "Validation strategy: three experiments confirm three claims"
-//| fig-width: 7
-//| fig-height: 3.0
-digraph G {
-  bgcolor="transparent"
-  rankdir=LR
-  graph [ranksep=0.6, nodesep=0.45]
-  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
-        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
-        shape=box, width=1.5, height=0.42]
-  edge [color="#6c757d", penwidth=1.4]
+## 1. 模型 / 训练
 
-  Main [label="Main Results", fillcolor="#4a2040"]
-  Abl  [label="Ablation", fillcolor="#4a2040"]
-  HP   [label="HP Sensitivity", fillcolor="#4a2040"]
+- **模型**：GPT-style transformer（4 层、$d_{\mathrm{model}}{=}256$、8 头、$d_{\mathrm{ff}}{=}1024$，约 3.2 M 参数）；
+- **优化器**：AdamW（lr $1{\times}10^{-3}$、wd $10^{-4}$、batch 64）+ cosine annealing；40 epochs；
+- **SART 默认超参**：$\alpha{=}\beta{=}1.0$、$\tau_A{=}0.3$、$\tau_R{=}0.5$、$\lambda{=}3.0$、$\gamma{=}1.0$、$\rho{=}0.5$（80-config grid search 选出，见附录 §B.4）。
 
-  C1 [label="SART > all\nbaselines", fillcolor="#1a4a3a", color="#00bc8c"]
-  C2 [label="Super-additive\nsynergy", fillcolor="#1a4a3a", color="#00bc8c"]
-  C3 [label="Robust to\nHP choices", fillcolor="#1a4a3a", color="#00bc8c"]
+## 2. 数据集（合成基准）
 
-  Main -> C1
-  Abl  -> C2
-  HP   -> C3
-}
-```
+每个数据集 2,000 train / 500 val / 1,000 test；train 70% shortcut + 30% true rule；val/test 全 true rule；test 等分 [clean / perturbed]{.term data-tip="clean/perturbed 切分 — 测试集等分两半：clean 上 shortcut 与真标签一致；perturbed 上 shortcut 与真标签矛盾。"}。
 
-<details>
-<summary><strong>How — Datasets</strong></summary>
+| 数据集 | 真规则 | shortcut | 复杂度 |
+|--------|--------|----------|--------|
+| [Math-Arithmetic]{.term data-tip="Math 数据集 — 二分类 a+b ≥ 10？真规则=求和，shortcut=a≥5（单特征）。"} | $a+b\geq 10$ | $a\geq 5$ | 单特征 |
+| [Financial-Analysis]{.term data-tip="Financial 数据集 — 多特征二分类，真规则=利润率≥5 ∧ 负债<5，shortcut=营收≥5。"} | margin$\geq 5$ ∧ debt$<5$ | revenue$\geq 5$ | 双特征合取真规则 |
+| [Causal-Reasoning]{.term data-tip="Causal 数据集 — 含混淆变量 z 的因果方向二分类，真规则=x≥5 ∧ z<3，shortcut=x 与 y 的相关≥5。"} | $x\geq 5$ ∧ $z<3$ | $\mathrm{corr}(x,y)\geq 5$ | 含混淆变量 |
 
-| Dataset | Task | True Rule | Shortcut | Samples |
-|---------|------|-----------|----------|---------|
-| Math-Arithmetic | $a + b \geq 10$? | Evaluate full sum | $a \geq 5$ | 2K/500/1K |
-| Financial-Analysis | Regulatory compliance | margin $\geq 5$ AND debt $< 5$ | revenue $\geq 5$ | 2K/500/1K |
-| Causal-Reasoning | Causal direction | $x \geq 5$ AND $z < 3$ | correlation $\geq 5$ | 2K/500/1K |
-| GSM8K | Grade school math | Step-by-step arithmetic | Number sum | 6K/1.5K/1.3K |
-| AQuA-RAT | Algebraic MC | Algebraic reasoning | Closest-sum option | 96K/1.5K/254 |
-| SVAMP | Arithmetic variations | Correct operation | Largest-number product | 448/112/140 |
-| StrategyQA | Multi-hop boolean | Fact decomposition | Signal word presence | 1.5K/366/458 |
+## 3. 基线（11 个，4 大类）
 
-- Training: 70% shortcut labels, 30% true-rule labels
-- Validation and test: exclusively true rule
-- Test split: clean (random) + perturbed (shortcut contradicts answer)
+| 类别 | 方法 | 备注 |
+|------|------|------|
+| Loss / 推理时 | [SFT]{.term data-tip="SFT — Supervised Fine-Tuning，标准 token-级 NLL 训练，不做任何鲁棒处理。"}, [Self-Consistency]{.term data-tip="Self-Consistency Decoding — 在推理时采样多条链，多数投票；不修改训练动力学。"}, [Focal Loss]{.term data-tip="Focal Loss — Lin 等 2017，对易样本下权重，对难样本上权重的 cross-entropy 变体。"}, [JTT]{.term data-tip="Just Train Twice — 两阶段：用先前阶段的错样本上权重再训。"} | 不需要外部标注 |
+| 数据中心 | [Data Filtering]{.term data-tip="Data Filtering — Warmup 后丢掉置信度过高的样本；典型「硬丢」基线。"}, [Influence Filtering]{.term data-tip="Influence Filtering — 估计每个样本对验证损失的影响，丢掉影响最负的。"} | 硬丢 |
+| 不变性 / 最坏组 | [Group DRO]{.term data-tip="Group DRO — Sagawa 等 2020，最坏组损失最小化；需要组标注。"} †, [IRM]{.term data-tip="IRM — Invariant Risk Minimization，跨环境不变表示；需要多环境划分。"} ‡, [V-REx]{.term data-tip="V-REx — Risk Extrapolation，最小化跨环境损失方差。"} ‡, [Fishr]{.term data-tip="Fishr — 跨环境梯度方差正则化。"} ‡ | †需组标注 ‡需多环境 |
+| 失败挖掘 | [LfF]{.term data-tip="Learning from Failure — 训一个偏置网络，用其错样本作为去偏信号。"} | 偏置网络派生 |
 
-</details>
+## 4. 指标
 
-<details>
-<summary><strong>How — Baselines (11 Methods)</strong></summary>
+- [Clean Accuracy]{.term data-tip="Clean Accuracy — clean 切分上的 token-级 top-1 准确率。"}：clean split 上 token 级 top-1。
+- [Robustness]{.term data-tip="Robustness — perturbed 切分上的准确率；shortcut 模型必翻车，所以是判别真不真学到规则的关键指标。"}：perturbed split 上的准确率（shortcut 与真标签矛盾，shortcut 模型必翻）。
+- [Reasoning Consistency]{.term data-tip="Reasoning Consistency — 生成的中间推理 token 与 gold chain 在 SEP 之前完全一致的比例。"}：生成的中间链与 gold chain 完全匹配。
+- [Shortcut Detection F1]{.term data-tip="Shortcut Detection F1 — 在 50 阈值扫描中取最佳的二分类 F1，是 oracle 上界。"}：50 阈值扫描的最佳二分类 F1（oracle 上界）。
+- 消融表里另加 **|Grad. Align.|** = $|\cos(\mathbf{g}_s,\mathbf{g}_{\mathcal{V}})|$：越接近 0 = 更新既不系统对齐也不系统反对齐验证方向。
 
-| Method | Category | Requirements |
-|--------|----------|-------------|
-| SFT | Standard | None |
-| Self-Consistency | Inference | None |
-| Data Filtering | Data-centric | None |
-| JTT | Data-centric | None |
-| Focal Loss | Loss-based | None |
-| Group DRO | Robust | Group annotations |
-| IRM | Invariant | Multiple environments |
-| V-REx | Invariant | Multiple environments |
-| Fishr | Invariant | Multiple environments |
-| LfF | Debiasing | None |
-| Influence Filtering | Influence | None |
+## 5. 实验主题导航
 
-</details>
+| 实验 | 论文 § | 一句话 takeaway |
+|------|--------|------------------|
+| [主结果（§5.2）](main.qmd) | §5.2 | SART 92.5% acc / 87.9% rob — 比最强基线 +16.5 pp / +40.2 pp |
+| [消融研究（§5.3）](ablation.qmd) | §5.3 | 两组件超加性：合一 +68.5 pp robustness，超出二者之和 +26.7 pp |
+| [ShortcutScore 验证（§5.4）](shortcut_score_validation.qmd) | §5.4 | F1 = 0.64（不及 Data Filtering 的 0.69），但 SART acc 反超 +17.8 pp |
+| [超参敏感性（§5.4）](hyperparam.qmd) | §5.4 后段 | $\gamma$ 应随 shortcut 复合度上调；$\rho$ 仅在 Causal 上敏感 |
+| [LLM 迁移：GSM8K（§5.5）](llm_gsm8k.qmd) | §5.5 | 检测几何 ≥60× 分离迁移到 8B；但 $\rho>0$ 会破坏生成 |
 
-<details>
-<summary><strong>How — Evaluation Metrics</strong></summary>
+## 6. 可复现性
 
-| Metric | What It Measures | Why Chosen |
-|--------|-----------------|------------|
-| Clean accuracy | Correct prediction on standard test | Overall performance |
-| Perturbed accuracy (robustness) | Correct when shortcut contradicts answer | Genuine reasoning ability |
-| Reasoning consistency | Generated reasoning matches ground truth | Quality of reasoning steps |
-| SC detection F1 | ShortcutScore identifies known shortcuts | Detection capability |
-
-</details>
-
-<details>
-<summary><strong>How — Run Commands</strong></summary>
-
-```bash
-# Full experiment (all 13 methods x 3 datasets)
-EXPERIMENT_SCALE=server python3 run_all.py
-
-# Single method
-python -m src.main method=sart dataset=math_synthetic
-
-# MLflow UI
-mlflow ui --backend-store-uri mlruns/ --port 5000
-```
-
-</details>
-
----
-
-## Navigation
-
-::: {.card-grid}
-<div class="nav-card">
-<a href="main.qmd">Main Results</a>
-<p>Table 1-2: SART vs. 11 baselines (synthetic)</p>
-</div>
-<div class="nav-card">
-<a href="realworld.qmd">Real-World Results</a>
-<p>GSM8K, AQuA, SVAMP, StrategyQA with GPT-2</p>
-</div>
-<div class="nav-card">
-<a href="ablation.qmd">Ablation Study</a>
-<p>Table 3: Component contributions</p>
-</div>
-<div class="nav-card">
-<a href="hyperparam.qmd">HP Sensitivity</a>
-<p>Table 4: Grid search over 80 configs</p>
-</div>
-:::
+- 复现入口见首页 [复现入口](../index.qmd#复现入口)；
+- 计算成本：synthetic 每数据集 $\sim$60 s（Apple M）/ $\sim$3 min（H100 NVL）—— 约 SFT 的 2.5×。

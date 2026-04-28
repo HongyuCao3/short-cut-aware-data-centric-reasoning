@@ -1,67 +1,84 @@
 ---
-title: "Gradient Surgery"
+title: "Gradient Surgery（§4.2）"
+format:
+  html:
+    toc: true
+    code-fold: true
 ---
 
-## What — Correction Mechanism
+> **本页对应论文 §4.2 Gradient Surgery for Shortcut Suppression。**
 
-Gradient Surgery modifies the gradient of shortcut-promoting samples by removing only the components that *conflict* with generalizable reasoning, while preserving any validation-aligned direction the sample still carries. Two operations:
+> 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
 
-1. **Conflict-Only Alignment Projection (PCGrad-style)**: When the sample gradient points *against* $\mathbf{g}_V$ (negative dot product), remove the projection along $\mathbf{g}_V$; otherwise leave the gradient untouched.
-2. **Answer Suppression**: Reduce the dominance of answer-token gradients over reasoning-token gradients.
+## 1. 为什么 reweight 不够：方向 vs 量
 
-## Why — Reweighting Is Not Enough
+[Reweighting]{.term data-tip="Reweighting — 用 w(s)=exp(−λ S(s)) 缩小 shortcut 样本的梯度量；不动方向。"} 把 shortcut 样本的梯度 **量** 压小，但不动 **方向**——即使被缩到 1% 的 shortcut 梯度，仍可能把模型推离 $\mathbf{g}_{\mathcal{V}}$。两类有害分量：
 
-- Reweighting reduces the *magnitude* of shortcut gradients but does not correct their *direction*
-- Even a downweighted gradient can nudge parameters away from genuine reasoning
-- Surgery ensures that only constructive reasoning signals drive parameter updates
+- (i) 与 [$\mathbf{g}_{\mathcal{V}}$]{.term data-tip="g_V — 验证集梯度 ∇_θ (1/|V|) Σ ℓ(θ;v)；代表「能改善真规则泛化」的更新方向。"} **冲突** 的方向（$\cos<0$）；
+- (ii) **答案-token 主导** 的方向（$R(s)>\tau_R$）。
 
-<details>
-<summary><strong>How — Step 1: Conflict-Only Alignment Projection</strong></summary>
+> **直觉**：把 shortcut 梯度看作两路有害分量 + 一路可迁移分量的叠加；surgery 的目标是 **只切除有害分量，保留可迁移分量**——和 continual learning 里「flat region」概念是一类思路。
 
-For samples flagged as shortcut-prone ($A(s) < \tau_A$), apply the PCGrad conflict-removal rule: project out the component along $\mathbf{g}_V$ **only when the gradients conflict**, i.e., $\mathbf{g}_s^\top \mathbf{g}_V < 0$:
+## 2. Step 1：冲突门控投影（应对非迁移对齐）
 
-$$\mathbf{g}'_s = \begin{cases}
-\mathbf{g}_s - \gamma \dfrac{\mathbf{g}_s^\top \mathbf{g}_V}{\|\mathbf{g}_V\|^2} \mathbf{g}_V, & \text{if } \mathbf{g}_s^\top \mathbf{g}_V < 0, \\[4pt]
+对被标为 shortcut（$A(s)<\tau_A$）的样本：
+
+$$
+\mathbf{g}_s' =
+\begin{cases}
+\mathbf{g}_s - \gamma\,\dfrac{\mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}}}{\|\mathbf{g}_{\mathcal{V}}\|^2}\,\mathbf{g}_{\mathcal{V}}, & \text{if } \mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}} < 0,\\[6pt]
 \mathbf{g}_s, & \text{otherwise.}
-\end{cases}$$
+\end{cases}
+$$
 
-where $\gamma \in [0, 1]$ controls projection strength (full removal at $\gamma = 1$).
+[$\gamma$]{.term data-tip="γ — 冲突投影强度，γ=1 完全擦除冲突分量。论文 main 用 1.0；Math 单特征建议 0.8。"} ∈ [0,1] 控制投影强度；$\gamma=1$ 完全擦除冲突分量。
 
-**Why conflict-gated, not unconditional.** A shortcut-flagged sample may still carry a small positive alignment with $\mathbf{g}_V$. Removing that component would discard a (weak but real) validation-improving direction — the opposite of SART's goal. Projection fires only in the genuinely harmful case.
+> **关键设计：门控不对称**——只在 $\mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}} < 0$（真冲突）时才投影。
 
-</details>
+为什么不能无条件投影？
 
-<details>
-<summary><strong>How — Step 2: Answer Suppression</strong></summary>
+- 若 $\mathbf{g}_s$ 与 $\mathbf{g}_{\mathcal{V}}$ 已经正向对齐（即 shortcut 样本里的可迁移分量），无条件投影会把 **这部分有用方向** 也擦掉。
+- 这就是 SART 不丢样本、采用 [conflict-only projection]{.term data-tip="冲突门控投影 — 只在内积 < 0 时才执行投影，避免把已经对齐的有用方向也擦掉。"} 的本质原因。
 
-For samples with high concentration $R(s) > \tau_R$, suppress the answer-dominant component:
+> 投影后 $\mathbf{g}_s'^\top \mathbf{g}_{\mathcal{V}} \geq 0$ —— 即所有 shortcut 样本的更新都不再 *反对* 验证泛化方向。
 
-$$\mathbf{g}''_s = (1 - \rho) \mathbf{g}^{\text{ans}}_s + \mathbf{g}^{\text{reason}}_s$$
+## 3. Step 2：答案-token 抑制（应对答案集中）
 
-Equivalently in practice:
+对集中度高（$R(s)>\tau_R$）的样本，把 $\mathbf{g}_s$ 沿 token 维度分解为 $\mathbf{g}_s^{\mathrm{ans}}$（答案 token 部分）+ $\mathbf{g}_s^{\mathrm{reason}}$（推理 token 部分），抑制答案分量：
 
-$$\mathbf{g}''_s = \mathbf{g}_s - \rho \cdot \mathbf{g}^{\text{ans}}_s$$
+$$
+\mathbf{g}_s'' = (1 - \rho)\,\mathbf{g}_s^{\mathrm{ans}} + \mathbf{g}_s^{\mathrm{reason}}.
+$$
 
-where $\rho \in [0, 1]$ is the suppression coefficient. $\rho = 0.5$ balances accuracy and robustness.
+[$\rho$]{.term data-tip="ρ — 答案-token 梯度抑制强度，ρ=1 完全去掉答案-token 梯度贡献。论文 main 用 0.5。"} ∈ [0,1] 越大抑制越强；$\rho=1$ 完全去掉答案-token 梯度，强迫模型只从推理 token 学。
 
-</details>
+> **生成警告**：在自回归 LLM 上 $\rho>0$ **会破坏生成**（PPL 升 5 个数量级）——答案 token 监督是生成必备的；这是 [LLM 迁移（§5.5）](../experiments/llm_gsm8k.qmd) 给出的边界结论。
 
-<details>
-<summary><strong>How — Hyperparameters</strong></summary>
+## 4. 合成更新规则
 
-| Parameter | Default | Range | Effect |
-|-----------|---------|-------|--------|
-| $\gamma$ | 0.8 | [0.3, 1.0] | Projection strength; 1.0 = full removal |
-| $\rho$ | 0.7 | [0.1, 0.7] | Answer suppression; 0.5 balances acc/rob |
+每个 step：
 
-</details>
+1. 先做 [Reweighting]{.term data-tip="Reweighting — 用 w(s)=exp(−λ S(s)) 缩小 shortcut 样本的梯度量；不动方向。"}：每样本梯度乘以 $w(s)$；
+2. 再做 surgery — 先 Step 1（冲突门控投影），再 Step 2（答案-token 抑制）；
+3. 累加成 batch 梯度，走标准 optimizer step。
 
-<details>
-<summary><strong>How — Implementation</strong></summary>
+surgery 与 reweight **互不打架**：surgery 是在「已 reweight 的梯度」上做的，所以它的强度自动随权重缩放，不需要额外的 minimax 内层。
 
-- Canonical location: `src/utils/gradient_ops.py`
-- Key function: `apply_gradient_surgery(g_full, g_ans, g_V, B_val, C_val, gamma, rho)`
-- Applied at batch level in `train_our_method()` after `loss.backward()` and before `optimizer.step()`
-- Uses `get_grad_vector()` / `set_grad_vector()` to read/write flattened gradients
+[$\mathbf{g}_{\mathcal{V}}$]{.term data-tip="g_V — 验证集梯度 ∇_θ (1/|V|) Σ ℓ(θ;v)；代表「能改善真规则泛化」的更新方向。"} 每隔 [$k$ 步刷新]{.term data-tip="g_V refresh — 每隔 k 步重算一次 g_V；变化比 θ 慢，不必每步都算。"}（synthetic：5；LLM：每 epoch 一次），保证投影方向不过时。
 
-</details>
+## 5. 实证支持
+
+- 单独 Surgery Only：+4.7 pp acc / +21.1 pp robustness（消融研究）；
+- Reweight + Surgery 全开：+23.7 pp acc / +68.5 pp robustness — **超出二者之和 +26.7 pp**；
+- $|\cos(\mathbf{g}_s,\mathbf{g}_{\mathcal{V}})|$ 从 SFT 的 0.08 → SART 的 0.03（2.7×）：训练动力学几乎被推到「与 $\mathbf{g}_{\mathcal{V}}$ 既不系统对齐也不系统反对齐」的中性更新流形上。
+
+> 其他证据：[消融研究（§5.3）](../experiments/ablation.qmd) 的 ablation 表 + grad-alignment 列；[超参敏感性（§5.4）](../experiments/hyperparam.qmd) 揭示 [$\gamma$]{.term data-tip="γ — 冲突投影强度，γ=1 完全擦除冲突分量。论文 main 用 1.0；Math 单特征建议 0.8。"} 应随 shortcut 复合度上调。
+
+## 6. 与 PCGrad 的关系
+
+[PCGrad]{.term data-tip="PCGrad (Yu et al. 2020) — 多任务学习里通过把任务梯度投影到彼此正交方向来化解冲突的算法。"} 原本是多任务学习里化解任务间梯度冲突的手段。SART 的改造：
+
+- **不是多任务**：单任务，但对每个 *样本* 与「验证集这个共同目标」做 PCGrad-style 投影。
+- **门控**：仅在样本梯度 *反对* 验证梯度时才投影（PCGrad 默认对所有冲突 pair 投影）。
+- **配合 ShortcutScore**：投影只对 $A(s)<\tau_A$ 的样本生效——干净样本不动。
+- **答案-token 维度**：PCGrad 没有 token 维度的考虑；SART 在第二步处理这个独有的 LLM 推理特征。

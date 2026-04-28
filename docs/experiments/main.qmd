@@ -1,92 +1,64 @@
 ---
-title: "Main Results"
+title: "主结果（§5.2）"
+format: html
 ---
 
-## What — Experiment Identity
+> **本页对应论文 §5.2 Main Results，主图 Table 2 + Table 3。**
 
-- **Experiment**: Compare SART against 11 baselines on clean accuracy, robustness, reasoning consistency, and shortcut detection F1 across 3 synthetic benchmarks
+> 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
 
-## Why — Experiment Purpose
+## 实验回答的问题
 
-- **Claim addressed**: H1 — SART outperforms all baselines on all metrics
+> **SART 在三个合成推理基准上、面对 11 个跨范式基线，能不能在 robustness 上拉开决定性差距，而不仅仅是小幅度领先？**
 
-```{dot}
-//| label: fig-main-design
-//| fig-cap: "Four-tier stratification: SART (Tier 4) achieves a qualitative leap"
-//| fig-width: 7
-//| fig-height: 3.2
-digraph G {
-  bgcolor="transparent"
-  rankdir=TB
-  graph [ranksep=0.55, nodesep=0.5]
-  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
-        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
-        shape=box, width=2.2, height=0.42]
-  edge [color="#6c757d", penwidth=1.4]
+## 这个实验为论文支撑了什么
 
-  T1 [label="Tier 1: SFT, JTT, Focal, Fishr, LfF\n67-69% acc, 16-23% rob", fillcolor="#4a2040", color="#e74c3c"]
-  T2 [label="Tier 2: Group DRO, IRM, V-REx\n72-74% acc, 34-36% rob", fillcolor="#4a2040"]
-  T3 [label="Tier 3: Data Filter, Influence Filter\n74-76% acc, 48-55% rob", fillcolor="#375a7f"]
-  T4 [label="Tier 4: SART (Ours)\n92.5% acc, 87.9% rob", fillcolor="#1a4a3a", color="#00bc8c"]
+- **方法选择动机**：把这一表当作 SART 的 headline 证据 — Reweight 与 Surgery 合一时，**robustness 平均 +40.2 pp** 超过最强基线，跨数据集没有反例。
+- **机制解释**：基线分三层（loss/推理时 < 不变性/最坏组 < 数据丢弃），而 SART 的 +16.5/+40.2 pp 跳跃来自 **「在梯度几何上做事」**，与三层全部正交。
+- **有趣发现**：SART 的优势随 [shortcut 复合度]{.term data-tip="shortcut compositional complexity — Math 单特征 → Financial 双特征 → Causal 含混淆，shortcut 越复合表层过滤越不灵。"} **变大**（Math +11.2 pp acc → Financial +16.8 pp acc → Causal +19.8 pp rob），表明梯度修正在表层过滤失效的地方收益最大。
 
-  T1 -> T2 -> T3 -> T4
-}
-```
+## 主表（论文 Table 2，三数据集聚合）
 
----
+| Metric | [SFT]{.term data-tip="SFT — Supervised Fine-Tuning，标准 token-级 NLL 训练，不做任何鲁棒处理。"} | [Self-Cons.]{.term data-tip="Self-Consistency Decoding — 在推理时采样多条链，多数投票；不修改训练动力学。"} | [Data Filt.]{.term data-tip="Data Filtering — Warmup 后丢掉置信度过高的样本；典型「硬丢」基线。"} | [JTT]{.term data-tip="Just Train Twice — 两阶段：用先前阶段的错样本上权重再训。"} | [Focal Loss]{.term data-tip="Focal Loss — Lin 等 2017，对易样本下权重，对难样本上权重的 cross-entropy 变体。"} | [DRO]{.term data-tip="Group DRO — Sagawa 等 2020，最坏组损失最小化；需要组标注。"}† | [IRM]{.term data-tip="IRM — Invariant Risk Minimization，跨环境不变表示；需要多环境划分。"}‡ | [V-REx]{.term data-tip="V-REx — Risk Extrapolation，最小化跨环境损失方差。"}‡ | [Fishr]{.term data-tip="Fishr — 跨环境梯度方差正则化。"}‡ | [LfF]{.term data-tip="Learning from Failure — 训一个偏置网络，用其错样本作为去偏信号。"} | [Infl. Filt.]{.term data-tip="Influence Filtering — 估计每个样本对验证损失的影响，丢掉影响最负的。"} | **SART** |
+|--------|-----|------------|------------|------|------------|----------|----------|------------|----------|------|--------|----------|
+| Acc.    | 68.8 | 69.1 | 74.7 | 67.9 | 68.2 | 73.5 | 73.3 | 72.1 | 68.1 | 69.0 | _76.0_ | **92.5** |
+| [Rob.]{.term data-tip="Robustness — perturbed 切分上的准确率；shortcut 模型必翻车，所以是判别真不真学到规则的关键指标。"} | 19.4 | 23.3 | _54.6_ | 19.0 | 18.2 | 36.0 | 34.4 | 34.9 | 16.7 | 19.4 | 47.7 | **87.9** |
+| [Reasoning]{.term data-tip="Reasoning Consistency — 生成的中间推理 token 与 gold chain 在 SEP 之前完全一致的比例。"} | 55.9 | 55.9 | 64.7 | 54.9 | 55.4 | 61.5 | 61.5 | 60.6 | 56.3 | 56.3 | _68.4_ | **85.5** |
+| [SC Det. F1]{.term data-tip="Shortcut Detection F1 — 在 50 阈值扫描中取最佳的二分类 F1，是 oracle 上界。"} | – | – | _0.69_ | – | – | – | – | – | – | – | – | **0.64** |
 
-## Results — Table 1: Aggregate Performance
+†需要组标注；‡需要多环境。**粗体** = 最佳；*斜体* = 第二。
 
-| Method | Accuracy | Robustness | Reasoning | SC Det. F1 |
-|--------|----------|------------|-----------|------------|
-| SFT | 68.8% | 19.4% | 55.9% | — |
-| Self-Consistency | 69.1% | 23.3% | 55.9% | — |
-| Data Filtering | 74.7% | 54.6% | 64.7% | 0.69 |
-| JTT | 67.9% | 19.0% | 54.9% | — |
-| Focal Loss | 68.2% | 18.2% | 55.4% | — |
-| Group DRO | 73.5% | 36.0% | 61.5% | — |
-| IRM | 73.3% | 34.4% | 61.5% | — |
-| V-REx | 72.1% | 34.9% | 60.6% | — |
-| Fishr | 68.1% | 16.7% | 56.3% | — |
-| LfF | 69.0% | 19.4% | 56.3% | — |
-| Influence Filtering | 76.0% | 47.7% | 68.4% | — |
-| **SART (Ours)** | **92.5%** | **87.9%** | **85.5%** | **0.64** |
+**如何看表**
 
----
+- **行 = 4 个指标**，方向一致：Acc / Rob / Reasoning **越高越好**；F1 越高越好。
+- **列 = 11 个基线 + SART**：基线分为三层 ——
+  - **底层**（67–69% acc / 16–23% rob）：SFT, JTT, Focal Loss, Fishr, LfF, Self-Consistency；
+  - **中层**（73–74% acc / 34–36% rob）：Group DRO, IRM, V-REx —— 加成有限且 **要标注 / 多环境**；
+  - **上层**（74–76% acc / 48–55% rob）：Data Filtering, Influence Filtering —— 高 acc 但 **per-task 方差大**，且丢样本损失训练信号。
+- **SART**：92.5 / 87.9 / 85.5，跨四指标全部第一；与最强基线（Influence Filtering）的差距：**+16.5 pp acc, +40.2 pp rob, +17.1 pp reasoning**。
 
-## Results — Table 2: Per-Dataset Breakdown
+**趋势的含义**
 
-| Dataset | Method | Clean Acc. | Robustness | Reasoning |
-|---------|--------|-----------|------------|-----------|
-| **Math** | SFT | 77.6% | 3.2% | 77.6% |
-| | Influence Filtering | 81.4% | 50.4% | 81.4% |
-| | **SART** | **98.0%** | **95.8%** | **98.0%** |
-| **Financial** | SFT | 66.4% | 28.6% | 46.8% |
-| | Data Filtering | 72.6% | 68.4% | 60.8% |
-| | **SART** | **89.4%** | **78.8%** | **87.4%** |
-| **Causal** | SFT | 62.4% | 26.4% | 43.4% |
-| | Influence Filtering | 83.2% | 69.2% | 64.2% |
-| | **SART** | **90.2%** | **89.0%** | **71.2%** |
+- 不变性 / 最坏组方法的「+5 pp acc / +15 pp rob」是它们能买到的极限；标注 / 环境是 cost。
+- 数据丢弃方法的 robustness 取决于「丢的人是不是 shortcut」 —— Data Filtering F1=0.69 高，但只能 **丢掉 magnitude**，丢不掉「样本里仍然存在的可迁移分量」；SART F1=0.64 略低却能保留这部分，因此 acc 反超 +17.8 pp。
+- 跳跃式领先（SART vs 第二）说明 **作用层** 不一样 —— 不在 loss/sample identity，而在梯度几何。
 
----
+## 逐数据集（论文 Table 3）
 
-## Analysis
+| Method | Math Acc/Rob/Rsn | Financial Acc/Rob/Rsn | Causal Acc/Rob/Rsn |
+|--------|------------------|------------------------|---------------------|
+| SFT                  | 77.6 / 3.2 / 77.6 | 66.4 / 28.6 / 46.8 | 62.4 / 26.4 / 43.4 |
+| Data Filtering       | 82.6 / 26.6 / 82.6 | 72.6 / _68.4_ / 60.8 | 69.0 / 68.8 / 50.8 |
+| Group DRO            | 86.8 / 48.0 / 86.8 | 68.0 / 31.2 / 48.8 | 65.8 / 28.8 / 48.8 |
+| IRM                  | 85.4 / 44.2 / 85.4 | _69.6_ / 30.8 / _51.6_ | 65.0 / 28.2 / 47.4 |
+| Influence Filtering  | 81.4 / _50.4_ / 81.4 | 63.4 / 23.6 / 59.6 | _83.2_ / _69.2_ / _64.2_ |
+| **SART (Ours)**      | **98.0 / 95.8 / 98.0** | **89.4 / 78.8 / 87.4** | **90.2 / 89.0 / 71.2** |
 
-<details>
-<summary><strong>Key Findings</strong></summary>
+**主要发现（论文原文）**
 
-1. **SART achieves best accuracy, robustness, and reasoning on all three datasets.** On Math, near-perfect (98.0%/95.8%) — a +47.8pp robustness gain over the next-best baseline.
+> **SART 在 Math/Financial/Causal 三数据集上都获得 4 项指标的最高分；Data-Filtering 与 Influence-Filtering 在数据集间剧烈震荡（Influence Filtering 在 Causal 上排第二，但在 Financial 上 robustness 仅 23.6%，比 SFT 还差）。**
 
-2. **Data-removal baselines exhibit extreme cross-task variance.** Influence Filtering ranks second on Causal (83.2%/69.2%) but collapses on Financial (63.4%/23.6%).
+- Influence Filtering 在 Financial 上 **比 SFT 还差** —— 「硬丢」在 shortcut 复合度上去后会丢错。
+- SART 优势随复合度 **变大**：Math +11.2 pp acc → Financial +16.8 pp acc → Causal +19.8 pp rob。
 
-3. **SART's advantage scales with task complexity.** The gap grows from Math (+11.2pp) to Financial (+16.8pp) to Causal (+20.0pp robustness), confirming that gradient-based correction is most powerful for multi-feature shortcuts.
-
-</details>
-
-<details>
-<summary><strong>Claim Status</strong></summary>
-
-- **H1 status**: Confirmed — SART exceeds the best baseline by +16.5pp accuracy and +40.2pp robustness
-- **Without group annotations** (unlike Group DRO) or multiple environments (unlike IRM/V-REx/Fishr)
-
-</details>
+> **driver**：表层过滤（loss / 样本身份）在多特征合取真规则 + 混淆变量上失灵；而梯度几何不依赖单特征 → 复合 shortcut 越复杂，**几何信号反而越纯**。

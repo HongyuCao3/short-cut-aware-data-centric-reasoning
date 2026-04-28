@@ -1,74 +1,65 @@
 ---
-title: "VRAM Reduction"
+title: "LLM 工程优化（§4 末段：8B 可扩展）"
+format:
+  html:
+    toc: true
+    code-fold: true
 ---
 
-## What — Random Projection Sketch
+> **本页对应论文 §4 末段「Scaling to pretrained LLMs」与附录 §B.3。**
 
-Per-sample gradient storage for ShortcutScore computation causes CUDA OOM on GPU servers (14.6 GB for 64 samples). Random projection sketches compress each gradient from $\mathbb{R}^d$ to $\mathbb{R}^k$ ($k \ll d$), reducing VRAM by ~36,000x.
+> 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
 
-## Why — The OOM Bottleneck
+## 1. 朴素 SART 在 LLM 上为什么不可跑
 
-| Component | Size | VRAM |
-|-----------|------|------|
-| Model parameters | ~19M params | 76 MB |
-| Single gradient vector | 19M floats x 4 bytes | 76 MB |
-| Batch of 64 x 3 types | 64 x 3 x 76 MB | **14.6 GB** |
-| + model + activations | — | **~25-28 GB** |
+- 逐样本梯度大小 = $|\theta|$。
+- 7B 模型在 FP32 下，单样本梯度约 **28 GB**。
+- 即使 batch=1，每 step 都要存 / 读这 28 GB → 完全不实用。
 
-The NL config (163M params) is worse: 652 MB per gradient vector.
+> **SART 在小 transformer（3.2 M 参数）上没有这个问题；要在 LLM 上保留方法形态、不改公式 (5) 与 (eq:gradient_surgery)，就要用三个正交工程手段。**
 
-<details>
-<summary><strong>How — Johnson-Lindenstrauss Sketch Algorithm</strong></summary>
+## 2. 三个工程手段
 
-For each projection direction $z_j$ ($j = 0, \ldots, k-1$):
+### (a) [LoRA]{.term data-tip="Low-Rank Adaptation — Hu 等 2022，仅训练注入到大模型中的低秩适配器；逐样本梯度只在 LoRA 上计算，省内存。"} 限制可训参数
 
-1. Generate random vector $z_j \sim N(0, I_d)$ via CPU RNG (never stored on GPU)
-2. Perturb model: $\theta \leftarrow \theta + \varepsilon z_j$
-3. Forward pass on batch: get per-sample losses $L^+_{\text{full}}, L^+_{\text{ans}}, L^+_{\text{reason}}$
-4. Perturb model: $\theta \leftarrow \theta - 2\varepsilon z_j$
-5. Forward pass: get $L^-_{\text{full}}, L^-_{\text{ans}}, L^-_{\text{reason}}$
-6. Restore: $\theta \leftarrow \theta + \varepsilon z_j$
-7. Compute sketch: $s_{\text{full}}[:,j] = (L^+_{\text{full}} - L^-_{\text{full}}) / (2\varepsilon)$
+- 只在 $q$/$k$/$v$/$o$-proj 上注入 rank-16 LoRA 适配器；
+- 逐样本梯度只在 LoRA 上算；
+- 单样本梯度从 28 GB → **32 MB**——直接降 800×；
+- 不改 $A(s)$、$R(s)$、surgery 公式。
 
-**Total**: $2k$ forward passes per batch (independent of batch size $B$).
+### (b) [Johnson–Lindenstrauss sketch]{.term data-tip="JL sketch — 固定种子的随机投影，维持任意一对向量的内积/余弦在 ε 误差内；用来压缩梯度。"} 进一步压缩
 
-**Memory savings**:
+- 固定种子的随机投影 $P\in\mathbb{R}^{d_{\mathrm{sk}}\times d}$，$d_{\mathrm{sk}}=1024$；
+- 把每样本 LoRA 梯度投到 1024 维；
+- JL 引理保证：$\cos(\mathbf{g}_s,\mathbf{g}_{\mathcal{V}})$ 在 $\varepsilon$ 误差内被保留 → $A(s)$ 几乎无失真；
+- 内积 / 余弦保持，scoring 路径完全可用；只把投影后的小向量存盘。
 
-| Component | Current | With Sketch (k=128) |
-|-----------|---------|---------------------|
-| Per-sample gradient | 76 MB | 0.5 KB |
-| Batch of 64 x 3 types | 14.6 GB | ~0.1 MB |
-| **Reduction factor** | — | **~36,000x** |
+### (c) [validation gradient refresh]{.term data-tip="g_V refresh — 每隔 k 步重算一次 g_V；变化比 θ 慢，不必每步都算。"} 减频
 
-</details>
+- $\mathbf{g}_{\mathcal{V}}$ 比 $\theta$ 变化慢得多——每 step 都重算是浪费；
+- synthetic：每 $k=5$ 步刷新；LLM：每 epoch 刷新一次；
+- 投影方向稳定 → 不会让 surgery 用「老的 $\mathbf{g}_{\mathcal{V}}$」打错方向。
 
-<details>
-<summary><strong>How — Approximation Quality</strong></summary>
+## 3. 与方法的正交性
 
-By the Johnson-Lindenstrauss Lemma, cosine similarities are preserved:
+> **driver**：(a)/(b)/(c) 都是工程优化，**不改 $S(s)$ 也不改 surgery 公式**——任何「保 inner-product」的代理（Fisher 对角、最后层梯度、influence 近似）都能直接换上来。
 
-$$\cos(g_{\text{full},i}, g_V) \approx \cos(s_{\text{full},i}, s_V)$$
+## 4. 数字一览
 
-with error $O(1/\sqrt{k})$:
+| 手段 | 单样本梯度大小 | 备注 |
+|------|----------------|------|
+| 全参数 FP32 | $\sim$28 GB | 不可跑 |
+| + LoRA rank-16 (q/k/v/o) | 32 MB | $\sim$800× ↓ |
+| + JL sketch ($d_{\mathrm{sk}}{=}1024$) | $\sim$8 KB | 进一步 4000× ↓ |
+| + gV refresh / k steps | 减少 ×$k$ 重算成本 | $k{=}5$ 同步 |
 
-- $k = 128$: ~4% error
-- $k = 512$: ~2% error
-- $k = 1024$: ~1.5% error
+## 5. 实证（论文 §5.5 + 附录）
 
-The downstream task (binary shortcut classification) tolerates this approximation well.
+- Qwen3-8B + LoRA / GSM8K 上：[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"} 把注入 shortcut 样本（$\bar S=0.46$）与干净样本（$\bar S=0.007$）分离 60×——**检测几何完整迁移到 8B**；
+- 但是 **生成端有边界**：$\rho>0$ 会破坏生成（PPL 升 5 个数量级），所以 LLM 上推荐用 $\rho=0$ 的纯冲突门控变体，参看 [LLM 迁移（§5.5）](../experiments/llm_gsm8k.qmd)。
+- 计算预算：synthetic 每数据集 $\sim$60 s（Apple M），$\sim$3 min（H100 NVL）；约为 [SFT]{.term data-tip="SFT — Supervised Fine-Tuning，标准 token-级 NLL 训练，不做任何鲁棒处理。"} 的 **2.5×**。
 
-</details>
+## 6. 何时该选别的代理
 
-<details>
-<summary><strong>How — Configuration</strong></summary>
-
-| Parameter | Default | Range | Effect |
-|-----------|---------|-------|--------|
-| `sketch_k` | 128 | [64, 1024] | Projection dimension |
-| `sketch_epsilon` | 1e-3 | [1e-4, 1e-2] | Finite-difference step |
-| `sketch_seed` | 0 | — | Base RNG seed for reproducibility |
-
-- Canonical location: `src/utils/gradient_ops.py`
-- Key functions: `_apply_perturbation()`, `compute_sample_sketches_batched()`, `sketch_gradient_vector()`
-
-</details>
+- 不能用 LoRA（如全参数 FT）：用最后层梯度 / Fisher 对角 / influence 近似；
+- 余弦 + 内积是 SART 唯一依赖的 inner-product 量；任何 inner-product preserving 的低维投影都可。

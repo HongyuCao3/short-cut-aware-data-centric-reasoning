@@ -1,0 +1,58 @@
+---
+title: "动机：为什么需要 SART"
+format: html
+---
+
+> **本页对应论文 §1 引言。配图 [`sart_method_figure`](figures/sart_method_figure.png)。**
+
+## 1. 现象：LLM 在推理任务上「答对，但没在推理」
+
+- LLM 在数学、合规、因果等推理任务上常常 **靠 shortcut 答对**：
+  - 表层模式匹配（"a≥5 → 输出 yes"）；
+  - 答案 token 记忆（关键词 → 答案的硬关联）；
+  - 提前预测答案（在还没读完中间步骤前已猜中）；
+  - 把训练分布里的 spurious correlation 当成因果。
+- 这些样本 **常常标签正确**——所以 label-noise / data-quality 过滤识别不到它们。
+- 数字一改、约束一变、措辞一换，**模型立刻翻车**。这就是 §5 主表里 SFT robustness 仅 19.4 % 的来源。
+
+## 2. 病因：训练信号错配
+
+- 标准 ERM 把所有样本看作等权：$\min_\theta \frac{1}{N}\sum_i \ell(\theta;x_i,y_i)$。
+- shortcut 样本能高效降 loss → 在 loss 视角下「优等生」 → 反而被 SGD 优先学习。
+- 后果：**模型获得 shortcut，并不是数据脏，而是训练目标不对**——这就是 [SART]{.term data-tip="Shortcut-Aware Reasoning Training — 短路径感知推理训练，本论文方法：基于梯度结构的样本检测 + 冲突门控梯度修正。"} 命名里的 "training signal misalignment"。
+
+> **核心 takeaway**：shortcut 不是数据问题，是训练动力学问题。要在训练阶段、从 **梯度** 视角解决。
+
+## 3. 既有方法为什么都不够
+
+| 类别 | 代表方法 | 局限 |
+|------|----------|------|
+| 推理时方法 | CoT prompting, Self-Consistency | 不动训练动力学，shortcut 编码仍在参数里 |
+| 损失/失败挖掘 | [JTT]{.term data-tip="Just Train Twice — 两阶段：用先前阶段的错样本上权重再训。"}, [LfF]{.term data-tip="Learning from Failure — 训一个偏置网络，用其错样本作为去偏信号。"}, [Focal Loss]{.term data-tip="Focal Loss — Lin 等 2017，对易样本下权重，对难样本上权重的 cross-entropy 变体。"} | 看的是 scalar loss，无法区分「shortcut 学得快」和「样本本身简单」 |
+| 数据过滤 | [Data Filtering]{.term data-tip="Data Filtering — Warmup 后丢掉置信度过高的样本；典型「硬丢」基线。"}, [Influence Filtering]{.term data-tip="Influence Filtering — 估计每个样本对验证损失的影响，丢掉影响最负的。"} | shortcut 样本标签正确；硬丢损失训练信号 |
+| 不变性 / 最坏组 | [IRM]{.term data-tip="IRM — Invariant Risk Minimization，跨环境不变表示；需要多环境划分。"}, [V-REx]{.term data-tip="V-REx — Risk Extrapolation，最小化跨环境损失方差。"}, [Fishr]{.term data-tip="Fishr — 跨环境梯度方差正则化。"}, [Group DRO]{.term data-tip="Group DRO — Sagawa 等 2020，最坏组损失最小化；需要组标注。"} | 需要 shortcut 标注 / 多环境划分；现实数据通常没有 |
+| RLHF | [RLHF]{.term data-tip="RLHF — 用人类偏好作为奖励信号训练 LLM；Ouyang 等 2022。"} | 奖励的是「答对」，shortcut 答对照样得分 |
+
+> **gap 句**：既有方法 **要么只在推理时打补丁，要么需要外部标注，要么只读 scalar loss**——都没有在 「训练动力学 × 梯度几何」 这个交叉点上工作。
+
+## 4. SART 的两点洞察
+
+> **关键洞察**：shortcut 样本的梯度有两个可识别的几何特征。
+
+- **(1) 非迁移对齐**：[$A(s)$]{.term data-tip="非迁移对齐 — A(s)=cos(g_s, g_V)；低 = 该样本梯度不利于真规则泛化。"} = $\cos(\mathbf{g}_s,\mathbf{g}_{\mathcal{V}})$ 偏低甚至为负；该样本的更新方向**不能改善真规则验证集**。
+- **(2) 答案-token 集中**：[$R(s)$]{.term data-tip="答案-token 梯度集中度 — 答案 token 的梯度范数占比；高 = 模型在学「答什么」而非「怎么推」。"} 偏高；梯度能量集中在最终答案 token，模型在学「答什么」而非「怎么推」。
+
+把这两路信号合成一个标量 [ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"} $S(s)$，再做两件事：
+
+- **缩量**：以 [$w(s)$]{.term data-tip="样本权重 — w(s)=exp(−λ S(s))；ShortcutScore 高 → 权重小 → 梯度贡献被压缩。"} = $\exp(-\lambda S(s))$ 给样本指数 reweight；
+- **改向**：用 [conflict-only projection]{.term data-tip="冲突门控投影 — 只在内积 < 0 时才执行投影，避免把已经对齐的有用方向也擦掉。"} 把和 $\mathbf{g}_{\mathcal{V}}$ 真正冲突的方向投影掉，**保留正向对齐的有用分量**。
+
+## 5. 方法预览
+
+![**SART 两组件耦合**：(A)+(B) 检测——梯度对齐 + 答案集中度 → ShortcutScore；(C) 指数 reweight 缩量；(D) 冲突门控投影改向。](figures/sart_method_figure.png)
+
+接下来：
+
+1. **形式化**：[SART 形式化（§2）](task_definition.qmd) 定义 $\mathbf{g}_s$、$\mathbf{g}_{\mathcal{V}}$、shortcut 样本的几何判别。
+2. **方法**：[方法总览（§3）](method/overview.qmd) 图示两组件如何在一个 SGD step 里串联。
+3. **实验**：[主结果（§5.2）](experiments/main.qmd) 给出 +16.5 pp acc / +40.2 pp rob 的 headline；[消融（§5.3）](experiments/ablation.qmd) 给出 +26.7 pp 超加性。

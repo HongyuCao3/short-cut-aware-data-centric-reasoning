@@ -1,126 +1,83 @@
 ---
-title: "SART — Research Dashboard"
+title: "SART — 短路径感知推理训练"
+format: html
 ---
 
-## Project Overview
+> **本页对应论文 §0 摘要 + §1 引言导航。配图 [`sart_method_figure`](figures/sart_method_figure.png)。**
 
-> **Mitigating Shortcut Reasoning in Language Models: A Gradient-Aware Training Approach**
+> 💡 本网站方法/实验页面上首次出现的术语带**虚下划线**，悬停可看到中文解释。术语集中索引见 [术语表](glossary.qmd)。
 
-- **Problem**: LLMs exploit reasoning shortcuts — surface pattern matching, answer memorization, keyword correlations — rather than genuine logical inference, causing catastrophic failure under distribution shift
-- **Approach**: ShortcutScore detects shortcut samples via gradient signatures (low validation alignment + high answer-token concentration); Gradient Surgery projects out harmful gradient components during training
-- **Outcome**: 92.5% accuracy / 87.9% robustness — surpassing the best baseline by +16.5 pp accuracy and +40.2 pp robustness across 3 reasoning benchmarks
+## 这篇论文一句话讲什么
 
-```{dot}
-//| label: fig-pipeline
-//| fig-cap: "SART pipeline: gradient diagnostics → detection → correction → robust model"
-//| fig-width: 7
-//| fig-height: 3.5
-digraph G {
-  bgcolor="transparent"
-  rankdir=TB
-  graph [ranksep=0.55, nodesep=0.55]
-  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
-        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
-        shape=box, width=1.6, height=0.45, margin="0.15,0.08"]
-  edge [color="#6c757d", penwidth=1.4]
+- LLM 在推理任务上常常依赖 **shortcut**——表层模式匹配、答案记忆、关键词关联——而不是真正的逻辑推理；这个失败的根源是 **训练信号错配**：shortcut 样本能高效降 loss，但泛化崩盘。
+- 既有方法（CoT、Self-Consistency、数据过滤、RLHF）要么不动训练动力学，要么无法从「梯度行为」识别 shortcut。
+- [SART]{.term data-tip="Shortcut-Aware Reasoning Training — 短路径感知推理训练，本论文方法：基于梯度结构的样本检测 + 冲突门控梯度修正。"} 把 shortcut 检测建模成 **梯度结构分析**：用 [ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"} 标记 shortcut 样本，再用 **冲突门控** 的 [Gradient Surgery]{.term data-tip="梯度手术 — PCGrad 风格的逐样本梯度修正：仅当 g_s · g_V < 0 时才把 g_s 的冲突分量投影掉。"} 校正其梯度方向。
 
-  subgraph row1 {
-    rank=same
-    Data [label="Training Data\n(with shortcuts)", fillcolor="#375a7f"]
-    Val  [label="Validation Set\n(true rule)", fillcolor="#375a7f"]
-  }
-  subgraph row2 {
-    rank=same
-    Diag [label="Gradient\nDiagnostics"]
-    Score [label="ShortcutScore\nComputation"]
-  }
-  subgraph row3 {
-    rank=same
-    Reweight [label="Sample\nReweighting", fillcolor="#1a4a3a", color="#00bc8c"]
-    Surgery  [label="Gradient\nSurgery", fillcolor="#1a4a3a", color="#00bc8c"]
-  }
-  subgraph row4 {
-    rank=same
-    Model [label="Robust Model", fillcolor="#4a2040"]
-  }
-
-  Data -> Diag
-  Val  -> Diag
-  Diag -> Score
-  Score -> Reweight
-  Score -> Surgery
-  Reweight -> Model
-  Surgery  -> Model
-}
-```
-
----
-
-## Navigation
-
-::: {.card-grid}
-<div class="nav-card">
-<a href="task_definition.qmd">Task Definition</a>
-<p>SART problem formulation, RQs, evaluation protocol</p>
-</div>
-<div class="nav-card">
-<a href="literature_review.qmd">Literature Review</a>
-<p>11 baselines, gap analysis, positioning</p>
-</div>
-<div class="nav-card">
-<a href="claims.qmd">Claims</a>
-<p>Hypotheses, evidence chain, validation</p>
-</div>
-<div class="nav-card">
-<a href="method/overview.qmd">Method</a>
-<p>ShortcutScore + Gradient Surgery architecture</p>
-</div>
-<div class="nav-card">
-<a href="experiments/overview.qmd">Experiments</a>
-<p>3 benchmarks, 13 methods, results</p>
-</div>
-:::
-
----
-
-## Key Results at a Glance
+## 关键结果一览
 
 ::: {.metric-row}
 <div class="metric-badge">
 <div class="value">92.5%</div>
-<div class="label">Accuracy</div>
+<div class="label">Accuracy（+16.5 pp 超过最强基线）</div>
 </div>
 <div class="metric-badge">
 <div class="value">87.9%</div>
-<div class="label">Robustness</div>
+<div class="label">Robustness（+40.2 pp）</div>
 </div>
 <div class="metric-badge">
-<div class="value">85.5%</div>
-<div class="label">Reasoning</div>
+<div class="value">+26.7 pp</div>
+<div class="label">两组件超加性收益</div>
 </div>
 <div class="metric-badge">
-<div class="value">3.2M</div>
-<div class="label">Model Params</div>
+<div class="value">8B</div>
+<div class="label">Qwen3-8B/GSM8K 检测几何迁移</div>
 </div>
 :::
 
----
+- 三个合成推理基准、十一个基线（数据中心 / 损失加权 / DRO / 不变性 / 失败挖掘），SART 对每个数据集都全指标领先。
+- **超加性**：单独 Reweighting 仅 +20.7 pp robustness，单独 Surgery 仅 +21.1 pp，两者合一 **+68.5 pp**——超出二者之和 +26.7 pp。
+- **检测几何 8B 迁移**：Qwen3-8B + LoRA / GSM8K 受控 shortcut 注入下，[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"} 把注入样本（$\bar S = 0.46$）与干净样本（$\bar S = 0.007$）分离 60×。
 
-## Reproduction Quickstart
+## 论文章节 → 文档页面
+
+| 论文 §  | 内容 | 文档页面 |
+|--------|------|----------|
+| §0     | 摘要 / 总览 | 本页 |
+| §1     | 引言：shortcut 现象 + SART 提出 | [动机（§1）](motivation.qmd) |
+| §2     | 问题定义：SART 形式化 | [SART 形式化](task_definition.qmd) |
+| §3     | 总览：两组件如何耦合 | [方法总览（§3）](method/overview.qmd) |
+| §4.1   | ShortcutScore 推导 | [ShortcutScore（§4.1）](method/shortcut_score.qmd) |
+| §4.2   | 冲突门控 Gradient Surgery | [Gradient Surgery（§4.2）](method/gradient_surgery.qmd) |
+| §4 末段 | 8B 工程优化（LoRA + JL 草图） | [LLM 工程优化](method/vram_reduction.qmd) |
+| §5.1   | 实验设置 | [实验导航（§5.1）](experiments/overview.qmd) |
+| §5.2   | 主结果（聚合 + 逐数据集） | [主结果（§5.2）](experiments/main.qmd) |
+| §5.3   | 消融：Reweight × Surgery 超加性 | [消融研究（§5.3）](experiments/ablation.qmd) |
+| §5.4   | ShortcutScore 验证 + 超参敏感性 | [ShortcutScore 验证（§5.4）](experiments/shortcut_score_validation.qmd) / [超参敏感性](experiments/hyperparam.qmd) |
+| §5.5   | Qwen3-8B / GSM8K 迁移 | [LLM 迁移：GSM8K](experiments/llm_gsm8k.qmd) |
+| §6     | 相关工作 | [相关工作](related_work.qmd) |
+| §7     | 结论 / 局限 / 展望 | [结论与展望](conclusion.qmd) |
+
+## 方法管线
+
+![**SART 方法图（论文 Figure 1）**：(A) 逐样本梯度的对齐与答案-token 集中度；(B) ShortcutScore 把两路信号合一；(C) 指数 reweight 缩小 shortcut 样本权重；(D) 冲突门控投影只擦除与 $\mathbf{g}_{\mathcal{V}}$ 冲突的方向；(E) 模型更新偏向真推理信号。](figures/sart_method_figure.png)
+
+## 复现入口
 
 ```bash
-# 1. Setup
+# 1. 环境
 pip install -r requirements.txt
 
-# 2. Debug run (local profile, fast)
+# 2. 本地快速 sanity（合成数据）
 EXPERIMENT_SCALE=local python3 run_all.py
 
-# 3. Full training (server profile, all 13 methods × 3 datasets)
+# 3. 全量训练（13 方法 × 3 数据集）
 EXPERIMENT_SCALE=server python3 run_all.py
 
-# 4. Hyperparameter search (Optuna + MLflow)
+# 4. 超参 sweep（Optuna + MLflow）
 EXPERIMENT_SCALE=server python3 hp_optuna.py --n-trials 100
 
-# 5. Hydra entry point (after refactoring)
+# 5. Hydra 入口（重构后）
 python -m src.main mode=train method=sart dataset=math_synthetic scale=server
 ```
+
+代码仓库：<https://github.com/fuyanjie/short-cut-aware-data-centric-reasoning>。

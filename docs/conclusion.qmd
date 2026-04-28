@@ -1,0 +1,50 @@
+---
+title: "结论与展望（§7）"
+format: html
+---
+
+> **本页对应论文 §7 Conclusion + Limitations and Risks + Future Work。**
+
+> 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
+
+## 1. 一段话总结
+
+> **LLM 的 shortcut 不是数据问题，是训练信号错配。SART 从梯度几何识别 shortcut（[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"}），通过指数 reweight 缩量、[conflict-only projection]{.term data-tip="冲突门控投影 — 只在内积 < 0 时才执行投影，避免把已经对齐的有用方向也擦掉。"} 改向，在三个合成基准上把最强基线打掉 +16.5 pp acc / +40.2 pp robustness（两组件超加 +26.7 pp）；检测几何在 Qwen3-8B / GSM8K 上完整迁移。**
+
+## 2. 局限（论文 §7 Limitations）
+
+### (i) [$\mathbf{g}_{\mathcal{V}}$]{.term data-tip="g_V — 验证集梯度 ∇_θ (1/|V|) Σ ℓ(θ;v)；代表「能改善真规则泛化」的更新方向。"} 被当作 ground truth
+
+- 若 $\mathcal{V}$ 自身被同一 shortcut 污染：[conflict-only projection]{.term data-tip="冲突门控投影 — 只在内积 < 0 时才执行投影，避免把已经对齐的有用方向也擦掉。"} 会 **加强** shortcut 而不是抑制。
+- **缓解**：人工审核或反事实 probe 构造 $\mathcal{V}$。
+
+### (ii) 答案-token 抑制可能伤合法学习
+
+- 当答案 token 本身就是主要监督信号（短输出 / 分类 / 噪声推理链），$\rho > 0$ 反而压制有用信号。
+- **缓解**：no-CoT fallback —— 当 $T_{\mathrm{reason}} = \emptyset$ 时令 [$R(s)$]{.term data-tip="答案-token 梯度集中度 — 答案 token 的梯度范数占比；高 = 模型在学「答什么」而非「怎么推」。"} = $\tau_R$，让抑制项静音；运行时监控 token-level loss。
+
+### (iii) 单一验证目标的多模式风险
+
+- 把样本判为「shortcut-prone」是一个 **针对固定 $\mathcal{V}$ 目标** 的判决；多模式监督（多种合法解法 / 多条 CoT）下，错配的 $\mathcal{V}$ 可能让模型坍缩到单一模式，erasing 合法多样性。
+- **缓解**：在 open-ended generation 任务上构造 **diverse $\mathcal{V}$**；SART 最适合 canonical reasoning path 的任务。
+
+## 3. 展望（论文 §7 Future Work）
+
+由 [LLM 迁移（§5.5）](experiments/llm_gsm8k.qmd) 直接得出两条改造：
+
+| 改造 | 直觉 | 解决什么 |
+|------|------|----------|
+| 限制 $\mathbf{g}_s^{\mathrm{ans}}$ 到数字答案 token | 让 $\rho>0$ 不再杀生成 | 解 LLM 上 PPL ↑ 5 个数量级问题 |
+| per-sample [conflict gating]{.term data-tip="conflict gating — 把冲突门控从 batch 级别细化到逐样本，避免 batch 平均把信号 wash 掉。"} | clean / shortcut 在 batch 平均下相互中和 → 门很少触发 | 解 LLM 上 conflict gate 失效问题 |
+
+更一般的研究方向：
+
+- $|\mathcal{V}|$ 与 「shortcut-consistent fraction in $\mathcal{V}$」 的敏感性分析；
+- conflict-only projection 在何种条件下保持优化稳定性的理论分析；
+- 自适应 $(\gamma, \rho)$ 调度（不同 phase / 不同 batch / 不同 token）。
+
+## 4. 与论文叙事的开放点
+
+> **一致性：headline $(\gamma=1.0, \rho=0.5)$ vs Appendix 推荐 $(\gamma=1.0, \rho=0.3)$ 是 internal inconsistent**。需要在投稿前定调（Option A：单 default $\rho=0.3$；vs Option B：把 per-task tuning admitted into headline table）。详见 [超参敏感性](experiments/hyperparam.qmd)。
+
+> **K-sensitivity：score r 与 robustness gain 不同方向**。这一发现 **不削弱 headline 数字**，但要求论文 §5.4 的「+detection F1 → +robustness」叙事改写为「surgery 是 load-bearing；score 提供必要的 rank 信号给 surgery 选样本」。详见 [ShortcutScore 验证](experiments/shortcut_score_validation.qmd) 末段。

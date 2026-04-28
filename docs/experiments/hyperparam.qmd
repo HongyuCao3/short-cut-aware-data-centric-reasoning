@@ -1,76 +1,60 @@
 ---
-title: "Hyperparameter Sensitivity"
+title: "超参敏感性（§5.4 后段）"
+format: html
 ---
 
-## What — Experiment Identity
+> **本页对应论文 §5.4 「Hyperparameter sensitivity」段 + 附录 §B.4 sensitivity table。**
 
-- **Experiment**: Exhaustive grid search over 80 configurations ($\lambda \times \gamma \times \rho$) to identify SART's operating regime
+> 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
 
-## Why — Experiment Purpose
+## 实验回答的问题
 
-- **Insight**: Determine which hyperparameters are most influential and whether SART is robust to reasonable choices
+> **冲突投影强度 [$\gamma$]{.term data-tip="γ — 冲突投影强度，γ=1 完全擦除冲突分量。论文 main 用 1.0；Math 单特征建议 0.8。"} 与答案-token 抑制 [$\rho$]{.term data-tip="ρ — 答案-token 梯度抑制强度，ρ=1 完全去掉答案-token 梯度贡献。论文 main 用 0.5。"} 在不同复杂度的 shortcut 上分别该取多少？是否存在跨数据集的「单一推荐默认值」？**
 
----
+## 这个实验为论文支撑了什么
 
-## Results — Table 4: Grid Search
+- **方法选择动机**：$\gamma$ 应随 [shortcut 复合度]{.term data-tip="shortcut compositional complexity — Math 单特征 → Financial 双特征 → Causal 含混淆，shortcut 越复合表层过滤越不灵。"} 上调 —— Math 单特征用 0.8 就够，Financial / Causal 需要 1.0；这与 §3 「surgery 切除冲突分量」的物理图景一致：复合 shortcut 子空间越大，需要的擦除越彻底。
+- **机制解释**：$\rho$ 仅在 [Causal-Reasoning]{.term data-tip="Causal 数据集 — 含混淆变量 z 的因果方向二分类，真规则=x≥5 ∧ z<3，shortcut=x 与 y 的相关≥5。"} 上敏感（其他两个数据集 $R(s)<\tau_R$，抑制项不触发）；这佐证答案-token 集中度只在 **某些** shortcut 类型上是 driver，符合 method §4.2 step 2 的「conditional」设计。
+- **有趣发现**：headline 默认 $(\gamma=1.0, \rho=0.5)$ vs 附录推荐 $(\gamma=1.0, \rho=0.3)$ 的差距 = +6.5 pp acc / +10.7 pp robustness（appendix-default 更好）。论文 §5.4 的两个数字（main: $\rho{=}0.5$ vs appendix: $\rho{=}0.3$）是 **内部不一致**，需要在投稿前定调。
 
-### Reweighting Strength $\lambda$ (most influential)
+## $\gamma$（冲突投影强度）
 
-| $\lambda$ | Accuracy | Robustness | Combined |
-|-----------|----------|------------|----------|
-| 1.0 | 75.8% | 44.0% | 56.7 |
-| 1.5 | 81.1% | 52.9% | 64.2 |
-| 2.0 | 86.9% | 69.6% | 76.5 |
-| **3.0** | **87.6%** | **74.2%** | **79.6** |
-| 5.0 | 86.4% | 73.6% | 78.7 |
+| 数据集 | 推荐 $\gamma$ | 理由 |
+|--------|---------------|------|
+| [Math-Arithmetic]{.term data-tip="Math 数据集 — 二分类 a+b ≥ 10？真规则=求和，shortcut=a≥5（单特征）。"}（单特征 shortcut） | **0.8** | $\gamma=1$ 会过度擦除 — 单特征的「冲突子空间」与「可迁移分量」高度耦合，全擦会把 useful component 一起切。 |
+| [Financial-Analysis]{.term data-tip="Financial 数据集 — 多特征二分类，真规则=利润率≥5 ∧ 负债<5，shortcut=营收≥5。"}（双特征合取） | **1.0** | 冲突子空间维度更高，必须完全切除。 |
+| [Causal-Reasoning]{.term data-tip="Causal 数据集 — 含混淆变量 z 的因果方向二分类，真规则=x≥5 ∧ z<3，shortcut=x 与 y 的相关≥5。"}（混淆变量） | **1.0** | 同上；混淆变量带来的 shortcut 子空间更复杂。 |
 
-### Gradient Surgery Strength $\gamma$
+**如何读这一表**：$\gamma$ 是「冲突方向擦多狠」；shortcut 越复合，冲突子空间越大，越需要 $\gamma=1$。
 
-| $\gamma$ | Accuracy | Robustness | Combined |
-|----------|----------|------------|----------|
-| 0.3 | 84.0% | 68.4% | 74.7 |
-| 0.5 | 84.2% | 70.2% | 75.8 |
-| 0.8 | 82.2% | 56.4% | 66.8 |
-| **1.0** | **87.6%** | **74.2%** | **79.6** |
+## $\rho$（答案-token 抑制）
 
-### Answer Suppression $\rho$
+- 仅在 $R(s) > \tau_R$ 时触发；其他时候抑制项 = 0。
+- Math / Financial 上 $R(s)$ 普遍低于 $\tau_R=0.5$，所以 $\rho$ 几乎不影响结果。
+- Causal 上 $R(s)$ 偏高（因果题中答案 token 一致性强），$\rho$ 才是 driver：$\rho \in [0, 0.3]$ 在 top row；$\rho = 0.5$ robustness 反而崩。
 
-| $\rho$ | Accuracy | Robustness | Combined |
-|--------|----------|------------|----------|
-| 0.1 | 86.4% | 73.6% | 78.7 |
-| 0.3 | 88.0% | 68.0% | 76.0 |
-| **0.5** | **87.6%** | **74.2%** | **79.6** |
-| 0.7 | 86.9% | 69.6% | 76.5 |
+> **生成警告**：在 LLM 上 $\rho > 0$ 会破坏自回归生成（PPL 升 5 个数量级，参看 [LLM 迁移（§5.5）](llm_gsm8k.qmd)）；synthetic 任务里没有这个问题，因为答案 token 不参与下一步生成 prefix。
 
-Combined score = $0.4 \times \text{Accuracy} + 0.6 \times \text{Robustness}$.
+## 推荐默认 vs main-text 默认
 
----
+| 选项 | $\gamma,\rho$ | 三数据集 avg Acc | avg Rob | 备注 |
+|------|---------------|------------------|---------|------|
+| main-text 默认（论文 §5.4 prose） | $(1.0,\ 0.5)$ | 92.5 | 87.9 | headline 数字 |
+| Appendix 推荐 | $(1.0,\ 0.3)$ | **+6.5 pp** vs 上 | **+10.7 pp** vs 上 | 单一默认 |
+| 逐任务 tuning | (per-task) | 同上再 +— | + 8.2 pp robustness | 上限 |
 
-## Analysis
+> **driver**：headline 与 appendix 默认值存在 **内部矛盾** —— 这是论文需要在投稿前修复的开放点（决策选 Option A：单 default $\rho=0.3$；vs Option B：把 per-task tuning 写进 main table）。
 
-<details>
-<summary><strong>Three Key Insights</strong></summary>
+## 主要发现（论文原文）
 
-1. **$\lambda$ is the most influential parameter.** Performance increases monotonically from $\lambda=1.0$ to $\lambda=3.0$ (+11.8pp accuracy, +30.2pp robustness), plateauing thereafter. This defines a "sweet spot" where shortcut samples are sufficiently downweighted without catastrophically distorting the training distribution.
+> **$\gamma$ 应随 shortcut 复合度上调；$\rho$ 仅对 Causal 敏感且 $\rho \in [0, 0.3]$；推荐默认 $(\gamma=1.0,\rho=0.3)$ 比之前默认 $(\gamma=0.8,\rho=0.7)$ 平均 acc +6.5 pp / rob +10.7 pp；逐任务 tuning 再 +8.2 pp robustness。**
 
-2. **Full-strength gradient surgery ($\gamma=1.0$) is optimal.** Performance at $\gamma=0.8$ (56.4% robustness) drops substantially compared to both $\gamma=0.5$ (70.2%) and $\gamma=1.0$ (74.2%). This non-monotonicity suggests a **phase transition**: partial projection creates unstable gradient dynamics, while complete projection cleanly eliminates the entire shortcut subspace.
+- $\gamma$ 对单特征 / 多特征数据集呈现明确分层；
+- $\rho$ 在大多数任务里 **不触发** —— 是 conditional 而非 always-on；
+- 推荐 vs main-text 不一致是论文需要修复的开放点。
 
-3. **Moderate answer suppression ($\rho=0.5$) balances accuracy-robustness.** Too-low $\rho$ (0.1) retains shortcut-correlated answer signals; too-high $\rho$ (0.7) discards useful reasoning information from the answer pathway.
+## 相关诊断
 
-</details>
-
-<details>
-<summary><strong>How — Run HP Search</strong></summary>
-
-```bash
-# Optuna (recommended)
-EXPERIMENT_SCALE=server python3 hp_optuna.py --n-trials 100
-
-# Or via Hydra
-python -m src.main mode=optuna method=sart optuna.n_trials=100
-
-# Grid search (legacy)
-EXPERIMENT_SCALE=server python3 hp_search.py --output-dir hp_results
-```
-
-</details>
+- 完整 sensitivity 表见 paper Appendix §B.4。
+- 与 score K-sweep 的关联：[ShortcutScore 验证（§5.4）](shortcut_score_validation.qmd)。
+- 在 LLM 上 $\rho > 0$ 的破坏性：[LLM 迁移（§5.5）](llm_gsm8k.qmd)。

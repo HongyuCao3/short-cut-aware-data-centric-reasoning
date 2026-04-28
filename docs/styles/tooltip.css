@@ -1,0 +1,74 @@
+/* Glossary tooltip — hover any .term to see its Chinese explanation */
+
+.term {
+  border-bottom: 1px dotted #6c757d;
+  cursor: help;
+  position: relative;
+  text-decoration: none;
+}
+
+.term:hover {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+}
+
+.term::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  background: #1e293b;
+  color: #f8fafc;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.85em;
+  font-weight: 400;
+  line-height: 1.45;
+  white-space: normal;
+  width: max-content;
+  max-width: 360px;
+  z-index: 1000;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.term::before {
+  content: "";
+  position: absolute;
+  left: 12px;
+  bottom: calc(100% + 2px);
+  border: 6px solid transparent;
+  border-top-color: #1e293b;
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.term:hover::after,
+.term:focus::after,
+.term:hover::before,
+.term:focus::before {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Dark theme */
+[data-bs-theme="dark"] .term::after {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+[data-bs-theme="dark"] .term::before {
+  border-top-color: #f1f5f9;
+}
+
+/* Avoid clipping inside tables / cards */
+.cell-output-display .term::after,
+table .term::after {
+  position: fixed;
+  left: auto;
+  bottom: auto;
+}

@@ -1,70 +1,75 @@
 ---
-title: "ShortcutScore"
+title: "ShortcutScore（§4.1）"
+format:
+  html:
+    toc: true
+    code-fold: true
 ---
 
-## What — Detection Metric
+> **本页对应论文 §4.1 ShortcutScore-Based Sample Reweighting。**
 
-ShortcutScore $S(s)$ quantifies each training sample's tendency to promote shortcut learning by combining two gradient-based signals:
+> 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
 
-- **Signal 1 — Non-Transfer Alignment** $A(s)$: cosine similarity between sample gradient and validation gradient
-- **Signal 2 — Answer-Gradient Concentration** $R(s)$: ratio of answer-token gradient norm to total gradient norm
+## 1. 为什么需要 ShortcutScore：标准 ERM 的失灵
 
-Samples with high $S(s)$ are flagged as shortcut-promoting and downweighted during training.
+标准 ERM 把所有样本看作等权，对 shortcut **盲**——shortcut 样本把 token-级 loss 降得很快，所以反而被 SGD 优先学习。代价是：
 
-## Why — Selection Rationale
+- 模型获得 **what to answer**（答案-token 记忆）；
+- 在分布偏移、数字扰动、措辞改写下 robustness 大跌。
 
-- Shortcut samples efficiently reduce training loss but their gradients point in directions inconsistent with improving validation reasoning
-- Loss-based or label-based detection cannot identify them (they are correctly labeled)
-- Gradient structure analysis is the only way to distinguish shortcut from genuine reasoning signals
+> **直觉**：要从 *梯度行为* 而不是 *loss 值* / *标签* 识别 shortcut——shortcut 样本的两条几何信号是：(1) 与 $\mathbf{g}_{\mathcal{V}}$ 不对齐；(2) 梯度能量集中在最终答案 token。
 
-<details>
-<summary><strong>How — Mathematical Formulation</strong></summary>
+## 2. 形式化
 
-**Step 1: Non-Transfer Gradient Alignment**
+### Step 1 — 非迁移对齐 $A(s)$
 
-$$A(s) = \cos(\mathbf{g}_s, \mathbf{g}_V) = \frac{\mathbf{g}_s^\top \mathbf{g}_V}{\|\mathbf{g}_s\| \|\mathbf{g}_V\|}$$
+[$\mathbf{g}_s$]{.term data-tip="g_s — 样本 s 的逐样本梯度 ∇_θ ℓ(θ;s)。"} = $\nabla_\theta \ell(\theta;s)$，[$\mathbf{g}_{\mathcal{V}}$]{.term data-tip="g_V — 验证集梯度 ∇_θ (1/|V|) Σ ℓ(θ;v)；代表「能改善真规则泛化」的更新方向。"} = $\nabla_\theta \frac{1}{|\mathcal{V}|}\sum_{v\in\mathcal{V}}\ell(\theta;v)$。
 
-where $\mathbf{g}_s = \nabla_\theta \ell(\theta; s)$ is the per-sample gradient and $\mathbf{g}_V = \nabla_\theta \frac{1}{|\mathcal{V}|} \sum_{v \in \mathcal{V}} \ell(\theta; v)$ is the validation gradient.
+[$A(s)$]{.term data-tip="非迁移对齐 — A(s)=cos(g_s, g_V)；低 = 该样本梯度不利于真规则泛化。"} = $\cos(\mathbf{g}_s, \mathbf{g}_{\mathcal{V}})$ = $\dfrac{\mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}}}{\|\mathbf{g}_s\|\,\|\mathbf{g}_{\mathcal{V}}\|}$。
 
-**Step 2: Answer-Gradient Concentration**
+> $A(s)$ 低 → 该样本的更新方向不向真规则泛化迁移。
 
-$$R(s) = \frac{\sum_{t \in T_{\text{ans}}} \|\nabla_\theta \ell_t\|}{\sum_{t \in T_{\text{ans}} \cup T_{\text{reason}}} \|\nabla_\theta \ell_t\|}$$
+### Step 2 — 答案-token 梯度集中度 $R(s)$
 
-**Step 3: ShortcutScore**
+记答案 token 索引集 $T_{\mathrm{ans}}$，推理 token 索引集 $T_{\mathrm{reason}}$：
 
-$$S(s) = \alpha \cdot \max(0, \tau_A - A(s)) + \beta \cdot \max(0, R(s) - \tau_R)$$
+$$
+R(s) = \frac{\sum_{t\in T_{\mathrm{ans}}}\|\nabla_\theta \ell_t\|}{\sum_{t\in T_{\mathrm{ans}}\cup T_{\mathrm{reason}}}\|\nabla_\theta \ell_t\|}.
+$$
 
-**Sample Weight:**
+[$R(s)$]{.term data-tip="答案-token 梯度集中度 — 答案 token 的梯度范数占比；高 = 模型在学「答什么」而非「怎么推」。"} 高 → 模型在学「答什么」而非「怎么推」。
 
-$$w(s) = \exp(-\lambda \cdot S(s))$$
+> **退化情形**：当样本只有答案监督（$T_{\mathrm{reason}} = \emptyset$，例如 LLM 上的 answer-only labels），令 $R(s) := \tau_R$，使 $S(s)$ 优雅退化到纯对齐分。
 
-</details>
+### Step 3 — ShortcutScore 与指数 reweight
 
-<details>
-<summary><strong>How — Hyperparameters</strong></summary>
+$$
+S(s) = \alpha\,\max(0,\,\tau_A - A(s)) + \beta\,\max(0,\,R(s) - \tau_R)
+$$
 
-| Parameter | Default | Range | Effect |
-|-----------|---------|-------|--------|
-| $\alpha$ | 1.0 | [0.5, 2.0] | Weight for alignment term |
-| $\beta$ | 1.0 | [0.5, 2.0] | Weight for concentration term |
-| $\tau_A$ | 0.3 | [0.1, 0.5] | Alignment threshold (below = shortcut) |
-| $\tau_R$ | 0.5 | [0.3, 0.7] | Concentration threshold (above = shortcut) |
-| $\lambda$ | 2.0 | [0.5, 5.0] | Reweighting strength (most influential) |
+- [$\tau_A$]{.term data-tip="τ_A — 对齐阈值；A(s) 低于该值视为「非迁移」。论文默认 0.3。"} 是「视为非迁移」的对齐阈值，默认 0.3；
+- [$\tau_R$]{.term data-tip="τ_R — 集中度阈值；R(s) 高于该值视为「答案主导」。论文默认 0.5。"} 是「视为答案主导」的集中度阈值，默认 0.5；
+- [$\alpha,\beta$]{.term data-tip="α, β — ShortcutScore 中两项 (1−A) 与 R 的相对权重；论文默认 α=β=1.0。"} 把两项加权合一，默认 $\alpha=\beta=1.0$。
 
-Override via config:
+样本权重：[$w(s)$]{.term data-tip="样本权重 — w(s)=exp(−λ S(s))；ShortcutScore 高 → 权重小 → 梯度贡献被压缩。"} = $\exp(-\lambda S(s))$。 [$\lambda$]{.term data-tip="λ — 指数 reweighting 强度；越大 → shortcut 样本被压得越狠。论文默认 3.0。"} 默认 3.0；越大 shortcut 样本被压得越狠。
 
-```bash
-python -m src.main method=sart method.lambda_=3.0 method.tau_A=0.2
-```
+### Reweighted 目标
 
-</details>
+$$
+\min_\theta \frac{1}{N}\sum_{i=1}^{N} w(s_i)\,\ell(\theta;s_i),\quad
+\theta_{t+1} = \theta_t - \eta \sum_{s\in\text{batch}} w(s)\,\nabla_\theta \ell(\theta;s).
+$$
 
-<details>
-<summary><strong>How — Implementation</strong></summary>
+## 3. 实现要点
 
-- Canonical location: `src/utils/gradient_ops.py`
-- Key functions: `compute_shortcut_score()`, `compute_shortcut_scores_batched()`, `compute_sample_weight()`
-- Server mode uses `compute_shortcut_scores_from_sketches()` with random projection for VRAM efficiency
-- Validation gradient $g_V$ computed via `compute_validation_gradient()`, refreshed every 5 epochs
+- **gV refresh**：每隔 [$k=5$ 步 refresh validation gradient]{.term data-tip="g_V refresh — 每隔 k 步重算一次 g_V；变化比 θ 慢，不必每步都算。"} — 比每 step 都重算便宜得多，且 $\mathbf{g}_{\mathcal{V}}$ 比 $\theta$ 变化慢得多。
+- **逐样本梯度**：用 [LoRA]{.term data-tip="Low-Rank Adaptation — Hu 等 2022，仅训练注入到大模型中的低秩适配器；逐样本梯度只在 LoRA 上计算，省内存。"} 限制可训参数，每样本梯度从 $|\theta| \approx 28$ GB 缩到 32 MB；可选地用 [Johnson–Lindenstrauss sketch]{.term data-tip="JL sketch — 固定种子的随机投影，维持任意一对向量的内积/余弦在 ε 误差内；用来压缩梯度。"} 把 $A(s)$ 的内积保持在 $\varepsilon$ 误差内 — 详见 [LLM 工程优化](vram_reduction.qmd)。
+- **Warmup**：评分 / 投影都在 [$K$]{.term data-tip="K — Warmup 阶段 epoch 数；reweighting 与 surgery 在 K 之后才生效。论文默认 max(5, epochs/6)。"} 个 epoch 的 SFT warmup 之后才开始 — 给 $\mathbf{g}_{\mathcal{V}}$ 一段稳定方向的时间。
 
-</details>
+## 4. 与「丢样本」类方法的关键差别
+
+[Data Filtering]{.term data-tip="Data Filtering — Warmup 后丢掉置信度过高的样本；典型「硬丢」基线。"} 把 $S(s)$ 高的样本 **整个丢掉**；ShortcutScore 只是 **缩量**。
+
+> **driver**：shortcut 样本里也含正向对齐分量；硬丢损失训练信号；soft reweight + 配合 surgery 才能保留这部分。
+
+实证：[消融研究](../experiments/ablation.qmd) 显示单独 Reweighting Only +20.7 pp robustness，单独 Surgery Only +21.1 pp，合一后 **+68.5 pp**——超出二者之和 +26.7 pp。检测 F1 = 0.64（[Data Filtering]{.term data-tip="Data Filtering — Warmup 后丢掉置信度过高的样本；典型「硬丢」基线。"} = 0.69），但 SART 的 accuracy 反超 Data Filtering +17.8 pp——**「检测准确率不是直接 driver」**，参看 [ShortcutScore 验证（§5.4）](../experiments/shortcut_score_validation.qmd)。

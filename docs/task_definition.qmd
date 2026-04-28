@@ -1,113 +1,80 @@
 ---
-title: "Task Definition"
+title: "SART 形式化（§2 问题定义）"
+format: html
 ---
 
-## Problem Statement
+> **本页对应论文 §2 Problem Statement。**
 
-- **Domain**: Supervised training of language models on reasoning tasks (mathematical, financial, causal)
-- **Input**: Training dataset $\mathcal{D} = \{(x_i, y_i)\}_{i=1}^{N}$ where $x_i$ is a reasoning problem and $y_i$ comprises intermediate reasoning steps and a final answer
-- **Output**: Model parameters $\theta$ that minimize training loss while suppressing shortcut-promoting gradient directions
-- **Why it is hard**:
-  - Shortcut samples are often correctly labeled and efficiently reduce training loss, making them undetectable by conventional quality metrics
-  - Simply down-weighting detected shortcuts destabilizes training and discards useful signal
+## 1. 输入 / 输出
 
-```{dot}
-//| label: fig-problem
-//| fig-cap: "SART problem: training signal misalignment causes shortcut reliance"
-//| fig-width: 7
-//| fig-height: 3.2
-digraph G {
-  bgcolor="transparent"
-  rankdir=TB
-  graph [ranksep=0.5, nodesep=0.55]
-  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
-        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
-        shape=box, width=1.6, height=0.42, margin="0.15,0.08"]
-  edge [color="#6c757d", penwidth=1.4]
+- **训练集** $\mathcal{D} = \{(x_i, y_i)\}_{i=1}^{N}$，$x_i$ 是推理问题，$y_i$ 含中间推理步骤 + 最终答案。
+- **验证集** $\mathcal{V} = \{(x_j, y_j)\}_{j=1}^{M}$，**只服从真规则**——奖励真推理而非 shortcut。
+- **目标**：模型参数 $\theta$，在最小化训练 loss 的同时压制 shortcut 方向。
 
-  subgraph row1 {
-    rank=same
-    Train [label="Training Data\n(70% shortcuts)", fillcolor="#375a7f"]
-    Val   [label="Validation Data\n(true rule)", fillcolor="#375a7f"]
-    Test  [label="Test Data\n(perturbed)", fillcolor="#375a7f"]
-  }
-  subgraph row2 {
-    rank=same
-    Detect [label="Shortcut\nDetection"]
-    Suppress [label="Shortcut\nSuppression"]
-  }
-  subgraph row3 {
-    rank=same
-    Acc [label="Accuracy"]
-    Rob [label="Robustness"]
-    Reas [label="Reasoning"]
-  }
+## 2. 标准 ERM 为什么不够
 
-  Train -> Detect
-  Val -> Detect
-  Detect -> Suppress
-  Suppress -> Acc
-  Suppress -> Rob
-  Suppress -> Reas
-  Test -> Rob [style=dashed]
-}
-```
+$$
+\min_\theta \frac{1}{N}\sum_{i=1}^{N}\ell(\theta;x_i,y_i)
+$$
 
----
+- token-级 NLL，对所有样本一视同仁。
+- shortcut 样本（关键词关联、答案记忆、模板匹配）能 **高效降 loss**，但学到的是 "what to answer"，不是 "how to reason"。
+- 这些样本 **常常标签正确** → label-noise / data-quality 过滤识别不到。
 
-## Research Questions
+## 3. shortcut 样本的梯度几何判别
 
-- **RQ1**: Can shortcut-promoting samples be detected from gradient structure alone — specifically via non-transfer alignment and answer-gradient concentration?
-- **RQ2**: Does combining ShortcutScore reweighting with gradient surgery produce super-additive improvements over each component alone?
-- **RQ3**: Does SART's advantage scale with task complexity (single-feature vs. multi-feature shortcuts)?
+定义逐样本梯度：
 
-```{dot}
-//| label: fig-rq
-//| fig-cap: "Research questions mapped to experiments"
-//| fig-width: 7
-//| fig-height: 3.2
-digraph G {
-  bgcolor="transparent"
-  rankdir=LR
-  graph [ranksep=0.6, nodesep=0.45]
-  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
-        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
-        shape=box, width=1.5, height=0.42, margin="0.15,0.08"]
-  edge [color="#6c757d", penwidth=1.4]
+$$
+\mathbf{g}_s = \nabla_\theta \ell(\theta;s),\qquad \mathbf{g}_{\mathcal{V}} = \nabla_\theta \frac{1}{|\mathcal{V}|}\sum_{v\in\mathcal{V}} \ell(\theta;v).
+$$
 
-  RQ1 [label="RQ1: Detection", fillcolor="#375a7f"]
-  RQ2 [label="RQ2: Synergy", fillcolor="#375a7f"]
-  RQ3 [label="RQ3: Scaling", fillcolor="#375a7f"]
+[$\mathbf{g}_{\mathcal{V}}$]{.term data-tip="g_V — 验证集梯度 ∇_θ (1/|V|) Σ ℓ(θ;v)；代表「能改善真规则泛化」的更新方向。"} 代表「能改善真规则泛化」的更新方向。
 
-  H1 [label="ShortcutScore\ncorrelates r=0.67"]
-  H2 [label="Super-additive\n+26.7pp synergy"]
-  H3 [label="Gap grows with\ncomplexity"]
+> **shortcut 样本的判定**：$s$ 是 shortcut 样本，当且仅当其 [$\mathbf{g}_s$]{.term data-tip="g_s — 样本 s 的逐样本梯度 ∇_θ ℓ(θ;s)。"} 同时满足：
+>
+> **(i)** $\cos(\mathbf{g}_s,\mathbf{g}_{\mathcal{V}})$ 低 — 更新不向真规则迁移；
+>
+> **(ii)** 梯度范数集中在最终答案 token 而非中间推理 token — 模型学「what to answer」。
 
-  E1 [label="ShortcutScore\nValidation", fillcolor="#1a4a3a", color="#00bc8c"]
-  E2 [label="Ablation\nStudy", fillcolor="#1a4a3a", color="#00bc8c"]
-  E3 [label="Per-Dataset\nResults", fillcolor="#1a4a3a", color="#00bc8c"]
+注意：shortcut 样本的两条几何信号是 **可观测的**（不需要 shortcut 标签），所以 SART **不要 group annotation / multi-environment 划分**——这是它跟 [Group DRO]{.term data-tip="Group DRO — Sagawa 等 2020，最坏组损失最小化；需要组标注。"} / [IRM]{.term data-tip="IRM — Invariant Risk Minimization，跨环境不变表示；需要多环境划分。"} 类方法的关键差别。
 
-  RQ1 -> H1 -> E1
-  RQ2 -> H2 -> E2
-  RQ3 -> H3 -> E3
-}
-```
+## 4. SART 优化目标
 
----
+$$
+\min_\theta \frac{1}{N}\sum_{i=1}^{N} w_i(\theta)\,\ell(\theta;x_i,y_i),\qquad w_i(\theta)\in[0,1],
+$$
 
-## Scope and Constraints
+且子约束：每步参数更新方向应与 $\mathbf{g}_{\mathcal{V}}$ 保持一致。两件事：
 
-- **In scope**: Synthetic reasoning tasks (Math-Arithmetic, Financial-Analysis, Causal-Reasoning) with controlled shortcut injection; gradient-level training dynamics modification
-- **Out of scope**: Architectural modifications; additional human annotations; pretraining changes
-- **Assumptions**: Shortcut samples exhibit distinct gradient signatures (low alignment with validation gradients, high answer-token concentration); a small held-out validation set following the true rule is available
+- **检测**：用梯度结构（非迁移对齐 + 答案集中）识别 shortcut 样本；
+- **抑制**：在 **同一个样本内部** 把有害方向投影掉，**保留**该样本中可迁移的有用方向。
 
----
+> **关键 design 选择**：SART 不丢样本（不像 [Data Filtering]{.term data-tip="Data Filtering — Warmup 后丢掉置信度过高的样本；典型「硬丢」基线。"} / [Influence Filtering]{.term data-tip="Influence Filtering — 估计每个样本对验证损失的影响，丢掉影响最负的。"}）；shortcut 样本里 **正向对齐分量** 仍然有用，硬丢会浪费训练信号。
 
-## Evaluation Protocol
+## 5. 评测协议
 
-- **Primary metric**: Clean accuracy (test set following true rule)
-- **Robustness metric**: Perturbed accuracy (test set where shortcut contradicts correct answer) — the key differentiator
-- **Reasoning consistency**: Generated reasoning tokens match ground truth reasoning
-- **Shortcut detection F1**: Ability to identify known shortcut samples via ShortcutScore thresholding
-- **Baselines**: 11 methods spanning data-centric, loss-based, distributionally robust, and invariant learning
-- **Dataset split**: 2,000 train (70% shortcut) / 500 val (true rule) / 1,000 test (500 clean + 500 perturbed) per dataset
+- **clean / perturbed** [test split]{.term data-tip="clean/perturbed 切分 — 测试集等分两半：clean 上 shortcut 与真标签一致；perturbed 上 shortcut 与真标签矛盾。"}：测试集两等分；
+  - **clean**：shortcut 与真标签一致 → 全方法都答得不错；
+  - **perturbed**：shortcut 与真标签 **矛盾** → 真学到规则的模型不变，shortcut 模型必翻车。
+- **指标**：
+  - Clean Accuracy（top-1 token-level acc on clean）；
+  - [Robustness]{.term data-tip="Robustness — perturbed 切分上的准确率；shortcut 模型必翻车，所以是判别真不真学到规则的关键指标。"}（acc on perturbed）— **判别真鲁棒性的关键**；
+  - [Reasoning Consistency]{.term data-tip="Reasoning Consistency — 生成的中间推理 token 与 gold chain 在 SEP 之前完全一致的比例。"}（生成中间链 vs gold chain）；
+  - [Shortcut Detection F1]{.term data-tip="Shortcut Detection F1 — 在 50 阈值扫描中取最佳的二分类 F1，是 oracle 上界。"}（用 ShortcutScore 二分类，50 阈值取最佳）。
+
+## 6. 数据集
+
+| 数据集 | 真规则 | shortcut | 复杂度 |
+|--------|--------|----------|--------|
+| [Math-Arithmetic]{.term data-tip="Math 数据集 — 二分类 a+b ≥ 10？真规则=求和，shortcut=a≥5（单特征）。"} | $a+b \geq 10$ | $a \geq 5$ | 单特征 shortcut |
+| [Financial-Analysis]{.term data-tip="Financial 数据集 — 多特征二分类，真规则=利润率≥5 ∧ 负债<5，shortcut=营收≥5。"} | 利润率$\geq 5$ ∧ 负债$<5$ | 营收$\geq 5$ | 双特征合取真规则 |
+| [Causal-Reasoning]{.term data-tip="Causal 数据集 — 含混淆变量 z 的因果方向二分类，真规则=x≥5 ∧ z<3，shortcut=x 与 y 的相关≥5。"} | $x\geq 5$ ∧ $z<3$（混淆） | $\mathrm{corr}(x,y)\geq 5$ | 含混淆变量 |
+
+每个数据集 2,000 train / 500 val / 1,000 test；训练集 70% shortcut + 30% true rule，val / test 完全服从真规则；test 等分 clean / perturbed。
+
+## 7. 接下来读什么
+
+- [方法总览（§3）](method/overview.qmd)——两组件如何在一个 SGD step 里串联；
+- [ShortcutScore（§4.1）](method/shortcut_score.qmd)——$A(s)$ 与 $R(s)$ 的形式化；
+- [Gradient Surgery（§4.2）](method/gradient_surgery.qmd)——冲突门控投影 + 答案-token 抑制。

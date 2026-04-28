@@ -1,0 +1,54 @@
+---
+title: "相关工作（§6）"
+format: html
+bibliography: references.bib
+---
+
+> **本页对应论文 §6 Related Work。**
+
+> 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
+
+## 1. LLM 训练与推理范式
+
+- 主流范式 — 监督学习、[RLHF]{.term data-tip="RLHF — 用人类偏好作为奖励信号训练 LLM；Ouyang 等 2022。"}[@ouyang2022training]、混合范式（参看 @sun2023survey）—— 都把「答案正确性」放为优化目标；shortcut 样本能通过表层 / 答案记忆把 loss 降下来 → 范式上 **结构性偏向 shortcut**。
+- Chain-of-Thought prompting [@wei2022chain;@kojima2022large] 与 [Self-Consistency]{.term data-tip="Self-Consistency Decoding — 在推理时采样多条链，多数投票；不修改训练动力学。"} Decoding [@wang2022self] 改善生成形式与一致性，但 **不动训练动力学** → shortcut 编码仍在参数里。
+
+> **gap 句**：既有训练范式优化「答案对」，把 shortcut 的训练信号源头留在原地。SART 直接在训练信号源头工作。
+
+## 2. shortcut learning 与 spurious correlation
+
+- 视觉中模型用表层统计而不是因果结构 [@geirhos2020shortcut]；NLI 中模型靠句法启发式 [@mccoy2019right]；hypothesis-only cues 已能撑出高准确率 [@niven2019probing]。
+- 缓解方法可以分两类：
+  - 需要 **显式 shortcut 标签 / 环境划分**：[Group DRO]{.term data-tip="Group DRO — Sagawa 等 2020，最坏组损失最小化；需要组标注。"}[@sagawa2020distributionallyrobustneuralnetworks]、[IRM]{.term data-tip="IRM — Invariant Risk Minimization，跨环境不变表示；需要多环境划分。"}[@arjovsky2020invariantriskminimization]、[V-REx]{.term data-tip="V-REx — Risk Extrapolation，最小化跨环境损失方差。"}[@krueger2021outofdistributiongeneralizationriskextrapolation]、[Fishr]{.term data-tip="Fishr — 跨环境梯度方差正则化。"}[@rame2022fishrinvariantgradientvariances]；
+  - 仅看 **scalar loss 信号**：[JTT]{.term data-tip="Just Train Twice — 两阶段：用先前阶段的错样本上权重再训。"}[@liu2021justtraintwiceimproving]、[LfF]{.term data-tip="Learning from Failure — 训一个偏置网络，用其错样本作为去偏信号。"}[@nam2020learningfailuretrainingdebiased]，但无法区分「shortcut 学得快」和「样本本身难」。
+
+> **gap 句**：第一类要外部标注（实践上昂贵 / 不可得）；第二类只读 scalar loss（信息量不够）。SART 读 **梯度几何**，无需 group / environment 标注。
+
+## 3. 验证驱动 reweighting 与 gradient surgery
+
+- **Meta-reweighting** [@ren2018learning]：用二阶梯度学每样本权重，目标是最小化验证 loss；只调 magnitude，不调 direction。
+- **Influence-function filter** [@koh2020understandingblackboxpredictionsinfluence]：估计样本对验证集的影响，丢掉影响最负的；硬丢，丢掉了样本里的正向分量。
+- **PCGrad** [@yu2020gradient]：多任务学习里把任务梯度间冲突方向投影掉；本身不是为 shortcut 设计的。
+
+> **SART 的位置**：把这些线条 **统一在「shortcut-aware reasoning training」** 的目标下：
+>
+> - 检测：用 **逐样本 vs 验证** 的对齐 + **答案-token vs 推理-token** 的梯度集中度合一为 [ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"}；
+> - 缩量：soft reweight 而非硬丢；
+> - 改向：[PCGrad]{.term data-tip="PCGrad (Yu et al. 2020) — 多任务学习里通过把任务梯度投影到彼此正交方向来化解冲突的算法。"} 风格的 [conflict-only projection]{.term data-tip="冲突门控投影 — 只在内积 < 0 时才执行投影，避免把已经对齐的有用方向也擦掉。"} —— 而不是无条件投影；
+> - **不需要** shortcut 标注，**不需要** 多环境划分，**不需要** 辅助 meta-network。
+
+## 4. 与各路方法的对比清单
+
+| 方法路线 | 调什么 | 缺什么（对 shortcut 而言） |
+|---------|--------|------------------------------|
+| CoT prompting / Self-Consistency | 推理时形式 | 训练动力学不动 |
+| RLHF | 奖励信号 | 奖励答对，shortcut 答对照样得分 |
+| JTT / LfF / Focal Loss | scalar loss | 看不出 shortcut |
+| Data Filtering / Influence Filtering | 硬丢样本 | 丢掉样本里的可迁移分量 |
+| Group DRO | 最坏组 | 需要 shortcut 组标注 |
+| IRM / V-REx / Fishr | 跨环境 | 需要环境划分 |
+| Meta-reweight | 权重 | 不动方向 |
+| PCGrad（原生） | 任务梯度间冲突 | 不为 shortcut 设计；无门控 |
+| **SART** | **量 + 方向** | — 在训练动力学源头工作 |
+
+参考文献保存在 [`references.bib`](references.bib)；CSL 风格由 _quarto.yml 默认提供。
