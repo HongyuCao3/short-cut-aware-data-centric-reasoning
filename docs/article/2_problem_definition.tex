@@ -7,14 +7,16 @@ We study supervised training of language models on reasoning tasks. Let $\mathca
 \end{equation}
 where $\ell$ is the token-level negative log-likelihood loss. This objective does not distinguish between samples that promote genuine logical inference and those that achieve low loss via superficial patterns---keyword-answer correlations, answer token memorization, or template matching. We call such samples \emph{shortcut reasoning samples}.
 
-Formally, let $g_s = \nabla_\theta\, \ell(\theta; s)$ denote the gradient of a training sample $s = (x, y)$, and let
+Formally, let $\mathbf{g}_s = \nabla_\theta\, \ell(\theta; s)$ denote the gradient of a training sample $s = (x, y)$, and let
 \begin{equation}
-    g_{\mathcal{V}} = \nabla_\theta \; \frac{1}{|\mathcal{V}|} \sum_{v \in \mathcal{V}} \ell(\theta;\, v)
+    \mathbf{g}_{\mathcal{V}} = \nabla_\theta \; \frac{1}{|\mathcal{V}|} \sum_{v \in \mathcal{V}} \ell(\theta;\, v)
 \end{equation}
-be the validation gradient, reflecting parameter updates that improve generalizable reasoning. A sample $s$ is a shortcut reasoning sample if its gradient $g_s$ (i) exhibits low alignment with $g_{\mathcal{V}}$, indicating the update does not transfer to genuine reasoning, and (ii) concentrates gradient norm on final answer tokens rather than intermediate reasoning tokens, indicating the model learns \emph{what to answer} rather than \emph{how to reason}. Critically, such samples are often correctly labeled and efficiently reduce training loss, rendering them undetectable by conventional data quality or label-noise metrics.
+be the validation gradient, reflecting parameter updates that improve generalizable reasoning. A sample $s$ is a shortcut reasoning sample if $\mathbf{g}_s$ (i) exhibits low alignment with $\mathbf{g}_{\mathcal{V}}$, indicating the update does not transfer to genuine reasoning, and (ii) concentrates gradient norm on final answer tokens rather than intermediate reasoning tokens, indicating the model learns \emph{what to answer} rather than \emph{how to reason}. Critically, such samples are often correctly labeled and efficiently reduce training loss, rendering them undetectable by conventional data quality, label-noise, or scalar-loss metrics.
 
-\textbf{Shortcut-Aware Reasoning Training (SART)} addresses this by learning parameters $\theta$ that minimize training loss while suppressing shortcut-promoting gradient directions:
+\textbf{Shortcut-Aware Reasoning Training (SART)} formulates the problem as a two-step gradient-geometry detection-then-correction task. Concretely, we pursue two objectives: 1) \emph{detection}: rank training samples by gradient-derived shortcut tendency, given by a \textsc{ShortcutScore} $S(s)$ that combines non-transfer alignment with answer-token concentration; 2) \emph{conditional correction}: for samples flagged as shortcut-prone, project out only the component of $\mathbf{g}_s$ that genuinely opposes $\mathbf{g}_{\mathcal{V}}$, leaving validation-aligned directions intact. Formally, with $\mathcal{S}^\star = \{s : S(s) > \tau_S^\star\}$ the flagged set and $\mathbf{g}_s'$ the corrected per-sample gradient, SART solves
 \begin{equation}
-    \min_{\theta} \; \frac{1}{N} \sum_{i=1}^{N} w_i(\theta)\; \ell(\theta;\, x_i, y_i),
+    \min_{\theta} \; \frac{1}{N}\sum_{i=1}^{N} \ell(\theta;\, x_i, y_i)
+    \quad \text{subject to} \quad
+    \mathbf{g}_s'^{\top} \mathbf{g}_{\mathcal{V}} \;\geq\; 0 \;\;\text{for all } s \in \mathcal{S}^\star,
 \end{equation}
-where $w_i(\theta) \in [0,1]$ downweights samples that promote shortcut reasoning, subject to gradient updates remaining aligned with $g_{\mathcal{V}}$. SART pursues two goals: (1) \emph{detect} shortcut samples via gradient structure---specifically, non-transfer alignment and answer-token concentration; and (2) \emph{suppress} shortcut learning by neutralizing harmful gradient directions while preserving generalizable reasoning signals within the same samples. The framework operates purely at the level of training dynamics, requiring neither architectural modifications nor additional human annotations.
+where the constraint is realized by a conflict-only PCGrad-style projection on the per-sample gradient before batch aggregation; samples with $s \notin \mathcal{S}^\star$ contribute their original gradient at unit weight. The framework operates purely at the level of training dynamics, requiring neither architectural modifications nor shortcut-group / multi-environment annotations.

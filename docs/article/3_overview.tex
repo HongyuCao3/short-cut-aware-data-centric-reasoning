@@ -1,93 +1,15 @@
 \section{Overview}
 
-% =============================================================================
-% PAPER-LEVEL TODO INDEX  (last updated 2026-04-25, commit after 1a44f69)
-%
-% Each item has a more detailed --TODO-- block at the relevant LaTeX site;
-% this index is the quick map. Cross-refs:
-%   docs/experiments/shortcut_score_followups.qmd  (Gaps 1..6)
-%   docs/experiments/hyperparam_followups.qmd      (Issues 1..3)
-%   docs/experiments/pcgrad_rerun.qmd              (PCGrad / 12-baseline)
-%   docs/experiments/llm_gsm8k.qmd                 (LLM transfer follow-ups)
-%
-% [DONE]   3_overview.tex figure replaced with TikZ method illustration
-%          (figures/sart_method_figure.{tex,png}); original PNG preserved
-%          (figures/short_cut_aware_framework.png is untouched).
-%
-% [OPEN]   §5.2 (sec:exp_detection) — paragraph-level rewrite.
-%          Why open: Gap 4 sweep (commit 1c8e7c8) showed r=0.67 is reproducible
-%          ONLY at Math K=3, never as 3-dataset aggregate; Gap 5 (commit
-%          3e27cf9) showed Reweight-Only's +robustness gain is decoupled from
-%          the score's r calibration. Current §5.2 prose treats r=0.67 as a
-%          stable property and attributes the gain to score-driven correction;
-%          both framings are empirically refuted.
-%          Action: replace the bin-scatter at one cherry-picked state with the
-%          per-dataset r-vs-K curves (results/warmup_sweep.png), and recast
-%          the "F1=0.64 + soft action" account into a "weighted-retraining-
-%          duration" account. This is pure prose work — no GPU needed.
-%
-% [OPEN]   §5.3 (sec:exp_sensitivity) — three hyperparameter follow-ups.
-%          Issue 1: tau_A / tau_R / alpha / beta scale-mismatch.
-%          Issue 2: rho=0.5 (main) vs rho=0.3 (appendix). Decision pending:
-%                   Option A (single default) vs Option B (per-task tuning).
-%          Issue 3: gamma depends on unobservable shortcut compositional
-%                   complexity at deployment.
-%          Issue 2 is the highest-priority one (internal inconsistency that
-%          a referee will flag immediately).
-%
-% [OPEN]   §5 — reproduction gap on Reweight-Only's reported +20.7 pp
-%          robustness vs our K=8 measurement (+8.1 pp). ~2.5x gap unexplained.
-%          Possible causes: lambda tuning, score-pass timing, selection
-%          effects in the original numbers.
-%
-% [OPEN]   Gap 6: full SART (Reweight + Surgery) K-sensitivity sweep.
-%          ----- See longer note in 5_experiment.tex §5.2 TODO block. -----
-%          A "K-sensitivity sweep" varies the warmup-K hyperparameter, runs
-%          the full method end-to-end at each K, and measures the final
-%          accuracy / robustness. The OUTPUT is a metric-vs-K curve. The
-%          PURPOSE here is mechanism diagnosis — does full SART's accuracy
-%          / robustness depend on the score's calibration at that K? — NOT
-%          method selection (we already know the score's calibration is
-%          dataset-specific; recommending one K as a deployment default is
-%          ruled out by Gap 4). Three possible outcomes:
-%            (a) Full SART is K-sensitive in the same way as Reweight-Only:
-%                surgery is also score-independent. The whole "detection +
-%                correction" framing needs deeper revision.
-%            (b) Full SART is K-sensitive in a way that tracks the score's
-%                r at each K: surgery is the load-bearing component, and
-%                the score's calibration matters specifically for surgery
-%                (not for reweight). Method retains its core claim.
-%            (c) Full SART is K-INsensitive (flat curve): both components
-%                decouple from score quality; the gain is purely from
-%                training-time effects, and the paper's narrative around
-%                S(s) needs broad revision.
-%          Cost: ~50 min on a clean H100 NVL (mirrors reweight_only_K_sweep).
-%          Script: copy scripts/reweight_only_K_sweep.py with
-%          use_gradient_surgery=True.
-%
-% [OPEN]   12-baseline rerun under PCGrad-fixed (gamma=1.0, rho=0.3) defaults
-%          (see pcgrad_rerun.qmd; currently SART-only is verified, full
-%          baseline table is not).
-%
-% [OPEN]   LLM transfer follow-ups: numeric-only g_s_ans; hard-cut detection;
-%          larger LoRA/epoch budget on Qwen3-8B GSM8K (llm_gsm8k.qmd).
-%
-% [HOLD]   Gap 3b — figure 2 structural restructure (merge w(s) into panel
-%          (a) as twin axis; reuse panel (c) slot for FP-cell A(s) plot).
-%          On hold pending Gap 6 outcome.
-% =============================================================================
-
 \begin{figure}
     \centering
     \includegraphics[width=\linewidth]{figures/sart_method_figure.png}
     \caption{
-    Overview of SART. (A) Per-sample gradient alignment with validation gradients and answer-token concentration.
-    (B) \textsc{ShortcutScore} combines both signals to flag shortcut-prone samples.
-    (C) Exponential reweighting lowers their magnitude.
-    (D) Conflict-only gradient surgery removes only the component that opposes $\mathbf{g}_{\mathcal{V}}$, preserving validation-aligned directions already present in $\mathbf{g}_s$.
+    Overview of SART. (A) Per-sample gradient alignment with the validation gradient and answer-token concentration form two complementary geometric signals.
+    (B) \textsc{ShortcutScore} combines both signals into a single rank that flags shortcut-prone samples.
+    (D) Conflict-only gradient surgery removes only the component of a flagged sample's gradient that genuinely opposes $\mathbf{g}_{\mathcal{V}}$, preserving validation-aligned directions already present in $\mathbf{g}_s$.
     (E) Updates prioritize reasoning signals over shortcut patterns.
     }
     \label{fig:overview}
 \end{figure}
 
-Figure~\ref{fig:overview} illustrates the two coupled operations behind \textbf{shortcut-aware reasoning training (SART)}: \textsc{ShortcutScore}-based sample reweighting, and conflict-only gradient surgery. Detection reads two gradient signatures---\emph{non-transfer alignment} (low cosine with $\mathbf{g}_{\mathcal{V}}$, signalling updates that reduce loss without improving held-out reasoning) and \emph{answer-gradient concentration} (gradient energy dominated by final-answer tokens rather than intermediate reasoning tokens). Correction acts along two complementary axes: reweighting scales \emph{how much} each sample contributes, while conflict-gated surgery corrects \emph{in which direction} the update proceeds, projecting out only the component that genuinely opposes $\mathbf{g}_{\mathcal{V}}$ (PCGrad-style~\cite{yu2020gradient}) and leaving positively-aligned directions untouched. Section~\ref{sec:method} formalizes each step.
+Figure~\ref{fig:overview} shows the framework of SART including two steps: 1) gradient-structure shortcut detection; 2) conflict-only gradient surgery. In Step~1, each training sample is scored from its gradient geometry alone: a per-sample gradient $\mathbf{g}_s$ and a small validation gradient $\mathbf{g}_{\mathcal{V}}$ together yield two signals---\emph{non-transfer alignment} (low cosine with $\mathbf{g}_{\mathcal{V}}$, signaling updates that reduce loss without improving held-out reasoning) and \emph{answer-gradient concentration} (gradient energy dominated by final-answer tokens rather than intermediate reasoning tokens). The two signals are linearly combined into a unified \textsc{ShortcutScore} that flags shortcut-prone samples without needing shortcut labels or environment splits. In Step~2, every flagged sample undergoes a PCGrad-style~\cite{yu2020gradient} conflict-only projection that removes the component of $\mathbf{g}_s$ which genuinely opposes $\mathbf{g}_{\mathcal{V}}$, while leaving positively-aligned directions inside the same sample untouched; samples not flagged retain their original gradient. The conflict-only gate is the load-bearing design choice: it converts shortcut samples from training liabilities into still-usable supervision, instead of discarding them as data filtering does or shrinking them uniformly as scalar reweighting does. Section~\ref{sec:method} formalizes each step.
