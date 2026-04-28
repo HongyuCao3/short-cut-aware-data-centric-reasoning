@@ -9,7 +9,7 @@ format: html
 
 ## 实验回答的问题
 
-> **Path A 的两路核心机制 —— 检测几何（[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} 作为 selector）与方向修正（[conflict-only projection]{.term data-tip="冲突门控投影 — 只在 g_s · g_V < 0 时把冲突分量从样本梯度里投影掉；保留正向对齐的有用方向。"}）—— 在 8B 量级、自然语言推理任务（GSM8K）上还成立吗？（reweight 已在 Path A 中删除，LLM 实验直接走 Surgery-Only。）**
+> **SART 方法选择上的两根支柱 —— 梯度几何检测（[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} 作为 rank-only selector）与冲突门控的方向修正（[conflict-only projection]{.term data-tip="冲突门控投影 — 只在 g_s · g_V < 0 时把冲突分量从样本梯度里投影掉；保留正向对齐的有用方向。"}） —— 是否都能迁移到 8B 量级 / GSM8K 自然语言推理？还是其中一根会以「指出具体的 autoregressive 工程化补丁」的方式退化？**
 
 ## 这个实验为论文支撑了什么
 

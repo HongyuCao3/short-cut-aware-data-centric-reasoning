@@ -9,7 +9,7 @@ format: html
 
 ## 实验回答的问题
 
-> **[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} 作为 surgery 的样本选择器是否合格？它给出的样本集（$S(s) > \tau_S^*$）在 [$A(s)$]{.term data-tip="非迁移对齐 — A(s)=cos(g_s, g_V)；低 = 该样本梯度不利于真规则泛化。"} 上是否分布出可被 surgery 的 conflict gate 用上的几何？**
+> **[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} 是否能把 shortcut 样本排得足够准、用来生成 surgery 的样本集 $\mathcal{S}^*$？以及——既然 rank 检测必然产出假阳性——逐样本的冲突门控 $\mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}} < 0$ 是不是「方法选择上必须搭配检测的第二级过滤器」，恢复假阳性样本里仍然有用的对齐残差？**
 
 ## 这个实验为论文支撑了什么
 

@@ -9,7 +9,7 @@ format: html
 
 ## 实验回答的问题
 
-> **Surgery-Only 中的两个 sub-step——[conflict-only projection]{.term data-tip="冲突门控投影 — 只在 g_s · g_V < 0 时把冲突分量从样本梯度里投影掉；保留正向对齐的有用方向。"}（应对非迁移对齐）与答案-token 抑制（应对答案集中度）——分别贡献多少？两者是互补还是冗余？**
+> **[conflict-only projection]{.term data-tip="冲突门控投影 — 只在 g_s · g_V < 0 时把冲突分量从样本梯度里投影掉；保留正向对齐的有用方向。"}（带门控的方向修正）是否就是 SART 唯一不可砍的核心组件？方法选择论证里被显式拒绝的两条更简方案——同分数下的标量 reweight（只改 magnitude）与去掉投影的纯答案-token 抑制（去门控的修正）——是否能等价地拿到同样的 robustness 增益？**
 
 ## 这个实验为论文支撑了什么
 

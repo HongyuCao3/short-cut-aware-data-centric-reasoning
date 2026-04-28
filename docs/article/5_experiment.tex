@@ -70,7 +70,7 @@ We noticed that SART tops the per-dataset breakdown on Causal-Reasoning across e
 \subsection{Ablation Study}
 \label{sec:exp_ablation}
 
-\textbf{Ablation Study.} This experiment aims to answer: \textbf{How does each component in SART impact its performance, and is a magnitude-only correction (scalar reweighting) a viable substitute for directional surgery?}
+\textbf{Ablation Study.} This experiment aims to answer: \textbf{Is the conflict-gated directional projection the load-bearing primitive in SART, and do the two simpler corrections our method-selection argument rejects---scalar reweighting on the same \textsc{ShortcutScore} (magnitude-only) and answer-token suppression without projection (gate-free)---recover the same gain?}
 
 We compare SART against variants that remove or replace one component at a time: \textbf{SART-w/o-projection} disables the conflict-only projection and keeps only the answer-token suppression; \textbf{SART-w/o-suppress} sets $\rho{=}0$ and keeps only the conflict-only projection; \textbf{SART-rwt} replaces directional surgery with scalar exponential reweighting $w(s){=}\exp(-\lambda S(s))$ at $\lambda{=}3.0$, holding the detection step fixed.
 
@@ -101,7 +101,7 @@ Table~\ref{tab:ablation} shows that conflict-only projection is the load-bearing
 \subsection{ShortcutScore Validation and Sensitivity}
 \label{sec:exp_detection}
 
-\textbf{Detection Validation.} This experiment aims to answer: \textbf{Is \textsc{ShortcutScore} a usable rank signal for the surgery's selection set, and do the surgery's hyperparameters degrade gracefully across reasoning regimes?}
+\textbf{Detection Validation.} This experiment aims to answer: \textbf{Does \textsc{ShortcutScore} rank shortcut samples accurately enough to drive the surgery's selection set $\mathcal{S}^\star$, and---since rank-based detection necessarily admits false positives---does the per-sample conflict gate $\mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}} < 0$ act as the second filter that recovers their still-aligned signal?}
 
 \begin{figure}[t]
     \centering
@@ -119,7 +119,7 @@ We noticed that \textsc{ShortcutScore} reaches an F1 of 0.82 (Fig.~\ref{fig:anal
 \subsection{Real-World LLM Transfer and Computational Cost}
 \label{sec:exp_llm_transfer}
 
-\textbf{LLM Transfer.} This experiment aims to answer: \textbf{Does the gradient-geometry detection signal transfer to an 8B-class language model under matched controlled shortcut injection, and what scaling work is needed for the correction step?}
+\textbf{LLM Transfer.} This experiment aims to answer: \textbf{Do SART's two design pillars---gradient-geometry detection and conflict-only directional surgery---both transfer to an 8B-class language model under matched controlled injection, or does one of them degrade in a way that pinpoints a concrete scaling adaptation for autoregressive training?}
 
 We test SART on Qwen3-8B + LoRA rank-16 adapters on $q/k/v/o$-proj, with a controlled-injection pilot on GSM8K (70\% sum-of-numbers shortcut relabeling, tested on original-answer splits). \textbf{Findings.} We noticed that \textsc{ShortcutScore} separates injected samples (mean $S{=}0.46$) from clean samples (mean $S{=}0.007$) by more than an order of magnitude, matching the synthetic separation. The underlying driver is that the two geometric signals are properties of the gradient field, not of model scale: a gradient that fails to transfer to held-out validation behaves the same way at 3M and at 8B parameters, modulo the LoRA-subspace projection. Another interesting observation is that, on this 3-epoch LoRA budget, the surgery step does not yet produce a downstream-accuracy gain at 8B: batch-level conflict gating averages clean and shortcut gradients so the gate rarely fires on mixed batches, and answer-token suppression at $\rho{>}0$ destroys autoregressive generation (PPL rises five orders of magnitude). A possible reason is that scaling the surgery to LLMs requires (i) per-sample rather than batch-level conflict gating to expose the per-sample sign, and (ii) restricting answer-token suppression to numeric answer tokens so generation tokens are not suppressed; both directions are concrete follow-ups that do not change the formulation. Appendix~\ref{sec:appendix_llm_transfer} documents the full pilot at 8B.
 
