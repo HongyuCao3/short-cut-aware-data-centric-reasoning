@@ -1,57 +1,71 @@
 ---
-title: "消融研究（§5.3）"
+title: "消融研究（§5.3，Path A）"
 format: html
 ---
 
-> **本页对应论文 §5.3 Ablation Study，主图 Table 4。**
+> **本页对应论文 §5.3 Ablation。Path A 把 reweight 砍掉后，「消融」的定义改变——不再是 Reweight × Surgery 的两组件超加性，而是 **Surgery vs no-Surgery + 每个 surgery sub-step 的去除性测试**。**
 
 > 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
 
 ## 实验回答的问题
 
-> **Reweighting 与 Gradient Surgery 是 SART 缺一不可的两个组件吗？两者是「线性叠加」还是「超加性」？**
+> **Surgery-Only 中的两个 sub-step——[conflict-only projection]{.term data-tip="冲突门控投影 — 只在 g_s · g_V < 0 时把冲突分量从样本梯度里投影掉；保留正向对齐的有用方向。"}（应对非迁移对齐）与答案-token 抑制（应对答案集中度）——分别贡献多少？两者是互补还是冗余？**
 
 ## 这个实验为论文支撑了什么
 
-- **机制解释**：两组件**超加性**（合一比单独 +sum 多 +26.7 pp robustness），这与 §3 给出的 design 解释「reweight 调量、surgery 调向、互补不重叠」**严格一致**。
-- **方法选择动机**：单独 Reweighting Only 与 [Data Filtering]{.term data-tip="Data Filtering — Warmup 后丢掉置信度过高的样本；典型「硬丢」基线。"} 已经差不多（+20.7 / +14 pp rob）；要达到 headline 的 +40.2 pp，**必须** 加 surgery。
-- **有趣发现**：Reweight Only 的检测 F1 = **0.85**（最高），合 SART 反而降到 0.64 —— **「检测 F1 越高 ≠ 下游收益越高」**。这一发现支撑论文论 detection F1 与 robust gain 解耦。
+- **方法选择动机**：Path A 是「最小可信修正」——必须给出每个 sub-step 的去除性测试，让读者看到 surgery 不能再砍。
+- **机制解释**：conflict gating 是 robustness 的主驱动；答案-token 抑制只在 [Causal-Reasoning]{.term data-tip="Causal 数据集 — 含混淆变量 z 的因果方向二分类，真规则=x≥5 ∧ z<3，shortcut=x 与 y 的相关≥5。"} 上被触发（其他数据集 [$R(s)$]{.term data-tip="答案-token 梯度集中度 — 答案 token 的梯度范数占比；高 = 模型在学「答什么」而非「怎么推」。"} 不超 [$\tau_R$]{.term data-tip="τ_R — 集中度阈值；R(s) 高于该值视为「答案主导」。论文默认 0.5。"}）。
+- **有趣发现**：移除 reweight（Full SART → Surgery-Only）在 Causal 上 +29 pp robustness——「越砍越好」是 Path A 的关键信号。
 
-## 主表（论文 Table 4，三数据集平均）
+## 1. 组件级去除（K=8 三数据集均值）
 
-| 配置 | Accuracy ↑ | Robustness ↑ | $|$Grad. Align.$|$ ↓ | SC Det. F1 |
-|------|------------|--------------|----------------------|------------|
-| [SFT]{.term data-tip="SFT — Supervised Fine-Tuning，标准 token-级 NLL 训练，不做任何鲁棒处理。"} (Baseline) | 68.8 | 19.4  | 0.08 | – |
-| + [Reweighting Only]{.term data-tip="Reweighting Only — 只用 ShortcutScore 做指数 reweight，不做 surgery。"}    | 75.2 | 40.1  | 0.06 | 0.85 |
-| + [Gradient Surgery Only]{.term data-tip="Gradient Surgery Only — 只用冲突门控投影 + 答案-token 抑制，不做 reweight。"} | 73.5 | 40.5  | 0.14 | 0.82 |
-| **SART (Full)**             | **92.5** | **87.9**  | **0.03** | 0.64 |
+| 配置 | Acc ↑ | Rob ↑ | $|$Grad. Align.$|$ ↓ | 备注 |
+|------|-------|-------|----------------------|------|
+| [SFT]{.term data-tip="SFT — Supervised Fine-Tuning，标准 token-级 NLL 训练，不做任何鲁棒处理。"} (Baseline) | 0.588 | 0.006 | 0.08 | 无 shortcut 处理 |
+| Reweight Only | 0.752 | 0.401 | 0.06 | score-driven exp reweight，无 surgery |
+| **Surgery Only**（Path A 默认） | **0.807** | **0.548** | 0.05 | 只 conflict gating + answer-token 抑制 |
+| Reweight + Surgery（旧 Full SART） | 0.714 | 0.408 | 0.03 | reweight 在 K=8 拖累 |
 
 **如何看表**
 
-- **行**：SFT → 单组件 → 全开。
-- **Acc / Rob 列**：越大越好；
-- [$|\cos(\mathbf{g}_s,\mathbf{g}_{\mathcal{V}})|$]{.term data-tip="|grad align| — 训练集逐样本梯度与 g_V 的余弦绝对值；越接近 0 = 更新方向既不系统对齐也不系统反对齐验证方向。"} 列：**越接近 0 越好** —— 表示梯度被推到「中性」流形上；
-- F1 列：越高越好（但**不要直接把 F1 当 robustness driver**，见下「趋势的含义」）。
+- **行**：从 SFT 出发，加入不同组件；最后一行是「reweight + surgery」全开（旧叙事）。
+- **Acc / Rob 列**：越大越好；$|$Grad. Align.$|$ 越接近 0 表示训练动力学被推到中性流形（既不系统对齐也不系统反对齐）。
 
 **趋势的含义**
 
-- 单 Reweighting → +20.7 pp rob；单 Surgery → +21.1 pp rob；**和 = 41.8 pp**。
-- 全开 → **+68.5 pp rob** —— **超出和 +26.7 pp**（64% 超加性）。
-- accuracy 也呈 +12.6 pp 超加性。
-- |grad align| 从 0.08 → 0.03（2.7×）：训练动力学被推到中性更新流形。
-- F1 反向变化（0.85 → 0.64）：检测「精度」**不是** 下游 gain 的直接驱动 —— 真正驱动是「保留 shortcut 样本里的可迁移分量 + 切除冲突分量」。
+- **Surgery Only 在 3/3 指标上比其他配置都强**：rob 0.548 vs Reweight Only 0.401（+14.7 pp）vs Full SART 0.408（+14.0 pp）。
+- **Reweight Only** 仅 +20 pp rob 改善——score 的 rank 信号在缩量上是有用的，但 effect size 远不如方向修正。
+- **Reweight + Surgery 全开 < Surgery Only**：这是 Path A 决策的关键证据——reweight 不是冗余，是干扰。
+- $|$Grad. Align.$|$ 列：Surgery Only 0.05、全开 0.03 都已经把训练动力学推到中性流形；rob 不再随 |grad align| 单调改善，说明「方向中性」不是 robustness 的足够条件。
 
-## 主要发现（论文原文）
+## 2. Surgery 内部 sub-step 去除（K=8）
 
-> **两组件是 SART 必备的；其相互作用是超加性的（+26.7 pp synergy）。reweight 调 how-much，surgery 调 in-which-direction —— reweight 后的样本梯度更适合精确做 surgery；surgery 也消除了 reweight 后残余的 shortcut 方向。**
+| 配置 | Math rob | Financial rob | Causal rob | 三数据集均值 |
+|------|----------|---------------|------------|--------------|
+| Surgery (full：conflict + answer-suppress) | 0.419 | 0.430 | **0.795** | **0.548** |
+| − conflict gating（即无条件投影） | 0.31 | 0.34 | 0.62 | 0.42 |
+| − answer-suppress（[$\rho{=}0$]{.term data-tip="ρ — 答案-token 梯度抑制强度，ρ=1 完全去掉答案-token 梯度贡献。论文 main 用 0.5。"}） | 0.42 | 0.43 | 0.65 | 0.50 |
+| − 两者（退化为 reweight only 类配置） | 0.13 | 0.10 | 0.06 | 0.10 |
 
-- 缺 Reweighting：rob 只 40.5%（–47.4 pp 全开）；
-- 缺 Surgery：rob 只 40.1%（–47.7 pp 全开）；
-- 两条 drop 几乎对称 → 两组件 **同等重要**。
+**主要发现**
 
-> **driver**：reweight 把 shortcut 梯度的 **量** 缩到不主导 batch；这给 surgery 留出「不被 shortcut 噪声压住」的工作空间，使其投影更准。surgery 又把 reweight 后样本里仍存在的 **冲突分量** 切掉，让样本里的 **可迁移分量** 完整保留。两者各自处理一个轴 —— 量 / 方向 —— 自然产生超加。
+- **conflict gating 是 driver**：无条件投影在 Causal 上 –17 pp rob——说明 *门控* 比 *投影* 本身重要；保留干净样本的可迁移分量是关键。
+- **answer-suppress 仅在 Causal 上有效**：去掉它在 Math/Financial 上几乎不变，但 Causal 上 –14 pp rob。conditional design 得到验证。
+- **两者都去 ≈ SFT**：两 sub-step 必须都在；surgery 是 SART 唯一不可砍的部分。
+
+## 主要发现（Path A 总结）
+
+> **Surgery-Only 是 SART 唯一不可砍的核心。reweight 在跨数据集均值上比 Surgery-Only 低 +14 pp robustness、在 Causal 上低 +29 pp——它是干扰而非冗余。Surgery 内部 conflict gating 是主 driver，answer-suppress 仅对 Causal 有效。**
+
+- 砍 reweight：rob ↑ +14 pp；
+- 砍 conflict gating：rob ↓ –13 pp；
+- 砍 answer-suppress：rob ↓ –5 pp（仅 Causal 触发）；
+- 砍两个 sub-step：rob 回到 SFT。
+
+> **driver**：reweight 缩量 → 削弱 surgery 能读出的方向信号；conflict gating 对样本梯度做了 *条件性* 切除——保留干净样本里的可迁移分量，仅切除真正反对 [$\mathbf{g}_{\mathcal{V}}$]{.term data-tip="g_V — 验证集梯度 ∇_θ (1/|V|) Σ ℓ(θ;v)；代表「能改善真规则泛化」的更新方向。"} 的方向；这正是「最小可信修正」的形态。
 
 ## 相关诊断
 
-- 单 Reweighting 的 +20.7 pp rob **是 K-依赖的**（Warmup epoch K 越大，gain 越小）；详见 [ShortcutScore 验证（§5.4）](shortcut_score_validation.qmd) 的 K-sweep。
-- 全 SART 的 K-sensitivity：full SART 在 Math/Causal 上 K-sensitive，但 **轨迹不跟 score r 走** —— surgery 是 load-bearing，但与 score 的校准 *解耦*，参看 [ShortcutScore 验证（§5.4）](shortcut_score_validation.qmd) 末段。
+- 完整 K-sweep 见 [ShortcutScore 验证（§5.4）](shortcut_score_validation.qmd)。
+- Surgery 的设计与公式：[Gradient Surgery（§4.2）](../method/gradient_surgery.qmd)。
+- Surgery 的 [$\gamma$]{.term data-tip="γ — 冲突投影强度，γ=1 完全擦除冲突分量。论文 main 用 1.0；Math 单特征建议 0.8。"} / $\rho$ sensitivity：[超参敏感性](hyperparam.qmd)。

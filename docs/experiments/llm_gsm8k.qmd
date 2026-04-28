@@ -9,7 +9,7 @@ format: html
 
 ## 实验回答的问题
 
-> **SART 的两路核心机制 —— 检测几何（[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"}）与方向修正（[conflict-only projection]{.term data-tip="冲突门控投影 — 只在内积 < 0 时才执行投影，避免把已经对齐的有用方向也擦掉。"}）—— 在 8B 量级、自然语言推理任务（GSM8K）上还成立吗？**
+> **Path A 的两路核心机制 —— 检测几何（[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} 作为 selector）与方向修正（[conflict-only projection]{.term data-tip="冲突门控投影 — 只在 g_s · g_V < 0 时把冲突分量从样本梯度里投影掉；保留正向对齐的有用方向。"}）—— 在 8B 量级、自然语言推理任务（GSM8K）上还成立吗？（reweight 已在 Path A 中删除，LLM 实验直接走 Surgery-Only。）**
 
 ## 这个实验为论文支撑了什么
 
@@ -39,17 +39,17 @@ format: html
 
 - $\rho > 0$ → autoregressive 生成 PPL **升 5 个数量级**：原因是答案 token 也要预测下一个 prefix，把答案-token 梯度抑制 = 把生成监督关掉。
 - batch 级 [conflict-only projection]{.term data-tip="冲突门控投影 — 只在内积 < 0 时才执行投影，避免把已经对齐的有用方向也擦掉。"}：在 mixed batch 上，clean 与 shortcut 梯度被 batch-average 中和 → $\mathbf{g}_{\text{batch}}^\top \mathbf{g}_{\mathcal{V}} \approx 0$ 而不显著为负 → 门几乎不触发。
-- 提升到 **per-sample gating** 修复 batch 平均假象，但 accuracy 仍 track SFT；高 [$\lambda$]{.term data-tip="λ — 指数 reweighting 强度；越大 → shortcut 样本被压得越狠。论文默认 3.0。"}（5）也没继续涨。
+- 提升到 **per-sample gating** 修复 batch 平均假象，但 accuracy 仍 track SFT。
 
-> **结论**：**检测信号迁移；修正信号在 8B / 3-epoch LoRA 配置下没有把 accuracy 推上去**。
+> **结论**：**检测信号迁移；修正信号在 8B / 3-epoch LoRA 配置下没有把 accuracy 推上去**。Path A 在 LLM 端的状态：检测 OK、修正待 follow-up；reweight 已在 synthetic 端被砍掉，LLM 也不再尝试 reweight。
 
 ### (3) 三条具体后续
 
 | 修复 | 直觉 |
 |------|------|
 | 把 $\mathbf{g}_s^{\mathrm{ans}}$ 限制到 *数字* 答案 token | 让 $\rho>0$ 不杀生成，仅抑制 number-only 蓄意 shortcut |
-| **hard-cut detection**：高 $S(s)$ 直接零权 | 检测信号有了，但 soft reweight 在 LoRA 3-epoch 预算下不够强 |
-| 更大 LoRA / epoch budget | 现 budget 下 reweight + surgery 都 under-trained |
+| **hard-cut detection**：高 $S(s)$ 直接零权（对应 Surgery-Only 的 hard selector） | 检测信号有了，但 surgery 的 conflict gate 在 batch 级被平均 wash 掉，必须 per-sample |
+| 更大 LoRA / epoch budget | 现 budget 下 surgery 自身 under-trained |
 
 ## 主要发现（论文原文）
 

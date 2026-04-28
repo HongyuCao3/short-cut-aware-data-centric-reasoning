@@ -1,33 +1,33 @@
 ---
-title: "ShortcutScore（§4.1）"
+title: "ShortcutScore（§4.1，作为样本选择器）"
 format:
   html:
     toc: true
     code-fold: true
 ---
 
-> **本页对应论文 §4.1 ShortcutScore-Based Sample Reweighting。**
+> **本页对应论文 §4.1。在 Path A（Surgery-Only）下，[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} 的角色是 [Gradient Surgery]{.term data-tip="梯度手术 — PCGrad 风格的逐样本梯度修正：仅当 g_s · g_V < 0 时才把 g_s 的冲突分量投影掉。"} 的 *样本选择器*——不再驱动指数 reweight。**
 
 > 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
 
-## 1. 为什么需要 ShortcutScore：标准 ERM 的失灵
+## 1. 角色变更：从「reweight 信号」到「sample selector」
 
-标准 ERM 把所有样本看作等权，对 shortcut **盲**——shortcut 样本把 token-级 loss 降得很快，所以反而被 SGD 优先学习。代价是：
+| 维度 | 旧（reweight + surgery） | 新（Path A：Surgery-Only） |
+|------|--------------------------|----------------------------|
+| 输出 | 连续权重 $w(s) = \exp(-\lambda S(s))$ | 二元 flag：$S(s) > \tau_S^*$ 入 surgery 集 |
+| 作用 | 缩样本梯度的量 | 决定 surgery 是否在该样本上启用 |
+| 超参 | $\alpha,\beta,\tau_A,\tau_R,\lambda$ | $\alpha,\beta,\tau_A,\tau_R$（**$\lambda$ 不再存在**） |
+| 实证支撑 | K-sweep 上 $r$ 与 +rob 解耦 | 用作 selector 时不需要 calibrated $r$，rank 信号足矣 |
 
-- 模型获得 **what to answer**（答案-token 记忆）；
-- 在分布偏移、数字扰动、措辞改写下 robustness 大跌。
+> **直觉**：score 给样本 *排序*，surgery 切除 *方向*。score 不需要校准；它只需要把「梯度方向有问题的样本」排在前面，剩下的让 surgery 的冲突门控自己决定要不要触发。
 
-> **直觉**：要从 *梯度行为* 而不是 *loss 值* / *标签* 识别 shortcut——shortcut 样本的两条几何信号是：(1) 与 $\mathbf{g}_{\mathcal{V}}$ 不对齐；(2) 梯度能量集中在最终答案 token。
-
-## 2. 形式化
+## 2. 形式化（与论文 §4.1 一致）
 
 ### Step 1 — 非迁移对齐 $A(s)$
 
 [$\mathbf{g}_s$]{.term data-tip="g_s — 样本 s 的逐样本梯度 ∇_θ ℓ(θ;s)。"} = $\nabla_\theta \ell(\theta;s)$，[$\mathbf{g}_{\mathcal{V}}$]{.term data-tip="g_V — 验证集梯度 ∇_θ (1/|V|) Σ ℓ(θ;v)；代表「能改善真规则泛化」的更新方向。"} = $\nabla_\theta \frac{1}{|\mathcal{V}|}\sum_{v\in\mathcal{V}}\ell(\theta;v)$。
 
-[$A(s)$]{.term data-tip="非迁移对齐 — A(s)=cos(g_s, g_V)；低 = 该样本梯度不利于真规则泛化。"} = $\cos(\mathbf{g}_s, \mathbf{g}_{\mathcal{V}})$ = $\dfrac{\mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}}}{\|\mathbf{g}_s\|\,\|\mathbf{g}_{\mathcal{V}}\|}$。
-
-> $A(s)$ 低 → 该样本的更新方向不向真规则泛化迁移。
+[$A(s)$]{.term data-tip="非迁移对齐 — A(s)=cos(g_s, g_V)；低 = 该样本梯度不利于真规则泛化。"} = $\cos(\mathbf{g}_s, \mathbf{g}_{\mathcal{V}}) = \dfrac{\mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}}}{\|\mathbf{g}_s\|\,\|\mathbf{g}_{\mathcal{V}}\|}$。
 
 ### Step 2 — 答案-token 梯度集中度 $R(s)$
 
@@ -41,35 +41,28 @@ $$
 
 > **退化情形**：当样本只有答案监督（$T_{\mathrm{reason}} = \emptyset$，例如 LLM 上的 answer-only labels），令 $R(s) := \tau_R$，使 $S(s)$ 优雅退化到纯对齐分。
 
-### Step 3 — ShortcutScore 与指数 reweight
+### Step 3 — ShortcutScore 与样本选择
 
 $$
-S(s) = \alpha\,\max(0,\,\tau_A - A(s)) + \beta\,\max(0,\,R(s) - \tau_R)
+S(s) = \alpha\,\max(0,\,\tau_A - A(s)) + \beta\,\max(0,\,R(s) - \tau_R).
 $$
 
-- [$\tau_A$]{.term data-tip="τ_A — 对齐阈值；A(s) 低于该值视为「非迁移」。论文默认 0.3。"} 是「视为非迁移」的对齐阈值，默认 0.3；
-- [$\tau_R$]{.term data-tip="τ_R — 集中度阈值；R(s) 高于该值视为「答案主导」。论文默认 0.5。"} 是「视为答案主导」的集中度阈值，默认 0.5；
-- [$\alpha,\beta$]{.term data-tip="α, β — ShortcutScore 中两项 (1−A) 与 R 的相对权重；论文默认 α=β=1.0。"} 把两项加权合一，默认 $\alpha=\beta=1.0$。
+- [$\tau_A$]{.term data-tip="τ_A — 对齐阈值；A(s) 低于该值视为「非迁移」。论文默认 0.3。"} 是对齐阈值，默认 0.3；
+- [$\tau_R$]{.term data-tip="τ_R — 集中度阈值；R(s) 高于该值视为「答案主导」。论文默认 0.5。"} 是集中度阈值，默认 0.5；
+- [$\alpha,\beta$]{.term data-tip="α, β — ShortcutScore 中两项 (1−A) 与 R 的相对权重；论文默认 α=β=1.0。"} 默认均 1.0。
 
-样本权重：[$w(s)$]{.term data-tip="样本权重 — w(s)=exp(−λ S(s))；ShortcutScore 高 → 权重小 → 梯度贡献被压缩。"} = $\exp(-\lambda S(s))$。 [$\lambda$]{.term data-tip="λ — 指数 reweighting 强度；越大 → shortcut 样本被压得越狠。论文默认 3.0。"} 默认 3.0；越大 shortcut 样本被压得越狠。
-
-### Reweighted 目标
-
-$$
-\min_\theta \frac{1}{N}\sum_{i=1}^{N} w(s_i)\,\ell(\theta;s_i),\quad
-\theta_{t+1} = \theta_t - \eta \sum_{s\in\text{batch}} w(s)\,\nabla_\theta \ell(\theta;s).
-$$
+**Surgery 工作集**：$\mathcal{S}^* = \{s : S(s) > \tau_S^*\}$，其中 $\tau_S^*$ 取 F1 最大值（实证 ≈ 0.0；详见 [ShortcutScore 验证（§5.4）](../experiments/shortcut_score_validation.qmd) 主图 (b)）。
 
 ## 3. 实现要点
 
-- **gV refresh**：每隔 [$k=5$ 步 refresh validation gradient]{.term data-tip="g_V refresh — 每隔 k 步重算一次 g_V；变化比 θ 慢，不必每步都算。"} — 比每 step 都重算便宜得多，且 $\mathbf{g}_{\mathcal{V}}$ 比 $\theta$ 变化慢得多。
-- **逐样本梯度**：用 [LoRA]{.term data-tip="Low-Rank Adaptation — Hu 等 2022，仅训练注入到大模型中的低秩适配器；逐样本梯度只在 LoRA 上计算，省内存。"} 限制可训参数，每样本梯度从 $|\theta| \approx 28$ GB 缩到 32 MB；可选地用 [Johnson–Lindenstrauss sketch]{.term data-tip="JL sketch — 固定种子的随机投影，维持任意一对向量的内积/余弦在 ε 误差内；用来压缩梯度。"} 把 $A(s)$ 的内积保持在 $\varepsilon$ 误差内 — 详见 [LLM 工程优化](vram_reduction.qmd)。
-- **Warmup**：评分 / 投影都在 [$K$]{.term data-tip="K — Warmup 阶段 epoch 数；reweighting 与 surgery 在 K 之后才生效。论文默认 max(5, epochs/6)。"} 个 epoch 的 SFT warmup 之后才开始 — 给 $\mathbf{g}_{\mathcal{V}}$ 一段稳定方向的时间。
+- **gV refresh**：每隔 [$k=5$ 步刷新 validation gradient]{.term data-tip="g_V refresh — 每隔 k 步重算一次 g_V；变化比 θ 慢，不必每步都算。"}（synthetic）/ 每 epoch 一次（LLM）。
+- **逐样本梯度**：用 [LoRA]{.term data-tip="Low-Rank Adaptation — Hu 等 2022，仅训练注入到大模型中的低秩适配器；逐样本梯度只在 LoRA 上计算，省内存。"} 限制可训参数；可选 [Johnson–Lindenstrauss sketch]{.term data-tip="JL sketch — 固定种子的随机投影，维持任意一对向量的内积/余弦在 ε 误差内；用来压缩梯度。"} 把内积保持在 $\varepsilon$ 误差内（详见 [LLM 工程优化](vram_reduction.qmd)）。
+- **Warmup**：scoring + surgery 都在 [$K$]{.term data-tip="K — Warmup 阶段 epoch 数；surgery 在 K 之后才生效。论文 Path A 默认 K=8。"} 个 SFT epoch 之后才开始；Path A 默认 $K=8$（[ShortcutScore 验证（§5.4）](../experiments/shortcut_score_validation.qmd) 给出 K-sensitivity）。
 
-## 4. 与「丢样本」类方法的关键差别
+## 4. score 是 rank 信号、不是 calibration（实证）
 
-[Data Filtering]{.term data-tip="Data Filtering — Warmup 后丢掉置信度过高的样本；典型「硬丢」基线。"} 把 $S(s)$ 高的样本 **整个丢掉**；ShortcutScore 只是 **缩量**。
+- [shortcut_score_validation](../experiments/shortcut_score_validation.qmd) 主图 (a)：3-数据集聚合下 $r_\mathrm{bin} = -0.75$、$r_\mathrm{sample} = -0.07$（论文先前的 $r=+0.67$ 是 Math K=3 这一 cell 的属性，不是稳定性质）。
+- 主图 (b)：F1=0.82, $\tau_S^* = 0.0$；TP/FP 在 $A(s)$ 上分布有重叠 → 检测精度有限，但 surgery 的冲突门控会进一步过滤——它只在 $\mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}} < 0$ 时才触发。
+- → 把 score 当 **rank-only** 用足够；calibration 失败 / sign flip 不影响 surgery 的输出方向。
 
-> **driver**：shortcut 样本里也含正向对齐分量；硬丢损失训练信号；soft reweight + 配合 surgery 才能保留这部分。
-
-实证：[消融研究](../experiments/ablation.qmd) 显示单独 Reweighting Only +20.7 pp robustness，单独 Surgery Only +21.1 pp，合一后 **+68.5 pp**——超出二者之和 +26.7 pp。检测 F1 = 0.64（[Data Filtering]{.term data-tip="Data Filtering — Warmup 后丢掉置信度过高的样本；典型「硬丢」基线。"} = 0.69），但 SART 的 accuracy 反超 Data Filtering +17.8 pp——**「检测准确率不是直接 driver」**，参看 [ShortcutScore 验证（§5.4）](../experiments/shortcut_score_validation.qmd)。
+> **driver**：surgery 的 *门控* 才是真正的 sieve；score 只是个粗筛。所以 score 不准、reweight 解耦——这两件事一致地指向「砍 reweight」。

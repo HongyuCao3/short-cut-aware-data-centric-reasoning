@@ -1,27 +1,30 @@
 ---
-title: "Gradient Surgery（§4.2）"
+title: "Gradient Surgery（§4.2，方法的唯一修正器）"
 format:
   html:
     toc: true
     code-fold: true
 ---
 
-> **本页对应论文 §4.2 Gradient Surgery for Shortcut Suppression。**
+> **本页对应论文 §4.2 Gradient Surgery for Shortcut Suppression。在 Path A（Surgery-Only）下，[Gradient Surgery]{.term data-tip="梯度手术 — PCGrad 风格的逐样本梯度修正：仅当 g_s · g_V < 0 时才把 g_s 的冲突分量投影掉。"} 是 SART 唯一的修正机制——不再 reweight。**
 
 > 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
 
-## 1. 为什么 reweight 不够：方向 vs 量
+## 1. 为什么 surgery 单独成立
 
-[Reweighting]{.term data-tip="Reweighting — 用 w(s)=exp(−λ S(s)) 缩小 shortcut 样本的梯度量；不动方向。"} 把 shortcut 样本的梯度 **量** 压小，但不动 **方向**——即使被缩到 1% 的 shortcut 梯度，仍可能把模型推离 $\mathbf{g}_{\mathcal{V}}$。两类有害分量：
+K-sweep 实证（[消融研究](../experiments/ablation.qmd) 与 [ShortcutScore 验证](../experiments/shortcut_score_validation.qmd)）显示：
 
-- (i) 与 [$\mathbf{g}_{\mathcal{V}}$]{.term data-tip="g_V — 验证集梯度 ∇_θ (1/|V|) Σ ℓ(θ;v)；代表「能改善真规则泛化」的更新方向。"} **冲突** 的方向（$\cos<0$）；
-- (ii) **答案-token 主导** 的方向（$R(s)>\tau_R$）。
+- Surgery-Only 在 [Causal-Reasoning]{.term data-tip="Causal 数据集 — 含混淆变量 z 的因果方向二分类，真规则=x≥5 ∧ z<3，shortcut=x 与 y 的相关≥5。"} 上 K=8 robustness $= 0.795$；
+- 同 K 下加上 reweight 的 full SART robustness $= 0.505$；
+- 差距 **+29 pp**，方向是 **去掉 reweight 反而更好**；
+- Math 上 surgery K=8 robustness $= 0.419$，full SART K=8 $= 0.301$（**+11.8 pp**）；
+- → reweight 不是 driver，甚至在某些 (K, dataset) 上 *拖累* surgery；删掉它得到更小、更稳的方法。
 
-> **直觉**：把 shortcut 梯度看作两路有害分量 + 一路可迁移分量的叠加；surgery 的目标是 **只切除有害分量，保留可迁移分量**——和 continual learning 里「flat region」概念是一类思路。
+> **直觉**：reweight 把样本梯度的 *量* 缩小后，其方向上的信息也被一并削弱；surgery 单独工作时反而能拿到 1.0-权重的、未被压缩的梯度方向供它判断与投影。这与「surgery 调向、reweight 调量」的 design 推断不一致——实证上 reweight 不只是冗余，是干扰。
 
 ## 2. Step 1：冲突门控投影（应对非迁移对齐）
 
-对被标为 shortcut（$A(s)<\tau_A$）的样本：
+对被标为 shortcut（[$A(s)$]{.term data-tip="非迁移对齐 — A(s)=cos(g_s, g_V)；低 = 该样本梯度不利于真规则泛化。"} $< \tau_A$）的样本：
 
 $$
 \mathbf{g}_s' =
@@ -37,42 +40,46 @@ $$
 
 为什么不能无条件投影？
 
-- 若 $\mathbf{g}_s$ 与 $\mathbf{g}_{\mathcal{V}}$ 已经正向对齐（即 shortcut 样本里的可迁移分量），无条件投影会把 **这部分有用方向** 也擦掉。
+- 若 $\mathbf{g}_s$ 与 $\mathbf{g}_{\mathcal{V}}$ 已经正向对齐（即 shortcut-flagged 样本里残留的可迁移分量），无条件投影会把 **这部分有用方向** 也擦掉。
 - 这就是 SART 不丢样本、采用 [conflict-only projection]{.term data-tip="冲突门控投影 — 只在内积 < 0 时才执行投影，避免把已经对齐的有用方向也擦掉。"} 的本质原因。
 
-> 投影后 $\mathbf{g}_s'^\top \mathbf{g}_{\mathcal{V}} \geq 0$ —— 即所有 shortcut 样本的更新都不再 *反对* 验证泛化方向。
+> 投影后 $\mathbf{g}_s'^\top \mathbf{g}_{\mathcal{V}} \geq 0$ —— 即所有 surgery-集 样本的更新方向都不再 *反对* 验证泛化方向。
 
 ## 3. Step 2：答案-token 抑制（应对答案集中）
 
-对集中度高（$R(s)>\tau_R$）的样本，把 $\mathbf{g}_s$ 沿 token 维度分解为 $\mathbf{g}_s^{\mathrm{ans}}$（答案 token 部分）+ $\mathbf{g}_s^{\mathrm{reason}}$（推理 token 部分），抑制答案分量：
+对集中度高（[$R(s)$]{.term data-tip="答案-token 梯度集中度 — 答案 token 的梯度范数占比；高 = 模型在学「答什么」而非「怎么推」。"} $> \tau_R$）的样本，把 $\mathbf{g}_s$ 沿 token 维度分解为 $\mathbf{g}_s^{\mathrm{ans}}$（答案 token）+ $\mathbf{g}_s^{\mathrm{reason}}$（推理 token），抑制答案分量：
 
 $$
 \mathbf{g}_s'' = (1 - \rho)\,\mathbf{g}_s^{\mathrm{ans}} + \mathbf{g}_s^{\mathrm{reason}}.
 $$
 
-[$\rho$]{.term data-tip="ρ — 答案-token 梯度抑制强度，ρ=1 完全去掉答案-token 梯度贡献。论文 main 用 0.5。"} ∈ [0,1] 越大抑制越强；$\rho=1$ 完全去掉答案-token 梯度，强迫模型只从推理 token 学。
+[$\rho$]{.term data-tip="ρ — 答案-token 梯度抑制强度，ρ=1 完全去掉答案-token 梯度贡献。论文 main 用 0.5。"} ∈ [0,1] 越大抑制越强；$\rho=1$ 完全去掉答案-token 梯度。
 
-> **生成警告**：在自回归 LLM 上 $\rho>0$ **会破坏生成**（PPL 升 5 个数量级）——答案 token 监督是生成必备的；这是 [LLM 迁移（§5.5）](../experiments/llm_gsm8k.qmd) 给出的边界结论。
+> **生成警告**：在自回归 LLM 上 $\rho > 0$ **会破坏生成**（PPL 升 5 个数量级）；这是 [LLM 迁移（§5.5）](../experiments/llm_gsm8k.qmd) 给出的边界结论。在 LLM 上推荐 $\rho = 0$，使 surgery 退化为纯冲突门控投影。
 
-## 4. 合成更新规则
+## 4. 合成更新规则（Path A）
 
 每个 step：
 
-1. 先做 [Reweighting]{.term data-tip="Reweighting — 用 w(s)=exp(−λ S(s)) 缩小 shortcut 样本的梯度量；不动方向。"}：每样本梯度乘以 $w(s)$；
-2. 再做 surgery — 先 Step 1（冲突门控投影），再 Step 2（答案-token 抑制）；
-3. 累加成 batch 梯度，走标准 optimizer step。
+1. **检测**：用 [ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} flag $\mathcal{S}^* = \{s : S(s) > \tau_S^*\}$；
+2. **修正**：对 $\mathcal{S}^*$ 中的样本依次应用 Step 1（冲突门控投影）、Step 2（答案-token 抑制）；其他样本梯度不动；
+3. **聚合**：所有样本梯度 **按 1.0 权重** 累加成 batch 梯度（无 reweight）；
+4. **更新**：标准 optimizer step。
 
-surgery 与 reweight **互不打架**：surgery 是在「已 reweight 的梯度」上做的，所以它的强度自动随权重缩放，不需要额外的 minimax 内层。
-
-[$\mathbf{g}_{\mathcal{V}}$]{.term data-tip="g_V — 验证集梯度 ∇_θ (1/|V|) Σ ℓ(θ;v)；代表「能改善真规则泛化」的更新方向。"} 每隔 [$k$ 步刷新]{.term data-tip="g_V refresh — 每隔 k 步重算一次 g_V；变化比 θ 慢，不必每步都算。"}（synthetic：5；LLM：每 epoch 一次），保证投影方向不过时。
+[$\mathbf{g}_{\mathcal{V}}$]{.term data-tip="g_V — 验证集梯度 ∇_θ (1/|V|) Σ ℓ(θ;v)；代表「能改善真规则泛化」的更新方向。"} 每隔 [$k$ 步刷新]{.term data-tip="g_V refresh — 每隔 k 步重算一次 g_V；变化比 θ 慢，不必每步都算。"}（synthetic：5；LLM：每 epoch），保证投影方向不过时。
 
 ## 5. 实证支持
 
-- 单独 Surgery Only：+4.7 pp acc / +21.1 pp robustness（消融研究）；
-- Reweight + Surgery 全开：+23.7 pp acc / +68.5 pp robustness — **超出二者之和 +26.7 pp**；
-- $|\cos(\mathbf{g}_s,\mathbf{g}_{\mathcal{V}})|$ 从 SFT 的 0.08 → SART 的 0.03（2.7×）：训练动力学几乎被推到「与 $\mathbf{g}_{\mathcal{V}}$ 既不系统对齐也不系统反对齐」的中性更新流形上。
+| 设置 | Math acc / rob | Financial acc / rob | Causal acc / rob |
+|------|----------------|----------------------|-------------------|
+| SFT | 0.759 / 0.000 | 0.495 / 0.000 | 0.511 / 0.019 |
+| Full SART (Reweight + Surgery) K=8 | 0.823 / 0.301 | 0.711 / 0.417 | 0.607 / 0.505 |
+| **Surgery-Only K=8** | 0.829 / **0.419** | 0.699 / **0.430** | 0.893 / **0.795** |
+| Δ vs Full SART | +0.6 / **+11.8** | −1.2 / **+1.3** | **+28.6 / +29.0** |
 
-> 其他证据：[消融研究（§5.3）](../experiments/ablation.qmd) 的 ablation 表 + grad-alignment 列；[超参敏感性（§5.4）](../experiments/hyperparam.qmd) 揭示 [$\gamma$]{.term data-tip="γ — 冲突投影强度，γ=1 完全擦除冲突分量。论文 main 用 1.0；Math 单特征建议 0.8。"} 应随 shortcut 复合度上调。
+> **driver**：surgery 是 SART 唯一 load-bearing 的组件；删掉 reweight 后 robustness 在所有数据集上不掉、Causal 上大幅上涨。Path A 的方法表面更窄，但 *实证* 支撑更稳——这是「最小可信修正」的胜利。
+
+完整 K-sweep 见 [results/surgery_only_K_sweep.json](../../results/surgery_only_K_sweep.json) / [results/full_sart_K_sweep.json](../../results/full_sart_K_sweep.json)。
 
 ## 6. 与 PCGrad 的关系
 
@@ -80,5 +87,5 @@ surgery 与 reweight **互不打架**：surgery 是在「已 reweight 的梯度�
 
 - **不是多任务**：单任务，但对每个 *样本* 与「验证集这个共同目标」做 PCGrad-style 投影。
 - **门控**：仅在样本梯度 *反对* 验证梯度时才投影（PCGrad 默认对所有冲突 pair 投影）。
-- **配合 ShortcutScore**：投影只对 $A(s)<\tau_A$ 的样本生效——干净样本不动。
+- **配合 ShortcutScore selector**：投影只对 $S(s) > \tau_S^*$ 的样本生效——干净样本不动。
 - **答案-token 维度**：PCGrad 没有 token 维度的考虑；SART 在第二步处理这个独有的 LLM 推理特征。

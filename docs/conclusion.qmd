@@ -1,5 +1,5 @@
 ---
-title: "结论与展望（§7）"
+title: "结论与展望（§7，Path A）"
 format: html
 ---
 
@@ -7,26 +7,31 @@ format: html
 
 > 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
 
-## 1. 一段话总结
+## 1. 一段话总结（Path A）
 
-> **LLM 的 shortcut 不是数据问题，是训练信号错配。SART 从梯度几何识别 shortcut（[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"}），通过指数 reweight 缩量、[conflict-only projection]{.term data-tip="冲突门控投影 — 只在内积 < 0 时才执行投影，避免把已经对齐的有用方向也擦掉。"} 改向，在三个合成基准上把最强基线打掉 +16.5 pp acc / +40.2 pp robustness（两组件超加 +26.7 pp）；检测几何在 Qwen3-8B / GSM8K 上完整迁移。**
+> **LLM 的 shortcut 不是数据问题，是训练信号错配。SART 从梯度几何识别 shortcut（[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} 作为 rank-only sample selector），用 [conflict-only projection]{.term data-tip="冲突门控投影 — 只在 g_s · g_V < 0 时把冲突分量从样本梯度里投影掉；保留正向对齐的有用方向。"} 校正方向；reweight 在 K-sweep 上被证明是干扰，已删除。Path A 的 SART 只剩「检测 + 修正」两步：在 Causal-Reasoning K=8 上 robustness 0.795（+29 pp 超 Reweight + Surgery 全开版），三数据集均值 robustness 54.8%；检测几何在 Qwen3-8B / GSM8K 上完整迁移，修正待 per-sample 工程化。**
 
 ## 2. 局限（论文 §7 Limitations）
 
 ### (i) [$\mathbf{g}_{\mathcal{V}}$]{.term data-tip="g_V — 验证集梯度 ∇_θ (1/|V|) Σ ℓ(θ;v)；代表「能改善真规则泛化」的更新方向。"} 被当作 ground truth
 
-- 若 $\mathcal{V}$ 自身被同一 shortcut 污染：[conflict-only projection]{.term data-tip="冲突门控投影 — 只在内积 < 0 时才执行投影，避免把已经对齐的有用方向也擦掉。"} 会 **加强** shortcut 而不是抑制。
+- 若 $\mathcal{V}$ 自身被同一 shortcut 污染：[conflict-only projection]{.term data-tip="冲突门控投影 — 只在 g_s · g_V < 0 时把冲突分量从样本梯度里投影掉；保留正向对齐的有用方向。"} 会 **加强** shortcut 而不是抑制。
 - **缓解**：人工审核或反事实 probe 构造 $\mathcal{V}$。
 
 ### (ii) 答案-token 抑制可能伤合法学习
 
 - 当答案 token 本身就是主要监督信号（短输出 / 分类 / 噪声推理链），$\rho > 0$ 反而压制有用信号。
-- **缓解**：no-CoT fallback —— 当 $T_{\mathrm{reason}} = \emptyset$ 时令 [$R(s)$]{.term data-tip="答案-token 梯度集中度 — 答案 token 的梯度范数占比；高 = 模型在学「答什么」而非「怎么推」。"} = $\tau_R$，让抑制项静音；运行时监控 token-level loss。
+- **缓解**：no-CoT fallback —— 当 $T_{\mathrm{reason}} = \emptyset$ 时令 [$R(s)$]{.term data-tip="答案-token 梯度集中度 — 答案 token 的梯度范数占比；高 = 模型在学「答什么」而非「怎么推」。"} = $\tau_R$，让抑制项静音；运行时监控 token-level loss；LLM 上 **Path A 默认 $\rho=0$**。
 
 ### (iii) 单一验证目标的多模式风险
 
 - 把样本判为「shortcut-prone」是一个 **针对固定 $\mathcal{V}$ 目标** 的判决；多模式监督（多种合法解法 / 多条 CoT）下，错配的 $\mathcal{V}$ 可能让模型坍缩到单一模式，erasing 合法多样性。
 - **缓解**：在 open-ended generation 任务上构造 **diverse $\mathcal{V}$**；SART 最适合 canonical reasoning path 的任务。
+
+### (iv) Path A 的 K 选择对 Causal 敏感
+
+- Surgery-Only 在 Causal 上 K=3 robustness 0.275、K=8 上 0.795、K=30 上 0.227——**仅 K=8 cell 给出 0.795 这个 headline**。
+- **缓解**：K 不是「per-task 调参」（论文 main 用 fixed K=8）；但 deployment 时若数据集分布与 Causal 类似（含混淆变量），需要 K-sweep 选最优 K。
 
 ## 3. 展望（论文 §7 Future Work）
 
@@ -41,10 +46,14 @@ format: html
 
 - $|\mathcal{V}|$ 与 「shortcut-consistent fraction in $\mathcal{V}$」 的敏感性分析；
 - conflict-only projection 在何种条件下保持优化稳定性的理论分析；
-- 自适应 $(\gamma, \rho)$ 调度（不同 phase / 不同 batch / 不同 token）。
+- 自适应 $(\gamma, \rho)$ 调度（不同 phase / 不同 batch / 不同 token）；
+- 数据集相关的 K 自适应（不依赖 Causal-style 验证集）。
 
-## 4. 与论文叙事的开放点
+## 4. Path A 决策的依据
 
-> **一致性：headline $(\gamma=1.0, \rho=0.5)$ vs Appendix 推荐 $(\gamma=1.0, \rho=0.3)$ 是 internal inconsistent**。需要在投稿前定调（Option A：单 default $\rho=0.3$；vs Option B：把 per-task tuning admitted into headline table）。详见 [超参敏感性](experiments/hyperparam.qmd)。
+> **Path A 的批准（2026-04-26）由两条经验依据驱动：**
+>
+> 1. **K-sweep 实证**：reweight gain 与 score $r$ 解耦；与 surgery 同启用时在跨数据集均值与 Causal 单点均输（[消融研究](experiments/ablation.qmd) / [ShortcutScore 验证](experiments/shortcut_score_validation.qmd)）。
+> 2. **最小性原则**：能砍则砍。reweight 不是必要、不是稳定 driver，所以不留。
 
-> **K-sensitivity：score r 与 robustness gain 不同方向**。这一发现 **不削弱 headline 数字**，但要求论文 §5.4 的「+detection F1 → +robustness」叙事改写为「surgery 是 load-bearing；score 提供必要的 rank 信号给 surgery 选样本」。详见 [ShortcutScore 验证](experiments/shortcut_score_validation.qmd) 末段。
+> **driver**：方法表面收窄到「检测 + 修正」后，每一部分都有独立实证支撑（score → selector，surgery → corrector）；论文 §5.4 不再需要为「F1=0.64 + soft action 给出 +rob」这一已被 K-sweep 推翻的叙事辩护。

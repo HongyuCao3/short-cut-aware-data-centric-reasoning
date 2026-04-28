@@ -1,69 +1,66 @@
 ---
-title: "ShortcutScore 验证（§5.4）"
+title: "ShortcutScore 验证（§5.4，2-panel + K-sweep）"
 format: html
 ---
 
-> **本页对应论文 §5.4 ShortcutScore Validation and Sensitivity（Figure 3 部分）。配图 [`figure3.png`](../figures/figure3.png) + 方法 K-sweep 诊断 [`reweight_K_sweep.png`](../figures/reweight_K_sweep.png) / [`full_sart_K_sweep.png`](../figures/full_sart_K_sweep.png) / [`surgery_only_K_sweep.png`](../figures/surgery_only_K_sweep.png) / [`warmup_sweep.png`](../figures/warmup_sweep.png)。**
+> **本页对应论文 §5.4。Path A 把 Figure 3 的 panel (c) 砍掉——reweight curve $w(s)=e^{-\lambda S(s)}$ 在 Surgery-Only 下不再是方法的一部分。剩余两 panel 验证 [ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} 作为 surgery sample selector 的几何性质。**
 
 > 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
 
 ## 实验回答的问题
 
-> **[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"} 是不是一个有效的 shortcut 检测信号？它的检测 F1 与下游 robustness gain 是不是同方向？**
+> **[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} 作为 surgery 的样本选择器是否合格？它给出的样本集（$S(s) > \tau_S^*$）在 [$A(s)$]{.term data-tip="非迁移对齐 — A(s)=cos(g_s, g_V)；低 = 该样本梯度不利于真规则泛化。"} 上是否分布出可被 surgery 的 conflict gate 用上的几何？**
 
 ## 这个实验为论文支撑了什么
 
-- **机制解释**：S(s) 是 **rank** 信号 —— 它把 shortcut 样本与干净样本在 $A(s)$ 上分到不同区段（shortcut 偏负，干净围绕 0）；指数 reweight 把这个 rank 信号转成连续权重。
-- **方法选择动机**：为什么不用「F1 最高」的硬丢策略？答：因为 SART 的 +acc 来自 **soft 而不是 hard** —— Reweight Only 的 F1 = 0.85（高过 [Data Filtering]{.term data-tip="Data Filtering — Warmup 后丢掉置信度过高的样本；典型「硬丢」基线。"} 的 0.69），但全开 SART 的 F1 反而降到 0.64，accuracy 却提了 17.8 pp。
-- **有趣发现**：在 K-sweep 上，Reweight-Only 的 robustness gain 与 score $r$ **方向相反** —— Causal 上 $r$ 从 +0.24 (K=3) 升到 +0.87 (K=30)，**robustness gain 反而降**（+13.8 pp → +1.9 pp）。**score 的校准对 reweight gain 不是 load-bearing 的。**
+- **方法选择动机**：score 不需要 calibrated（$r$ 大）；它只要把 shortcut 样本排在前面，剩下交给 surgery 的门控。Path A 把 score 重定位为 *rank-only selector*。
+- **机制解释**：图中 panel (a) 的 $r_\mathrm{bin}=-0.75$ 与论文先前宣称的 $r=+0.67$ 反向——揭示 score 的 sign 在 full-budget 训练上翻转；panel (b) 显示 TP/FP 在 $A(s)$ 上 *几乎完全重叠*，只靠 score 二分类不够，必须依赖 surgery 自己的 conflict gating（$\mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}} < 0$）做二次过滤。
+- **有趣发现**：score 的 calibration（$r$）在 K-sweep 上 *与* downstream gain 解耦——对 reweight 是负相关，对 surgery 是无关；这是 Path A 把 reweight 砍掉的关键经验依据。
 
-## 主图（论文 Figure 3）
+## 主图（Path A：2-panel）
 
-![**ShortcutScore 检测几何**：(a) S(s) 与真 shortcut 比例的分箱散点（Pearson r=0.67），单调；(b) shortcut 样本（红）与干净样本（绿）在 A(s) 上的分布，shortcut 偏负，干净围绕 0；(c) λ=3.0 的指数 reweight 曲线（schematic）。](../figures/figure3.png)
+![**Path A 版 Figure 3**：(a) S(s) 与 shortcut rate 的分箱散点 — $r_\mathrm{bin}=-0.75$，符号与论文先前 $r=+0.67$ 反向，揭示 score 在 full-budget 收敛时符号翻转；(b) F1 最优阈值 $\tau_S^*=0.0$ 下 4-cell 拆分（TP/FP 重叠严重，FN=1）。Reweight curve panel 已删除——Surgery-Only 不需要 reweight。](../figures/figure3.png)
 
 **如何看图**
 
-- **(a) 横轴 = bin-aggregated shortcut rate**；**纵轴 = 该 bin 中 S(s) 的均值**；点 = 20 个分箱中心；$r=0.67$ 是 bin-mean 间的 Pearson 系数。
-- **(b) 横轴 = $A(s)$**；**纵轴 = 频次**；红色 = ground-truth shortcut 样本；绿色 = 干净样本。
-- **(c) 横轴 = $S(s)$**；**纵轴 = $w(s) = \exp(-\lambda S(s))$**；曲线为 schematic。
+- **(a) 横轴 = ShortcutScore $S(s)$**；**纵轴 = is_shortcut / 该 bin 中 shortcut 占比**；20 bin 中心点 + 红色线性拟合；灰色点是 30,000 样本的 raster。
+- **(b) 横轴 = $A(s)$**；**纵轴 = 频次密度**；TP（红，n=21,061，shortcut 样本被 flag）+ FP（橙，n=8,938，干净样本被误 flag）+ FN（紫，n=1，shortcut 样本未 flag）。
 
 **趋势的含义**
 
-- (a) 单调正相关 → S(s) 确实是 **rank** 信号；不是「噪声 + 阈值」。
-- (b) 红/绿分布在 $A(s)<0$ 区域有显著差距 → 检测确实从几何上分开了 shortcut。
-- (c) reweight 曲线把高 S(s) 样本压得更狠 → **量** 这一维度被 shortcut-感知地处理。
+- (a) **斜率为负**：full-budget 训练上 score 与 shortcut rate **反向相关**（高 score → 低 shortcut 概率）；这与论文宣称的 $r=+0.67$ 矛盾，但符号符合 [project_score_sign_flip](memory:project_score_sign_flip)：在 reduced budget 上 $+0.51$，full budget 上翻转到 $-0.75$。
+- → score 的 *绝对值* 没有方向意义；它的 **rank 排序** 是 Path A 真正使用的信号。
+- (b) **TP / FP 在 $A(s)$ 上几乎重叠**：单靠 $S(s) > 0$ 二分类，FP 数量是 TP 的 42%——score selector 的 precision 中等。但这不致命：surgery 的 conflict gate 只在 $\mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}} < 0$ 时才触发（FP 上 39%、TP 上更高），相当于 **二次过滤**。
+- → score-rank + surgery-gate 串联起来，比单一 score 二分类更鲁棒。
 
-## 主要发现（论文原文）
+## K-sensitivity 诊断
 
-> **ShortcutScore 平均 F1 = 0.64，比 Data Filtering 的 0.69 略低；但 SART 的 accuracy 比 Data Filtering 高 +17.8 pp —— 因为 SART 不丢样本，而是 soft reweight + 投影出方向，shortcut 样本里的可迁移分量被保留。**
+为给「score 校准是否 load-bearing」一个直接证据，对 [Reweight Only]{.term data-tip="Reweighting Only — 只用 ShortcutScore 做指数 reweight，不做 surgery；Path A 已废弃。"}、[Surgery Only]{.term data-tip="Surgery Only — 只用冲突门控投影 + 答案-token 抑制，无 reweight；Path A 默认。"}、Full SART 都做了 K-sweep（K = warmup epoch 数）：
 
-- F1 = 0.64 是 50 阈值扫描中的最佳值；
-- 主图 (b) 显示 shortcut 样本的 $A(s)$ 中心在 $\sim -0.2$，干净样本在 $\sim 0$；判别面足够分；
-- 但 F1 不是 robustness 的直接 driver（见下文 K-sensitivity）。
+![**Warmup-K 上 score 的 r**：3 数据集分别看 Pearson r 随 K 的曲线；Math 仅在 K=3 复现 r=+0.67，3 数据集聚合 r 长期落在 [-0.2, +0.2]。](../figures/warmup_sweep.png)
 
-## K-sensitivity 诊断（warmup K 扫描）
+![**Reweight Only K-sweep**：robustness gain 随 K 单调下降；Causal 上 K=3→K=30 的 r 从 +0.24 升到 +0.87，rob gain 反而 +13.8 pp → +1.9 pp（与 r 反向）。](../figures/reweight_K_sweep.png)
 
-为了诊断「score 校准是不是 load-bearing」，对 [Reweight Only]{.term data-tip="Reweighting Only — 只用 ShortcutScore 做指数 reweight，不做 surgery。"}、[Surgery Only]{.term data-tip="Gradient Surgery Only — 只用冲突门控投影 + 答案-token 抑制，不做 reweight。"}、Full SART 都做了 K-sweep（K = warmup epoch 数）：
+![**Surgery Only K-sweep**：Causal K=8 robustness 0.795（Path A headline）；Math K=8 robustness 0.419；Financial 三 K 都在 0.42 附近——surgery 在 Math/Causal 上 K-sensitive 但与 r 解耦。](../figures/surgery_only_K_sweep.png)
 
-![**Warmup-K 上 score 的 r**：3 数据集分别看 Pearson r 随 K 的曲线；Math 仅在 K=3 复现 r=0.67，3 数据集聚合 r 长期落在 [-0.2, +0.2]。](../figures/warmup_sweep.png)
-
-![**Reweight Only 的 K-sweep**：robustness gain 随 K 单调下降；Causal 上 K=3→K=30 的 r 从 +0.24 升到 +0.87，robustness gain 反而 +13.8 pp → +1.9 pp。](../figures/reweight_K_sweep.png)
-
-![**Surgery Only 的 K-sweep**：robustness gain 在 Math 上 K=8 接近 +30 pp；surgery 在 Math/Causal 是 load-bearing，但与 score r 解耦。](../figures/surgery_only_K_sweep.png)
-
-![**Full SART 的 K-sweep**：Math/Causal 上 K-sensitive 但轨迹不跟 score r 走；Causal K=8 SO + Reweight 全开达到 robustness 0.795。](../figures/full_sart_K_sweep.png)
+![**Full SART K-sweep（reweight + surgery）**：Causal K=8 仅 0.505 robustness，远不如 Surgery Only 同 K 下的 0.795；reweight 在 Path A 决策中被淘汰的核心证据。](../figures/full_sart_K_sweep.png)
 
 **趋势的含义**
 
-- $r=0.67$ 是 **Math K=3** 这一个 cell 的属性，不是 S(s) 在 3 数据集上的稳定属性 → 论文 Figure 3 (a) 的曲线 cherry-picks 一个 K。
-- Reweight-Only 的 robustness gain 随 K **单调递减**；高 K 下 r 反而更高 → score 的校准 **不是** reweight gain 的 load-bearing。
-- Surgery 是真正 load-bearing 的组件（Math 上单独 K=8 即可达 +30 pp rob），但其 K-依赖也不跟 score r 走。
-- 全 SART 在 Causal K=8 达到 robustness 0.795 —— 比全 SART 默认配置高 +29 pp。
+- **score 的 r 在 K 上不稳定**：Math 仅 K=3 复现 +0.67，3 数据集聚合 r ∈ [−0.2, +0.2] → score 是 **rank**，不是 calibrated。
+- **Reweight gain ⊥ score r**：高 K 下 score r 更高，但 reweight gain 反而更小 → reweight 不是从 score 校准里取信号。
+- **Surgery K-sensitive but ⊥ r**：surgery 的最优 K 因数据集而异（Math K=8、Causal K=8），但与 score r 没有 monotonic 关系——surgery 从 *门控* 获利，不从 *排序* 获利。
+- **Full SART < Surgery Only**：在所有数据集 K=8 cell 上，加 reweight 比不加更差或持平——reweight 是干扰。
 
-> **driver**：score 把样本 *排序*；reweight 把高排名样本 *缩量*；surgery 把高排名样本里 *与 $\mathbf{g}_{\mathcal{V}}$ 冲突的方向* 切掉。**真正的 robustness 来自 surgery 的方向修正，不是 score 的精准排序。** F1 / r 的高低与 +rob 没有 monotonic 关系；这正是消融表里 Reweight Only 的 F1 = 0.85 但合 SART 后 F1 = 0.64 的原因。
+> **driver**：score 给样本排序、surgery 的门控决定何时执行；二者都不依赖「score 校准准确」。Path A 删 reweight 之后，方法的实证 pattern 反而更整洁——score 是 selector、surgery 是 corrector，两者职责清晰。
 
-## 与 main 表的衔接
+## 主要发现
 
-- 主结果（[§5.2](main.qmd)）的 +16.5 pp acc / +40.2 pp rob：headline 数字对应 default $\gamma=1.0,\ \rho=0.5$；
-- score 不是 driver 这一发现 **不削弱 headline**：(a) S(s) 仍是必要的 rank 信号给 surgery 选样本；(b) surgery 的 robust gain 才是 load-bearing 部分；
-- 这一发现解释了 [LLM 迁移（§5.5）](llm_gsm8k.qmd) 中的现象：检测信号清晰迁移到 8B（$\bar S_{\mathrm{shortcut}}=0.46$ vs $\bar S_{\mathrm{clean}}=0.007$，60×），但 batch-平均把 surgery 的 conflict gating 压住，accuracy 没动 —— 与本页结论吻合：**reweight 的 + 是 small 的；surgery 才是 + 的主体**。
+> **Path A 改写：S(s) 是 surgery 的 rank-only sample selector；F1=0.82 / $\tau_S^*=0.0$；TP/FP 在 A(s) 上重叠严重，但被 surgery 的 conflict gate（$g_s^\top g_V<0$）做了二次过滤。reweight 在 K-sweep 上与 score r 反向、与 surgery 同启用时拖累 robustness——故被砍。**
+
+- panel (a)：$r_\mathrm{bin} = -0.75$、$r_\mathrm{sample} = -0.07$，sign flip vs 论文 $+0.67$ 是 K-cell artifact；
+- panel (b)：F1=0.82、TP-FP 重叠 → 单 score 二分类不够、需要 surgery gate 二次筛；
+- K-sweep：reweight gain ⊥ r、surgery 在 Causal K=8 拿 rob 0.795；
+- 综合：Path A 的方法只剩 score-selector + surgery-corrector，每一部分都有独立实证支撑。
+
+> 关联诊断：[消融研究](ablation.qmd)（删掉 reweight 与 surgery 内部 sub-step 去除）；[超参敏感性](hyperparam.qmd)（[$\gamma$]{.term data-tip="γ — 冲突投影强度，γ=1 完全擦除冲突分量。论文 main 用 1.0；Math 单特征建议 0.8。"} / $\rho$ scaling）；[LLM 迁移](llm_gsm8k.qmd)（检测信号迁移到 8B，但 surgery 形态需调整）。

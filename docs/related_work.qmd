@@ -30,11 +30,11 @@ bibliography: references.bib
 - **Influence-function filter** [@koh2020understandingblackboxpredictionsinfluence]：估计样本对验证集的影响，丢掉影响最负的；硬丢，丢掉了样本里的正向分量。
 - **PCGrad** [@yu2020gradient]：多任务学习里把任务梯度间冲突方向投影掉；本身不是为 shortcut 设计的。
 
-> **SART 的位置**：把这些线条 **统一在「shortcut-aware reasoning training」** 的目标下：
+> **SART Path A 的位置**：把这些线条 **统一在「shortcut-aware reasoning training」** 的目标下：
 >
-> - 检测：用 **逐样本 vs 验证** 的对齐 + **答案-token vs 推理-token** 的梯度集中度合一为 [ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"}；
-> - 缩量：soft reweight 而非硬丢；
-> - 改向：[PCGrad]{.term data-tip="PCGrad (Yu et al. 2020) — 多任务学习里通过把任务梯度投影到彼此正交方向来化解冲突的算法。"} 风格的 [conflict-only projection]{.term data-tip="冲突门控投影 — 只在内积 < 0 时才执行投影，避免把已经对齐的有用方向也擦掉。"} —— 而不是无条件投影；
+> - 检测：用 **逐样本 vs 验证** 的对齐 + **答案-token vs 推理-token** 的梯度集中度合一为 [ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"}，作为 surgery 的 *rank-only* 样本选择器；
+> - 改向：[PCGrad]{.term data-tip="PCGrad (Yu et al. 2020) — 多任务学习里通过把任务梯度投影到彼此正交方向来化解冲突的算法。"} 风格的 [conflict-only projection]{.term data-tip="冲突门控投影 — 只在 g_s · g_V < 0 时把冲突分量从样本梯度里投影掉；保留正向对齐的有用方向。"} —— 而不是无条件投影；
+> - **不 reweight**：早期 SART 把 reweight 作为第三步；K-sweep 实证后被砍掉，方法的最简形态只剩 selector + corrector；
 > - **不需要** shortcut 标注，**不需要** 多环境划分，**不需要** 辅助 meta-network。
 
 ## 4. 与各路方法的对比清单

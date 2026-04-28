@@ -35,17 +35,19 @@ format: html
 
 > **gap 句**：既有方法 **要么只在推理时打补丁，要么需要外部标注，要么只读 scalar loss**——都没有在 「训练动力学 × 梯度几何」 这个交叉点上工作。
 
-## 4. SART 的两点洞察
+## 4. SART 的两点洞察（Path A）
 
 > **关键洞察**：shortcut 样本的梯度有两个可识别的几何特征。
 
 - **(1) 非迁移对齐**：[$A(s)$]{.term data-tip="非迁移对齐 — A(s)=cos(g_s, g_V)；低 = 该样本梯度不利于真规则泛化。"} = $\cos(\mathbf{g}_s,\mathbf{g}_{\mathcal{V}})$ 偏低甚至为负；该样本的更新方向**不能改善真规则验证集**。
 - **(2) 答案-token 集中**：[$R(s)$]{.term data-tip="答案-token 梯度集中度 — 答案 token 的梯度范数占比；高 = 模型在学「答什么」而非「怎么推」。"} 偏高；梯度能量集中在最终答案 token，模型在学「答什么」而非「怎么推」。
 
-把这两路信号合成一个标量 [ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"} $S(s)$，再做两件事：
+把这两路信号合成一个标量 [ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} $S(s)$，作为 surgery 的 **样本选择器**：
 
-- **缩量**：以 [$w(s)$]{.term data-tip="样本权重 — w(s)=exp(−λ S(s))；ShortcutScore 高 → 权重小 → 梯度贡献被压缩。"} = $\exp(-\lambda S(s))$ 给样本指数 reweight；
-- **改向**：用 [conflict-only projection]{.term data-tip="冲突门控投影 — 只在内积 < 0 时才执行投影，避免把已经对齐的有用方向也擦掉。"} 把和 $\mathbf{g}_{\mathcal{V}}$ 真正冲突的方向投影掉，**保留正向对齐的有用分量**。
+- $S(s) > \tau_S^*$ 的样本进入 surgery 工作集；
+- 用 [conflict-only projection]{.term data-tip="冲突门控投影 — 只在 g_s · g_V < 0 时把冲突分量从样本梯度里投影掉；保留正向对齐的有用方向。"} 把和 $\mathbf{g}_{\mathcal{V}}$ 真正冲突的方向投影掉，**保留正向对齐的有用分量**。
+
+> **Path A 决策**：早期 SART 还有第三步「指数 reweight」（$w(s)=e^{-\lambda S(s)}$ 缩量）；K-sweep 实证显示 reweight 与 score 校准解耦、与 surgery 同启用时反而拖累 robustness（Causal K=8 −29 pp）。**所以方法砍到只剩「检测 + 修正」两步**；详见 [方法总览](method/overview.qmd)。
 
 ## 5. 方法预览
 

@@ -55,9 +55,9 @@ format:
 
 ## 5. 实证（论文 §5.5 + 附录）
 
-- Qwen3-8B + LoRA / GSM8K 上：[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"} 把注入 shortcut 样本（$\bar S=0.46$）与干净样本（$\bar S=0.007$）分离 60×——**检测几何完整迁移到 8B**；
-- 但是 **生成端有边界**：$\rho>0$ 会破坏生成（PPL 升 5 个数量级），所以 LLM 上推荐用 $\rho=0$ 的纯冲突门控变体，参看 [LLM 迁移（§5.5）](../experiments/llm_gsm8k.qmd)。
-- 计算预算：synthetic 每数据集 $\sim$60 s（Apple M），$\sim$3 min（H100 NVL）；约为 [SFT]{.term data-tip="SFT — Supervised Fine-Tuning，标准 token-级 NLL 训练，不做任何鲁棒处理。"} 的 **2.5×**。
+- Qwen3-8B + LoRA / GSM8K 上：[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} 把注入 shortcut 样本（$\bar S=0.46$）与干净样本（$\bar S=0.007$）分离 60×——**检测几何完整迁移到 8B**；
+- 但是 **生成端有边界**：$\rho>0$ 会破坏生成（PPL 升 5 个数量级），所以 LLM 上 Path A 推荐用 $\rho=0$ 的纯冲突门控变体，参看 [LLM 迁移（§5.5）](../experiments/llm_gsm8k.qmd)。
+- 计算预算：synthetic 每数据集 $\sim$60 s（Apple M），$\sim$3 min（H100 NVL）；约为 [SFT]{.term data-tip="SFT — Supervised Fine-Tuning，标准 token-级 NLL 训练，不做任何鲁棒处理。"} 的 **2.5×**（Path A 砍掉 reweight 后开销不变——主要 overhead 仍来自 score 的 backward）。
 
 ## 6. 何时该选别的代理
 

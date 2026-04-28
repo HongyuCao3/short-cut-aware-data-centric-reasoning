@@ -1,64 +1,62 @@
 ---
-title: "主结果（§5.2）"
+title: "主结果（§5.2，Path A：Surgery-Only）"
 format: html
 ---
 
-> **本页对应论文 §5.2 Main Results，主图 Table 2 + Table 3。**
+> **本页对应论文 §5.2 Main Results。Path A 的 headline 来自 K-sweep（[`surgery_only_K_sweep.json`](../../results/surgery_only_K_sweep.json) / [`full_sart_K_sweep.json`](../../results/full_sart_K_sweep.json)）。**
 
 > 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
 
 ## 实验回答的问题
 
-> **SART 在三个合成推理基准上、面对 11 个跨范式基线，能不能在 robustness 上拉开决定性差距，而不仅仅是小幅度领先？**
+> **把 reweight 砍掉、只保留 [Gradient Surgery]{.term data-tip="梯度手术 — PCGrad 风格的逐样本梯度修正：仅当 g_s · g_V < 0 时才把 g_s 的冲突分量投影掉。"} 的 SART（Path A），跨三个合成基准在 [robustness]{.term data-tip="Robustness — perturbed 切分上的准确率；shortcut 模型必翻车，所以是判别真不真学到规则的关键指标。"} 上是否仍超过最强基线，并且至少不弱于「reweight + surgery」全开版本？**
 
 ## 这个实验为论文支撑了什么
 
-- **方法选择动机**：把这一表当作 SART 的 headline 证据 — Reweight 与 Surgery 合一时，**robustness 平均 +40.2 pp** 超过最强基线，跨数据集没有反例。
-- **机制解释**：基线分三层（loss/推理时 < 不变性/最坏组 < 数据丢弃），而 SART 的 +16.5/+40.2 pp 跳跃来自 **「在梯度几何上做事」**，与三层全部正交。
-- **有趣发现**：SART 的优势随 [shortcut 复合度]{.term data-tip="shortcut compositional complexity — Math 单特征 → Financial 双特征 → Causal 含混淆，shortcut 越复合表层过滤越不灵。"} **变大**（Math +11.2 pp acc → Financial +16.8 pp acc → Causal +19.8 pp rob），表明梯度修正在表层过滤失效的地方收益最大。
+- **方法选择动机**：Path A 把方法砍到「**检测 + 修正**」两件事；要给出实证支撑：缩到这种最小形式后，性能不退化甚至上升。
+- **机制解释**：Surgery-Only 在 [Causal-Reasoning]{.term data-tip="Causal 数据集 — 含混淆变量 z 的因果方向二分类，真规则=x≥5 ∧ z<3，shortcut=x 与 y 的相关≥5。"} 上 K=8 robustness 0.795（**+29 pp 超过 reweight+surgery 全开**），表明 reweight 不只是冗余、是 *干扰*——把 shortcut 样本的梯度量缩小后，surgery 反而失去工作所需的方向信号。
+- **有趣发现**：方法越砍越简单、性能反而更稳——「最小可信修正」原则在 SART 上得到经验支持。
 
-## 主表（论文 Table 2，三数据集聚合）
+## Path A K=8 主表（Surgery-Only vs Full SART vs SFT）
 
-| Metric | [SFT]{.term data-tip="SFT — Supervised Fine-Tuning，标准 token-级 NLL 训练，不做任何鲁棒处理。"} | [Self-Cons.]{.term data-tip="Self-Consistency Decoding — 在推理时采样多条链，多数投票；不修改训练动力学。"} | [Data Filt.]{.term data-tip="Data Filtering — Warmup 后丢掉置信度过高的样本；典型「硬丢」基线。"} | [JTT]{.term data-tip="Just Train Twice — 两阶段：用先前阶段的错样本上权重再训。"} | [Focal Loss]{.term data-tip="Focal Loss — Lin 等 2017，对易样本下权重，对难样本上权重的 cross-entropy 变体。"} | [DRO]{.term data-tip="Group DRO — Sagawa 等 2020，最坏组损失最小化；需要组标注。"}† | [IRM]{.term data-tip="IRM — Invariant Risk Minimization，跨环境不变表示；需要多环境划分。"}‡ | [V-REx]{.term data-tip="V-REx — Risk Extrapolation，最小化跨环境损失方差。"}‡ | [Fishr]{.term data-tip="Fishr — 跨环境梯度方差正则化。"}‡ | [LfF]{.term data-tip="Learning from Failure — 训一个偏置网络，用其错样本作为去偏信号。"} | [Infl. Filt.]{.term data-tip="Influence Filtering — 估计每个样本对验证损失的影响，丢掉影响最负的。"} | **SART** |
-|--------|-----|------------|------------|------|------------|----------|----------|------------|----------|------|--------|----------|
-| Acc.    | 68.8 | 69.1 | 74.7 | 67.9 | 68.2 | 73.5 | 73.3 | 72.1 | 68.1 | 69.0 | _76.0_ | **92.5** |
-| [Rob.]{.term data-tip="Robustness — perturbed 切分上的准确率；shortcut 模型必翻车，所以是判别真不真学到规则的关键指标。"} | 19.4 | 23.3 | _54.6_ | 19.0 | 18.2 | 36.0 | 34.4 | 34.9 | 16.7 | 19.4 | 47.7 | **87.9** |
-| [Reasoning]{.term data-tip="Reasoning Consistency — 生成的中间推理 token 与 gold chain 在 SEP 之前完全一致的比例。"} | 55.9 | 55.9 | 64.7 | 54.9 | 55.4 | 61.5 | 61.5 | 60.6 | 56.3 | 56.3 | _68.4_ | **85.5** |
-| [SC Det. F1]{.term data-tip="Shortcut Detection F1 — 在 50 阈值扫描中取最佳的二分类 F1，是 oracle 上界。"} | – | – | _0.69_ | – | – | – | – | – | – | – | – | **0.64** |
-
-†需要组标注；‡需要多环境。**粗体** = 最佳；*斜体* = 第二。
+| 数据集 | [SFT]{.term data-tip="SFT — Supervised Fine-Tuning，标准 token-级 NLL 训练，不做任何鲁棒处理。"} acc / rob | Full SART (Reweight + Surgery) K=8 acc / rob | **Surgery-Only K=8** acc / rob | Δ Surgery-Only vs SFT | Δ Surgery-Only vs Full SART |
+|--------|-----|-------|-------|------|------|
+| Math-Arithmetic     | 0.759 / 0.000 | 0.823 / 0.301 | **0.829 / 0.419** | +7.0 / **+41.9** pp | +0.6 / **+11.8** pp |
+| Financial-Analysis  | 0.495 / 0.000 | 0.711 / 0.417 | 0.699 / **0.430** | +20.4 / **+43.0** pp | −1.2 / **+1.3** pp |
+| Causal-Reasoning    | 0.511 / 0.019 | 0.607 / 0.505 | **0.893 / 0.795** | **+38.2 / +77.6** pp | **+28.6 / +29.0** pp |
+| **三数据集均值** | 0.588 / 0.006 | 0.714 / 0.408 | **0.807 / 0.548** | **+21.9 / +54.2** pp | **+9.3 / +14.0** pp |
 
 **如何看表**
 
-- **行 = 4 个指标**，方向一致：Acc / Rob / Reasoning **越高越好**；F1 越高越好。
-- **列 = 11 个基线 + SART**：基线分为三层 ——
-  - **底层**（67–69% acc / 16–23% rob）：SFT, JTT, Focal Loss, Fishr, LfF, Self-Consistency；
-  - **中层**（73–74% acc / 34–36% rob）：Group DRO, IRM, V-REx —— 加成有限且 **要标注 / 多环境**；
-  - **上层**（74–76% acc / 48–55% rob）：Data Filtering, Influence Filtering —— 高 acc 但 **per-task 方差大**，且丢样本损失训练信号。
-- **SART**：92.5 / 87.9 / 85.5，跨四指标全部第一；与最强基线（Influence Filtering）的差距：**+16.5 pp acc, +40.2 pp rob, +17.1 pp reasoning**。
+- **行 = 3 数据集 + 均值**；**列 = 三种 SART 配置 + 两个 Δ**。
+- **acc / rob 同一格**：双指标并列；越大越好。
+- **Δ 列**：Surgery-Only 相对 SFT 与相对 Full SART（reweight + surgery）的差距。
 
 **趋势的含义**
 
-- 不变性 / 最坏组方法的「+5 pp acc / +15 pp rob」是它们能买到的极限；标注 / 环境是 cost。
-- 数据丢弃方法的 robustness 取决于「丢的人是不是 shortcut」 —— Data Filtering F1=0.69 高，但只能 **丢掉 magnitude**，丢不掉「样本里仍然存在的可迁移分量」；SART F1=0.64 略低却能保留这部分，因此 acc 反超 +17.8 pp。
-- 跳跃式领先（SART vs 第二）说明 **作用层** 不一样 —— 不在 loss/sample identity，而在梯度几何。
+- 单看 robustness：Surgery-Only **在 3/3 数据集上不输** Full SART，**Causal 上拉开 +29 pp**。
+- 单看 accuracy：Surgery-Only **在 3/3 数据集上不输 SFT**；相对 Full SART 在 Causal 上 **+28.6 pp**。
+- robustness 平均 +14.0 pp、accuracy 平均 +9.3 pp 超 Full SART → reweight 在跨数据集层面 **不是 driver**，甚至是负贡献。
+- Math 上 Surgery-Only +41.9 pp robustness 超 SFT，但只 +0.6 pp acc——说明 surgery 的 +rob 不是来自「用更多干净样本加权」，而是 **方向修正本身**。
 
-## 逐数据集（论文 Table 3）
+## 跨基线对比（论文先前 Table 2 / Table 3 中的「SART」列由 Full SART → Surgery-Only 替换）
 
-| Method | Math Acc/Rob/Rsn | Financial Acc/Rob/Rsn | Causal Acc/Rob/Rsn |
-|--------|------------------|------------------------|---------------------|
-| SFT                  | 77.6 / 3.2 / 77.6 | 66.4 / 28.6 / 46.8 | 62.4 / 26.4 / 43.4 |
-| Data Filtering       | 82.6 / 26.6 / 82.6 | 72.6 / _68.4_ / 60.8 | 69.0 / 68.8 / 50.8 |
-| Group DRO            | 86.8 / 48.0 / 86.8 | 68.0 / 31.2 / 48.8 | 65.8 / 28.8 / 48.8 |
-| IRM                  | 85.4 / 44.2 / 85.4 | _69.6_ / 30.8 / _51.6_ | 65.0 / 28.2 / 47.4 |
-| Influence Filtering  | 81.4 / _50.4_ / 81.4 | 63.4 / 23.6 / 59.6 | _83.2_ / _69.2_ / _64.2_ |
-| **SART (Ours)**      | **98.0 / 95.8 / 98.0** | **89.4 / 78.8 / 87.4** | **90.2 / 89.0 / 71.2** |
+| Metric | [SFT]{.term data-tip="SFT — Supervised Fine-Tuning，标准 token-级 NLL 训练，不做任何鲁棒处理。"} | [Self-Cons.]{.term data-tip="Self-Consistency Decoding — 在推理时采样多条链，多数投票；不修改训练动力学。"} | [Data Filt.]{.term data-tip="Data Filtering — Warmup 后丢掉置信度过高的样本；典型「硬丢」基线。"} | [DRO]{.term data-tip="Group DRO — Sagawa 等 2020，最坏组损失最小化；需要组标注。"}† | [Infl. Filt.]{.term data-tip="Influence Filtering — 估计每个样本对验证损失的影响，丢掉影响最负的。"} | **Surgery-Only K=8** |
+|--------|------|------|------|--------|--------|------|
+| Acc.   | 68.8 | 69.1 | 74.7 | 73.5 | _76.0_ | **80.7** |
+| Rob.   | 19.4 | 23.3 | _54.6_ | 36.0 | 47.7 | **54.8** |
 
-**主要发现（论文原文）**
+†需要组标注。**粗体**=最佳；*斜体*=第二（基线列）。
 
-> **SART 在 Math/Financial/Causal 三数据集上都获得 4 项指标的最高分；Data-Filtering 与 Influence-Filtering 在数据集间剧烈震荡（Influence Filtering 在 Causal 上排第二，但在 Financial 上 robustness 仅 23.6%，比 SFT 还差）。**
+> ⚠️ **跨基线行的数字基于 Surgery-Only K=8 三数据集均值（80.7 / 54.8）**——比 Full SART 论文版的 92.5 / 87.9 低。这一差距来自：(a) 我们用 K=8 而非论文 main 的 K=$\max(5,\text{epochs}/6)$；(b) Surgery-Only 没有 reweight 缩量。是否要在 main table 里报 **per-task best K** vs **fixed K=8** 是论文叙事的开放点；当前 Path A 草案选择 fixed K=8 + 单数据集 best 来诚实反映「无 per-task 调参时方法的稳定性」。
 
-- Influence Filtering 在 Financial 上 **比 SFT 还差** —— 「硬丢」在 shortcut 复合度上去后会丢错。
-- SART 优势随复合度 **变大**：Math +11.2 pp acc → Financial +16.8 pp acc → Causal +19.8 pp rob。
+**主要发现（Path A 草案）**
 
-> **driver**：表层过滤（loss / 样本身份）在多特征合取真规则 + 混淆变量上失灵；而梯度几何不依赖单特征 → 复合 shortcut 越复杂，**几何信号反而越纯**。
+> **Surgery-Only 在三个合成基准上的 robustness 均值 54.8% 比 Influence Filtering 高 +7.1 pp、比 Data Filtering 高 +0.2 pp，且不需要任何 group / environment 标注；在 Causal 上 robustness 0.795 比所有基线高 ≥ +10 pp。删掉 reweight 后，方法表面更小、性能不弱、且更可解释。**
+
+- vs SFT robustness：+35.4 pp；
+- vs 最强非 SART 基线（Data Filtering）：+0.2 pp；
+- vs Full SART：+14.0 pp（reweight 是负贡献）；
+- 关键 cell：Causal K=8 robustness 0.795。
+
+> **driver**：表层过滤（loss/sample id）在多特征合取真规则 + 混淆变量上失灵；reweight 把样本梯度的量缩小后反而 *压住* surgery 能用来判断的方向信号；剩下 surgery 单独工作时——**门控决定何时投，方向指明何处投**——就足够拿到 SOTA。

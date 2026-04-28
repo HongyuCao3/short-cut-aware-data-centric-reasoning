@@ -11,7 +11,7 @@ format: html
 
 - **模型**：GPT-style transformer（4 层、$d_{\mathrm{model}}{=}256$、8 头、$d_{\mathrm{ff}}{=}1024$，约 3.2 M 参数）；
 - **优化器**：AdamW（lr $1{\times}10^{-3}$、wd $10^{-4}$、batch 64）+ cosine annealing；40 epochs；
-- **SART 默认超参**：$\alpha{=}\beta{=}1.0$、$\tau_A{=}0.3$、$\tau_R{=}0.5$、$\lambda{=}3.0$、$\gamma{=}1.0$、$\rho{=}0.5$（80-config grid search 选出，见附录 §B.4）。
+- **SART 默认超参（Path A：Surgery-Only）**：$\alpha{=}\beta{=}1.0$、$\tau_A{=}0.3$、$\tau_R{=}0.5$、$\gamma{=}1.0$、$\rho{=}0.3$（synthetic）/ $\rho{=}0$（LLM）、Warmup [$K=8$]{.term data-tip="K — Warmup 阶段 epoch 数；surgery 在 K 之后才生效。论文 Path A 默认 K=8。"}。**$\lambda$ 已删除**——Path A 不再 reweight。
 
 ## 2. 数据集（合成基准）
 
@@ -44,11 +44,11 @@ format: html
 
 | 实验 | 论文 § | 一句话 takeaway |
 |------|--------|------------------|
-| [主结果（§5.2）](main.qmd) | §5.2 | SART 92.5% acc / 87.9% rob — 比最强基线 +16.5 pp / +40.2 pp |
-| [消融研究（§5.3）](ablation.qmd) | §5.3 | 两组件超加性：合一 +68.5 pp robustness，超出二者之和 +26.7 pp |
-| [ShortcutScore 验证（§5.4）](shortcut_score_validation.qmd) | §5.4 | F1 = 0.64（不及 Data Filtering 的 0.69），但 SART acc 反超 +17.8 pp |
-| [超参敏感性（§5.4）](hyperparam.qmd) | §5.4 后段 | $\gamma$ 应随 shortcut 复合度上调；$\rho$ 仅在 Causal 上敏感 |
-| [LLM 迁移：GSM8K（§5.5）](llm_gsm8k.qmd) | §5.5 | 检测几何 ≥60× 分离迁移到 8B；但 $\rho>0$ 会破坏生成 |
+| [主结果（§5.2）](main.qmd) | §5.2 | **Path A**：Surgery-Only K=8 三数据集均值 acc 80.7% / rob 54.8%；Causal K=8 rob 0.795（**+29 pp 超 Full SART**） |
+| [消融研究（§5.3）](ablation.qmd) | §5.3 | **Surgery 是 SART 唯一不可砍组件**；reweight 是干扰（rob −14 pp）；conflict gating 是 driver |
+| [ShortcutScore 验证（§5.4）](shortcut_score_validation.qmd) | §5.4 | 2-panel：F1=0.82、$r_\mathrm{bin}=-0.75$；score 是 surgery 的 rank selector，不需要 calibrated |
+| [超参敏感性（§5.4）](hyperparam.qmd) | §5.4 后段 | $\gamma$ 随 shortcut 复合度上调；$\rho$ 仅 Causal 敏感、LLM 上必须 0；$\lambda$ 已删除 |
+| [LLM 迁移：GSM8K（§5.5）](llm_gsm8k.qmd) | §5.5 | 检测几何 ≥60× 分离迁移到 8B；surgery 要 per-sample，不能 batch |
 
 ## 6. 可复现性
 

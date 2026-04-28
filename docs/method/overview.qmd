@@ -9,35 +9,39 @@ format: html
 
 ## 一句话 takeaway
 
-> **SART 在一个 SGD step 里同时做两件事：用 [ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"} 给样本 reweight（缩量），用 [conflict-only projection]{.term data-tip="冲突门控投影 — 只在内积 < 0 时才执行投影，避免把已经对齐的有用方向也擦掉。"} 给梯度做手术（改向）。两路独立而互补。**
+> **SART 是一个最小可信的「检测 + 修正」两步管线：用 [ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} 把 shortcut 倾向高的样本 *标出来*，再用 [conflict-only projection]{.term data-tip="冲突门控投影 — 只在 g_s · g_V < 0 时把冲突分量从样本梯度里投影掉；保留正向对齐的有用方向。"} 把这些样本里 *与 $\mathbf{g}_{\mathcal{V}}$ 真正冲突* 的方向擦掉，仅此而已。** **不再 reweight**。
 
 ## 配图
 
-![**SART 总览**：(A) 逐样本梯度的对齐 + 答案-token 集中度；(B) ShortcutScore 把两路信号合一；(C) 指数 reweight 缩小 shortcut 样本权重；(D) 冲突门控投影只擦除与 $\mathbf{g}_{\mathcal{V}}$ 冲突的方向；(E) 模型更新偏向真推理信号。](../figures/sart_method_figure.png)
+![**SART 总览（Path A）**：(A) 逐样本梯度的对齐 + 答案-token 集中度；(B) ShortcutScore 把两路信号合一作为 surgery 的样本选择器；(D) 冲突门控投影只擦除与 $\mathbf{g}_{\mathcal{V}}$ 冲突的方向；(E) 模型更新偏向真推理信号。](../figures/sart_method_figure.png)
+
+> 图中的 (C) 节点（Reweight curve）在 Path A 下 **不再属于方法本体**——K-sweep 实证显示 reweight gain 与 score 校准解耦，且与 surgery 同时启用时 **没有** 超加性收益（见 [消融研究（§5.3）](../experiments/ablation.qmd) 与 [ShortcutScore 验证（§5.4）](../experiments/shortcut_score_validation.qmd)）。
 
 **如何看图**
 
-- (A) **检测信号**：每个样本同时读两路梯度信号 — 与 [$\mathbf{g}_{\mathcal{V}}$]{.term data-tip="g_V — 验证集梯度 ∇_θ (1/|V|) Σ ℓ(θ;v)；代表「能改善真规则泛化」的更新方向。"} 的余弦（$A(s)$）+ 答案-token 占比（$R(s)$）。
-- (B) **检测合成**：$S(s)=\alpha\,\max(0,\tau_A-A(s))+\beta\,\max(0,R(s)-\tau_R)$。
-- (C) **缩量**：[$w(s)$]{.term data-tip="样本权重 — w(s)=exp(−λ S(s))；ShortcutScore 高 → 权重小 → 梯度贡献被压缩。"} = $\exp(-\lambda S(s))$。
-- (D) **改向**：仅当 $\mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}} < 0$ 时执行投影 — 这是 [PCGrad]{.term data-tip="PCGrad (Yu et al. 2020) — 多任务学习里通过把任务梯度投影到彼此正交方向来化解冲突的算法。"} 风格的冲突门控；正向对齐的有用分量保留。
+- (A) **检测信号**：每个样本同时读两路梯度信号 — 与 [$\mathbf{g}_{\mathcal{V}}$]{.term data-tip="g_V — 验证集梯度 ∇_θ (1/|V|) Σ ℓ(θ;v)；代表「能改善真规则泛化」的更新方向。"} 的余弦（[$A(s)$]{.term data-tip="非迁移对齐 — A(s)=cos(g_s, g_V)；低 = 该样本梯度不利于真规则泛化。"}）+ 答案-token 占比（[$R(s)$]{.term data-tip="答案-token 梯度集中度 — 答案 token 的梯度范数占比；高 = 模型在学「答什么」而非「怎么推」。"}）。
+- (B) **检测合成 → 选样**：$S(s) = \alpha\,\max(0,\tau_A - A(s)) + \beta\,\max(0,R(s) - \tau_R)$；$S(s) > \tau_S^*$ 的样本进入 surgery 的工作集。
+- (D) **修正**：对工作集里的样本，仅当 $\mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}} < 0$ 时执行投影 — 这是 [PCGrad]{.term data-tip="PCGrad (Yu et al. 2020) — 多任务学习里通过把任务梯度投影到彼此正交方向来化解冲突的算法。"} 风格的冲突门控；正向对齐的有用分量保留。
 - (E) **更新**：模型参数沿改良后的梯度走，整体偏向真推理。
 
-**两路信号为什么互补**
+## 为什么是「检测 + 修正」而不是「检测 + 缩量 + 改向」
 
-- reweight 调 **how much** — 把 shortcut 样本的整体贡献缩小；
-- surgery 调 **in which direction** — 在 shortcut 样本里也保留正向对齐的有用分量，把真正冲突的方向擦掉；
-- 单独 reweight 留下「方向有害但量被压小」的残余；单独 surgery 留下「方向已修正但量还跟干净样本一样大」的残余；两路合一才能闭环。
+最小性原则：
 
-## 三阶段训练
+- **改向（surgery）** 直接消除 shortcut 的有害方向；这是因果作用最近、最直接的修正手段。
+- **缩量（reweight）** 把 shortcut 样本的整体贡献缩小，但 K-sweep 实证显示它的 +rob 与 score $r$ 解耦——score 校准变化时 reweight gain **不跟着走**；与 surgery 合并启用时也 **看不到超加性**（更糟的是某些 (K, dataset) 上反而拖累 surgery）。
+- 因此把 reweight 砍掉，得到 **Surgery-Only**：方法表面更窄，但实证更稳；在 [Causal-Reasoning]{.term data-tip="Causal 数据集 — 含混淆变量 z 的因果方向二分类，真规则=x≥5 ∧ z<3，shortcut=x 与 y 的相关≥5。"} 上 K=8 robustness 0.795（**+29 pp 超过 reweight+surgery 全开版**）。
+
+> **driver**：score 是 *样本选择器*，surgery 是 *方向修正器*。reweight 既不是必要也不是稳定 driver，所以删掉。
+
+## 两阶段训练
 
 | 阶段 | 目的 | 操作 |
 |------|------|------|
-| 1. Warmup | 用 $K$ epoch 标准 SFT 让 $\mathbf{g}_{\mathcal{V}}$ 形成稳定方向 | 全样本等权，无 surgery |
-| 2. Scoring | 计算 $\mathbf{g}_{\mathcal{V}}$、逐样本 $\mathbf{g}_s$；得到 $A(s)$ / $R(s)$ / $S(s)$ / $w(s)$ | 基于一次 backward |
-| 3. Reweighted retraining | 带 $w(s)$ 训剩余 epoch；每步先 reweight 再 surgery | 每隔 $k=5$ 步重算 [$\mathbf{g}_{\mathcal{V}}$]{.term data-tip="g_V — 验证集梯度 ∇_θ (1/|V|) Σ ℓ(θ;v)；代表「能改善真规则泛化」的更新方向。"} |
+| 1. Warmup | 用 [$K$]{.term data-tip="K — Warmup 阶段 epoch 数；surgery 在 K 之后才生效。论文 Path A 默认 K=8。"} epoch 标准 SFT 让 [$\mathbf{g}_{\mathcal{V}}$]{.term data-tip="g_V — 验证集梯度 ∇_θ (1/|V|) Σ ℓ(θ;v)；代表「能改善真规则泛化」的更新方向。"} 形成稳定方向 | 全样本等权，无 surgery |
+| 2. Detection + Surgery | 计算逐样本 $A(s) / R(s) / S(s)$；$S(s) > \tau_S^*$ 的样本应用冲突门控投影；其他样本不动 | 每隔 $k$ 步重算 $\mathbf{g}_{\mathcal{V}}$ |
 
-[$K$]{.term data-tip="K — Warmup 阶段 epoch 数；reweighting 与 surgery 在 K 之后才生效。论文默认 max(5, epochs/6)。"} 的默认值 $\max(5,\,\text{epochs}/6)$；论文 §5.4 显示 $K$ 对组合方法不敏感，但对单独 reweight 是敏感的（细节见 [消融研究](../experiments/ablation.qmd)）。
+注：**没有 reweight 阶段**；样本梯度按 1.0 权重相加（除了被 surgery 投影后），就走标准 optimizer step。
 
 ## 与既有方法的差别
 
@@ -50,10 +54,10 @@ format: html
 | [IRM]{.term data-tip="IRM — Invariant Risk Minimization，跨环境不变表示；需要多环境划分。"} / [V-REx]{.term data-tip="V-REx — Risk Extrapolation，最小化跨环境损失方差。"} / [Fishr]{.term data-tip="Fishr — 跨环境梯度方差正则化。"} | 跨环境不变性 | 需要环境划分 |
 | Meta-reweight | 权重 | 不动方向；不去除 shortcut 方向上的更新 |
 
-> **driver**：SART 只用 *已有* 数据 + 一个 *小* 验证集，从梯度几何 **同时** 解决检测 + 抑制；没有外部标注。
+> **driver**：SART 只用 *已有* 数据 + 一个 *小* 验证集，从梯度几何 **同时** 解决检测 + 抑制；不需要外部标注；现在还把 reweight 砍掉，剩下唯一的可调旋钮是 surgery 的 [$\gamma$]{.term data-tip="γ — 冲突投影强度，γ=1 完全擦除冲突分量。论文 main 用 1.0；Math 单特征建议 0.8。"} / [$\rho$]{.term data-tip="ρ — 答案-token 梯度抑制强度，ρ=1 完全去掉答案-token 梯度贡献。论文 main 用 0.5。"}。
 
 ## 接下来读什么
 
-- [ShortcutScore（§4.1）](shortcut_score.qmd) — $A(s)$ / $R(s)$ / $S(s)$ / $w(s)$ 的逐步形式化。
-- [Gradient Surgery（§4.2）](gradient_surgery.qmd) — 冲突门控投影 + 答案-token 抑制。
+- [ShortcutScore（§4.1）](shortcut_score.qmd) — $A(s)$ / $R(s)$ / $S(s)$ 作为 **样本选择器** 的形式化；不再讲 reweight。
+- [Gradient Surgery（§4.2）](gradient_surgery.qmd) — 冲突门控投影 + 答案-token 抑制：方法的 **唯一修正器**。
 - [LLM 工程优化](vram_reduction.qmd) — LoRA + JL 草图 + $\mathbf{g}_{\mathcal{V}}$ 周期刷新让 SART 在 8B 上可跑。

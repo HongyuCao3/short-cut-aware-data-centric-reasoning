@@ -7,26 +7,28 @@ format: html
 
 > 💡 本网站方法/实验页面上首次出现的术语带**虚下划线**，悬停可看到中文解释。术语集中索引见 [术语表](glossary.qmd)。
 
+> 🛣 **当前方法状态：Path A — Surgery-Only**（用户 2026-04-26 批准）。reweight 组件已删除；方法只剩「检测（ShortcutScore selector）+ 修正（Gradient Surgery）」两步。详见 [方法总览](method/overview.qmd) 与 [主结果](experiments/main.qmd)。
+
 ## 这篇论文一句话讲什么
 
 - LLM 在推理任务上常常依赖 **shortcut**——表层模式匹配、答案记忆、关键词关联——而不是真正的逻辑推理；这个失败的根源是 **训练信号错配**：shortcut 样本能高效降 loss，但泛化崩盘。
 - 既有方法（CoT、Self-Consistency、数据过滤、RLHF）要么不动训练动力学，要么无法从「梯度行为」识别 shortcut。
-- [SART]{.term data-tip="Shortcut-Aware Reasoning Training — 短路径感知推理训练，本论文方法：基于梯度结构的样本检测 + 冲突门控梯度修正。"} 把 shortcut 检测建模成 **梯度结构分析**：用 [ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"} 标记 shortcut 样本，再用 **冲突门控** 的 [Gradient Surgery]{.term data-tip="梯度手术 — PCGrad 风格的逐样本梯度修正：仅当 g_s · g_V < 0 时才把 g_s 的冲突分量投影掉。"} 校正其梯度方向。
+- [SART]{.term data-tip="Shortcut-Aware Reasoning Training — 短路径感知推理训练，本论文方法：基于梯度结构的样本检测 + 冲突门控梯度修正（Path A：Surgery-Only）。"} 把 shortcut 检测建模成 **梯度结构分析**：用 [ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} 标记 shortcut 样本（rank-only selector），再用 **冲突门控** 的 [Gradient Surgery]{.term data-tip="梯度手术 — PCGrad 风格的逐样本梯度修正：仅当 g_s · g_V < 0 时才把 g_s 的冲突分量投影掉。"} 校正其梯度方向。
 
-## 关键结果一览
+## 关键结果一览（Path A：Surgery-Only K=8）
 
 ::: {.metric-row}
 <div class="metric-badge">
-<div class="value">92.5%</div>
-<div class="label">Accuracy（+16.5 pp 超过最强基线）</div>
+<div class="value">80.7%</div>
+<div class="label">三数据集均值 Accuracy</div>
 </div>
 <div class="metric-badge">
-<div class="value">87.9%</div>
-<div class="label">Robustness（+40.2 pp）</div>
+<div class="value">54.8%</div>
+<div class="label">三数据集均值 Robustness</div>
 </div>
 <div class="metric-badge">
-<div class="value">+26.7 pp</div>
-<div class="label">两组件超加性收益</div>
+<div class="value">0.795</div>
+<div class="label">Causal K=8 Rob（+29 pp 超 Full SART）</div>
 </div>
 <div class="metric-badge">
 <div class="value">8B</div>
@@ -34,9 +36,9 @@ format: html
 </div>
 :::
 
-- 三个合成推理基准、十一个基线（数据中心 / 损失加权 / DRO / 不变性 / 失败挖掘），SART 对每个数据集都全指标领先。
-- **超加性**：单独 Reweighting 仅 +20.7 pp robustness，单独 Surgery 仅 +21.1 pp，两者合一 **+68.5 pp**——超出二者之和 +26.7 pp。
-- **检测几何 8B 迁移**：Qwen3-8B + LoRA / GSM8K 受控 shortcut 注入下，[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"} 把注入样本（$\bar S = 0.46$）与干净样本（$\bar S = 0.007$）分离 60×。
+- **Path A 决策**：reweight 在 K-sweep 上与 score $r$ 解耦、与 surgery 同启用时拖累 robustness（Causal K=8 −29 pp）→ **删掉**。
+- 最简形态：score 是 selector、surgery 是 corrector，两者职责清晰。
+- **检测几何 8B 迁移**：Qwen3-8B + LoRA / GSM8K 受控 shortcut 注入下，[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} 把注入样本（$\bar S = 0.46$）与干净样本（$\bar S = 0.007$）分离 60×。
 
 ## 论文章节 → 文档页面
 
@@ -45,21 +47,21 @@ format: html
 | §0     | 摘要 / 总览 | 本页 |
 | §1     | 引言：shortcut 现象 + SART 提出 | [动机（§1）](motivation.qmd) |
 | §2     | 问题定义：SART 形式化 | [SART 形式化](task_definition.qmd) |
-| §3     | 总览：两组件如何耦合 | [方法总览（§3）](method/overview.qmd) |
-| §4.1   | ShortcutScore 推导 | [ShortcutScore（§4.1）](method/shortcut_score.qmd) |
-| §4.2   | 冲突门控 Gradient Surgery | [Gradient Surgery（§4.2）](method/gradient_surgery.qmd) |
+| §3     | 总览：检测 + 修正 两步管线 | [方法总览（§3）](method/overview.qmd) |
+| §4.1   | ShortcutScore 作为 surgery 的 sample selector | [ShortcutScore（§4.1）](method/shortcut_score.qmd) |
+| §4.2   | 冲突门控 Gradient Surgery（方法的唯一修正器） | [Gradient Surgery（§4.2）](method/gradient_surgery.qmd) |
 | §4 末段 | 8B 工程优化（LoRA + JL 草图） | [LLM 工程优化](method/vram_reduction.qmd) |
 | §5.1   | 实验设置 | [实验导航（§5.1）](experiments/overview.qmd) |
-| §5.2   | 主结果（聚合 + 逐数据集） | [主结果（§5.2）](experiments/main.qmd) |
-| §5.3   | 消融：Reweight × Surgery 超加性 | [消融研究（§5.3）](experiments/ablation.qmd) |
-| §5.4   | ShortcutScore 验证 + 超参敏感性 | [ShortcutScore 验证（§5.4）](experiments/shortcut_score_validation.qmd) / [超参敏感性](experiments/hyperparam.qmd) |
+| §5.2   | 主结果（Path A K=8 vs baselines + Full SART） | [主结果（§5.2）](experiments/main.qmd) |
+| §5.3   | 消融：surgery 唯一不可砍 | [消融研究（§5.3）](experiments/ablation.qmd) |
+| §5.4   | 2-panel ShortcutScore 验证 + 超参敏感性 | [ShortcutScore 验证（§5.4）](experiments/shortcut_score_validation.qmd) / [超参敏感性](experiments/hyperparam.qmd) |
 | §5.5   | Qwen3-8B / GSM8K 迁移 | [LLM 迁移：GSM8K](experiments/llm_gsm8k.qmd) |
 | §6     | 相关工作 | [相关工作](related_work.qmd) |
 | §7     | 结论 / 局限 / 展望 | [结论与展望](conclusion.qmd) |
 
 ## 方法管线
 
-![**SART 方法图（论文 Figure 1）**：(A) 逐样本梯度的对齐与答案-token 集中度；(B) ShortcutScore 把两路信号合一；(C) 指数 reweight 缩小 shortcut 样本权重；(D) 冲突门控投影只擦除与 $\mathbf{g}_{\mathcal{V}}$ 冲突的方向；(E) 模型更新偏向真推理信号。](figures/sart_method_figure.png)
+![**SART 方法图（Path A）**：(A) 逐样本梯度的对齐与答案-token 集中度；(B) ShortcutScore 把两路信号合一作为 surgery 的样本选择器；(D) 冲突门控投影只擦除与 $\mathbf{g}_{\mathcal{V}}$ 冲突的方向；(E) 模型更新偏向真推理信号。图中 (C) Reweight 节点已在 Path A 中删除。](figures/sart_method_figure.png)
 
 ## 复现入口
 
@@ -76,8 +78,8 @@ EXPERIMENT_SCALE=server python3 run_all.py
 # 4. 超参 sweep（Optuna + MLflow）
 EXPERIMENT_SCALE=server python3 hp_optuna.py --n-trials 100
 
-# 5. Hydra 入口（重构后）
-python -m src.main mode=train method=sart dataset=math_synthetic scale=server
+# 5. Surgery-Only K-sweep（Path A）
+python3 scripts/surgery_only_K_sweep.py
 ```
 
 代码仓库：<https://github.com/fuyanjie/short-cut-aware-data-centric-reasoning>。

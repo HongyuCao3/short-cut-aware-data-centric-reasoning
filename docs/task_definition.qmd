@@ -39,18 +39,26 @@ $$
 
 注意：shortcut 样本的两条几何信号是 **可观测的**（不需要 shortcut 标签），所以 SART **不要 group annotation / multi-environment 划分**——这是它跟 [Group DRO]{.term data-tip="Group DRO — Sagawa 等 2020，最坏组损失最小化；需要组标注。"} / [IRM]{.term data-tip="IRM — Invariant Risk Minimization，跨环境不变表示；需要多环境划分。"} 类方法的关键差别。
 
-## 4. SART 优化目标
+## 4. SART 优化目标（Path A）
+
+Path A 把 SART 的优化目标缩到「等权 ERM + 子约束」：
 
 $$
-\min_\theta \frac{1}{N}\sum_{i=1}^{N} w_i(\theta)\,\ell(\theta;x_i,y_i),\qquad w_i(\theta)\in[0,1],
+\min_\theta \frac{1}{N}\sum_{i=1}^{N} \ell(\theta;x_i,y_i),\qquad
+\text{s.t.}\ \mathbf{g}_s' \cdot \mathbf{g}_{\mathcal{V}} \geq 0\ \text{for all}\ s\in\mathcal{S}^*,
 $$
 
-且子约束：每步参数更新方向应与 $\mathbf{g}_{\mathcal{V}}$ 保持一致。两件事：
+其中 $\mathcal{S}^* = \{s : S(s) > \tau_S^*\}$ 是 [ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} 选出的样本集，$\mathbf{g}_s'$ 是经过 [conflict-only projection]{.term data-tip="冲突门控投影 — 只在 g_s · g_V < 0 时把冲突分量从样本梯度里投影掉；保留正向对齐的有用方向。"} 后的样本梯度。等价地：所有样本以 1.0 等权进入梯度累加，但 $\mathcal{S}^*$ 中的样本被 surgery 修过方向。
 
-- **检测**：用梯度结构（非迁移对齐 + 答案集中）识别 shortcut 样本；
-- **抑制**：在 **同一个样本内部** 把有害方向投影掉，**保留**该样本中可迁移的有用方向。
+两件事：
 
-> **关键 design 选择**：SART 不丢样本（不像 [Data Filtering]{.term data-tip="Data Filtering — Warmup 后丢掉置信度过高的样本；典型「硬丢」基线。"} / [Influence Filtering]{.term data-tip="Influence Filtering — 估计每个样本对验证损失的影响，丢掉影响最负的。"}）；shortcut 样本里 **正向对齐分量** 仍然有用，硬丢会浪费训练信号。
+- **检测**：用梯度结构（非迁移对齐 + 答案集中）识别 shortcut 样本（**rank 信号**，不需要 calibrated）；
+- **修正**：在 **同一个样本内部** 把有害方向投影掉，**保留**该样本中可迁移的有用方向。
+
+> **关键 design 选择**：
+>
+> - **不丢样本**（不像 [Data Filtering]{.term data-tip="Data Filtering — Warmup 后丢掉置信度过高的样本；典型「硬丢」基线。"} / [Influence Filtering]{.term data-tip="Influence Filtering — 估计每个样本对验证损失的影响，丢掉影响最负的。"}）；shortcut 样本里 **正向对齐分量** 仍然有用，硬丢会浪费训练信号。
+> - **不 reweight**（与早期 SART 不同）；K-sweep 实证显示 reweight 在跨数据集均值上 **拖累** robustness（详见 [消融研究](experiments/ablation.qmd)）。Path A 的方法只剩 selector + corrector。
 
 ## 5. 评测协议
 

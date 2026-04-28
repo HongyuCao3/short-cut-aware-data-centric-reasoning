@@ -1,9 +1,9 @@
 ---
-title: "超参敏感性（§5.4 后段）"
+title: "超参敏感性（§5.4 后段，Path A）"
 format: html
 ---
 
-> **本页对应论文 §5.4 「Hyperparameter sensitivity」段 + 附录 §B.4 sensitivity table。**
+> **本页对应论文 §5.4 「Hyperparameter sensitivity」段。Path A 砍掉 reweight 后，[$\lambda$]{.term data-tip="λ — 指数 reweighting 强度（已弃用）；Path A 删除该超参。"}（reweight 强度）不再是方法超参；剩下的可调旋钮是 [$\gamma$]{.term data-tip="γ — 冲突投影强度，γ=1 完全擦除冲突分量。论文 main 用 1.0；Math 单特征建议 0.8。"}（冲突投影强度）与 [$\rho$]{.term data-tip="ρ — 答案-token 梯度抑制强度，ρ=1 完全去掉答案-token 梯度贡献。论文 main 用 0.5。"}（答案-token 抑制）。**
 
 > 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
 
@@ -13,9 +13,9 @@ format: html
 
 ## 这个实验为论文支撑了什么
 
-- **方法选择动机**：$\gamma$ 应随 [shortcut 复合度]{.term data-tip="shortcut compositional complexity — Math 单特征 → Financial 双特征 → Causal 含混淆，shortcut 越复合表层过滤越不灵。"} 上调 —— Math 单特征用 0.8 就够，Financial / Causal 需要 1.0；这与 §3 「surgery 切除冲突分量」的物理图景一致：复合 shortcut 子空间越大，需要的擦除越彻底。
-- **机制解释**：$\rho$ 仅在 [Causal-Reasoning]{.term data-tip="Causal 数据集 — 含混淆变量 z 的因果方向二分类，真规则=x≥5 ∧ z<3，shortcut=x 与 y 的相关≥5。"} 上敏感（其他两个数据集 $R(s)<\tau_R$，抑制项不触发）；这佐证答案-token 集中度只在 **某些** shortcut 类型上是 driver，符合 method §4.2 step 2 的「conditional」设计。
-- **有趣发现**：headline 默认 $(\gamma=1.0, \rho=0.5)$ vs 附录推荐 $(\gamma=1.0, \rho=0.3)$ 的差距 = +6.5 pp acc / +10.7 pp robustness（appendix-default 更好）。论文 §5.4 的两个数字（main: $\rho{=}0.5$ vs appendix: $\rho{=}0.3$）是 **内部不一致**，需要在投稿前定调。
+- **方法选择动机**：$\gamma$ 应随 [shortcut 复合度]{.term data-tip="shortcut compositional complexity — Math 单特征 → Financial 双特征 → Causal 含混淆，shortcut 越复合表层过滤越不灵。"} 上调——Math 单特征用 0.8 就够，Financial / Causal 需要 1.0；这与 §3 「surgery 切除冲突分量」的物理图景一致：复合 shortcut 子空间越大，需要的擦除越彻底。
+- **机制解释**：$\rho$ 仅在 [Causal-Reasoning]{.term data-tip="Causal 数据集 — 含混淆变量 z 的因果方向二分类，真规则=x≥5 ∧ z<3，shortcut=x 与 y 的相关≥5。"} 上被触发（其他两数据集 [$R(s)$]{.term data-tip="答案-token 梯度集中度 — 答案 token 的梯度范数占比；高 = 模型在学「答什么」而非「怎么推」。"} $< \tau_R$，抑制项不触发）；这佐证答案-token 集中度只在 **某些** shortcut 类型上是 driver，符合 §4.2 step 2 的 conditional 设计。
+- **有趣发现**：Path A 把 $\lambda$ 砍掉后，方法只剩 2 个 conditionally-active 超参；headline 默认 $(\gamma=1.0, \rho=0)$ 在 LLM 上是安全选择（$\rho>0$ 会破坏生成）。
 
 ## $\gamma$（冲突投影强度）
 
@@ -33,25 +33,26 @@ format: html
 - Math / Financial 上 $R(s)$ 普遍低于 $\tau_R=0.5$，所以 $\rho$ 几乎不影响结果。
 - Causal 上 $R(s)$ 偏高（因果题中答案 token 一致性强），$\rho$ 才是 driver：$\rho \in [0, 0.3]$ 在 top row；$\rho = 0.5$ robustness 反而崩。
 
-> **生成警告**：在 LLM 上 $\rho > 0$ 会破坏自回归生成（PPL 升 5 个数量级，参看 [LLM 迁移（§5.5）](llm_gsm8k.qmd)）；synthetic 任务里没有这个问题，因为答案 token 不参与下一步生成 prefix。
+> **生成警告**：在 LLM 上 $\rho > 0$ 会破坏自回归生成（PPL 升 5 个数量级，参看 [LLM 迁移（§5.5）](llm_gsm8k.qmd)）；synthetic 任务里没有这个问题，因为答案 token 不参与下一步生成 prefix。**Path A 推荐 LLM 默认 $\rho = 0$**——使 surgery 退化为纯冲突门控投影。
 
-## 推荐默认 vs main-text 默认
+## Path A 默认 vs 旧默认
 
-| 选项 | $\gamma,\rho$ | 三数据集 avg Acc | avg Rob | 备注 |
-|------|---------------|------------------|---------|------|
-| main-text 默认（论文 §5.4 prose） | $(1.0,\ 0.5)$ | 92.5 | 87.9 | headline 数字 |
-| Appendix 推荐 | $(1.0,\ 0.3)$ | **+6.5 pp** vs 上 | **+10.7 pp** vs 上 | 单一默认 |
-| 逐任务 tuning | (per-task) | 同上再 +— | + 8.2 pp robustness | 上限 |
+| 配置 | $\gamma,\rho$ | 来自 | 备注 |
+|------|---------------|------|------|
+| Path A synthetic main | $(1.0,\ 0.3)$ | K-sweep 实证 | 三数据集均值最佳；$\rho=0.5$ 在 Causal 上崩 |
+| Path A LLM main | $(1.0,\ 0)$ | LLM 边界结论 | $\rho>0$ 杀生成 |
+| 旧 Full SART main | $(1.0,\ 0.5,\ \lambda{=}3.0)$ | 论文 §5.4 prose | 在 Path A 下不再使用 |
 
-> **driver**：headline 与 appendix 默认值存在 **内部矛盾** —— 这是论文需要在投稿前修复的开放点（决策选 Option A：单 default $\rho=0.3$；vs Option B：把 per-task tuning 写进 main table）。
+> **driver**：Path A 把 $\lambda$ 砍掉后，超参表面 **从 6 个（$\alpha,\beta,\tau_A,\tau_R,\lambda,\gamma,\rho$）缩到 5 个**；其中 $\rho$ 在 LLM 上设 0 后只剩 4 个 active 超参。这是「最小可信修正」原则在超参面上的体现——可调旋钮越少，方法越鲁棒。
 
-## 主要发现（论文原文）
+## 主要发现（Path A 草案）
 
-> **$\gamma$ 应随 shortcut 复合度上调；$\rho$ 仅对 Causal 敏感且 $\rho \in [0, 0.3]$；推荐默认 $(\gamma=1.0,\rho=0.3)$ 比之前默认 $(\gamma=0.8,\rho=0.7)$ 平均 acc +6.5 pp / rob +10.7 pp；逐任务 tuning 再 +8.2 pp robustness。**
+> **$\gamma$ 应随 shortcut 复合度上调；$\rho$ 仅对 Causal 敏感、上限 0.3，LLM 上必须 0。reweight 强度 $\lambda$ 已删除——Path A 不再 reweight。**
 
-- $\gamma$ 对单特征 / 多特征数据集呈现明确分层；
-- $\rho$ 在大多数任务里 **不触发** —— 是 conditional 而非 always-on；
-- 推荐 vs main-text 不一致是论文需要修复的开放点。
+- $\gamma$ 单特征 / 多特征数据集分层；
+- $\rho$ 大多数任务里 **不触发** —— conditional 而非 always-on；
+- LLM 上 $\rho=0$ 是必备；
+- $\lambda$ 已废弃。
 
 ## 相关诊断
 

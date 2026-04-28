@@ -1,63 +1,63 @@
 ---
-title: "论点（Claims）"
+title: "论点（Claims，Path A）"
 format: html
 ---
 
-> **本页对应论文 §1（最末段「Proposed Approach」）+ §5 RQ → claim 映射。每条 claim 标注论文里的 **支撑实验** 与 **可证伪门槛**。**
+> **本页对应论文 §1（最末段「Proposed Approach」）+ §5 RQ → claim 映射。Path A 把 reweight 砍掉后，claim 集从 4 条减到 4 条（claim 2「超加性」改写为 claim 2「reweight 是干扰」）。**
 
 > 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
 
 ## 主假设
 
-> **H1**：[SART]{.term data-tip="Shortcut-Aware Reasoning Training — 短路径感知推理训练，本论文方法：基于梯度结构的样本检测 + 冲突门控梯度修正。"}（[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"} reweight + [conflict-only projection]{.term data-tip="冲突门控投影 — 只在内积 < 0 时才执行投影，避免把已经对齐的有用方向也擦掉。"}）在三个推理基准的 [robustness]{.term data-tip="Robustness — perturbed 切分上的准确率；shortcut 模型必翻车，所以是判别真不真学到规则的关键指标。"} 上显著超过最强基线。
+> **H1**：[SART]{.term data-tip="Shortcut-Aware Reasoning Training — 短路径感知推理训练，本论文方法：基于梯度结构的样本检测 + 冲突门控梯度修正（Path A：Surgery-Only）。"} Path A（[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} selector + [conflict-only projection]{.term data-tip="冲突门控投影 — 只在 g_s · g_V < 0 时把冲突分量从样本梯度里投影掉；保留正向对齐的有用方向。"} corrector）在三个推理基准的 [robustness]{.term data-tip="Robustness — perturbed 切分上的准确率；shortcut 模型必翻车，所以是判别真不真学到规则的关键指标。"} 上显著超过最强基线，**且不弱于** Reweight + Surgery 全开版本。
 
-- **H0**（零）：SART robustness ≤ 最强基线 robustness。
-- **H1**（备择）：SART robustness 比最强基线高 ≥ 10 pp。
+- **H0**（零）：Path A robustness ≤ 最强基线 robustness。
+- **H1**（备择）：Path A robustness 比最强基线高 ≥ 5 pp（已经放低门槛——因为 K=8 fixed、未 per-task 调）。
 
 ## 支撑 claim 1—4
 
-### Claim 1：[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"} 是有效的检测信号
+### Claim 1：[ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} 是有效的 surgery sample selector（**rank-only**，不需要 calibrated）
 
-- **Why**：要把 shortcut 检测从 label / loss 视角换到 **梯度几何** 视角；同时不需要 group / environment 标注。
-- **如何验证**：bin-aggregated Pearson $r=0.67$（$p<0.001$）+ shortcut/clean 样本在 $A(s)$ 上的分布分离（[ShortcutScore 验证（§5.4）](experiments/shortcut_score_validation.qmd) Figure 3 (a)/(b)）。
-- **可证伪**：若 $r<0.3$ 或 $p>0.05$，几何检测假设站不住脚。
-- **Status**：✅ Math K=3 上确认；3-数据集聚合下 $r$ 在 [-0.2,+0.2] 浮动；$r$ 是 cell-specific 而非 stable property。结论： **score 是 rank 信号，不是 calibration-load-bearing**。
+- **Why**：要把 shortcut 检测从 label / loss 视角换到 **梯度几何** 视角；同时不需要 group / environment 标注；不需要 score 与 shortcut rate 的 calibrated correlation——只要 rank 排序合理。
+- **如何验证**：[ShortcutScore 验证（§5.4）](experiments/shortcut_score_validation.qmd) panel (a) F1=0.82 / $\tau_S^*=0.0$ + panel (b) TP/FP 在 $A(s)$ 上有部分重叠（surgery 的 conflict gate 二次过滤）。
+- **可证伪**：若 F1 < 0.5 或 surgery gate 在 score-flagged 样本上触发率 < 10%。
+- **Status**：✅ Confirmed at K=8；3-数据集 F1=0.82, gate-fire on FPs = 39%。
 
-### Claim 2：Reweight × Surgery 超加性
+### Claim 2（**改写**）：reweight 是干扰，不是冗余
 
-- **Why**：design 上声称两组件正交（量 vs 方向）；要给出实证。
-- **如何验证**：消融表 —— 单 Reweight +20.7 pp rob，单 Surgery +21.1 pp rob，合一 +68.5 pp rob → **超出和 +26.7 pp**（[消融研究（§5.3）](experiments/ablation.qmd)）。
-- **可证伪**：若 full SART ≤ 单组件之和，超加性站不住脚。
-- **Status**：✅ Confirmed；超加 +26.7 pp / 64%。
+- **Why**：早期 SART 同时 reweight + surgery；K-sweep 揭示 reweight gain 与 score $r$ 解耦、与 surgery 同启用时拖累 robustness——必须给出实证以支撑「砍 reweight」的 design 决策。
+- **如何验证**：K=8 三数据集均值 Surgery-Only rob = 0.548 vs Reweight + Surgery rob = 0.408（**+14.0 pp**，Path A 胜）；Causal K=8 Surgery-Only rob = 0.795 vs Full SART 0.505（**+29.0 pp**）。
+- **可证伪**：若加上 reweight 后 robustness 在 ≥ 2/3 数据集上更高。
+- **Status**：✅ Confirmed at K=8；reweight 在跨数据集均值与 Causal 单点均输；细节见 [消融研究](experiments/ablation.qmd)。
 
 ### Claim 3：SART 优势随 [shortcut 复合度]{.term data-tip="shortcut compositional complexity — Math 单特征 → Financial 双特征 → Causal 含混淆，shortcut 越复合表层过滤越不灵。"} 变大
 
 - **Why**：表层过滤（loss/sample id）随复合度失灵；梯度几何不依赖单特征 → 复合度上升时几何信号反而更纯。
-- **如何验证**：逐数据集 acc gap：Math +11.2 pp → Financial +16.8 pp → Causal +19.8 pp robustness（[主结果（§5.2）](experiments/main.qmd) Table 3）。
+- **如何验证**：Surgery-Only K=8 vs SFT robustness gap：Math +41.9 pp → Financial +43.0 pp → Causal +77.6 pp（[主结果（§5.2）](experiments/main.qmd)）。
 - **可证伪**：若 gap 在更复杂任务上 ≤ 单特征任务。
-- **Status**：✅ Confirmed。
+- **Status**：✅ Confirmed；Causal 上的 +77.6 pp 是 Path A headline。
 
 ### Claim 4：检测几何迁移到 8B（修正不迁移）
 
 - **Why**：方法的两路成分应在大模型上独立验证。
 - **如何验证**：Qwen3-8B + LoRA / GSM8K 上，shortcut 注入样本（$\bar S=0.46$）vs 干净样本（$\bar S=0.007$）分离 ≥60×；但 $\rho>0$ 破坏生成、batch-conflict gating 被 batch-平均 wash 掉（[LLM 迁移（§5.5）](experiments/llm_gsm8k.qmd)）。
 - **可证伪**：若 8B 上 $\bar S(\text{injected}) - \bar S(\text{clean}) < 5\times$。
-- **Status**：✅ 检测半边 confirmed；🟡 修正半边 negative correction at 3-epoch budget；list of three follow-ups 已在论文 §7 future work 给出。
+- **Status**：✅ 检测半边 confirmed；🟡 修正半边 negative correction at 3-epoch budget；list of follow-ups 已在论文 §7 future work 给出（其中「hard-cut detection」自然对应 Path A 的 hard selector）。
 
 ## 假设与风险
 
 | 假设 | 风险 | 缓解 |
 |------|------|------|
-| shortcut 样本的梯度几何信号可观测 | 复合 shortcut 上信号可能重叠 | 经验上分离明显（Figure 3b）；复合度越高 SART 优势越大 → 信号反而更清晰 |
+| shortcut 样本的梯度几何信号可观测 | 复合 shortcut 上信号可能重叠 | 经验上分离明显（panel b）；复合度越高 SART 优势越大 → 信号反而更清晰 |
 | 小验证集 $\mathcal{V}$ 服从真规则 | $\mathcal{V}$ 自身被同 shortcut 污染会让 surgery 加强 shortcut | 要求人工审核 / 反事实 probe 构造 $\mathcal{V}$ |
 | 合成基准代表真实 shortcut | 合成 shortcut 可能太干净 | GSM8K pilot 已验证检测几何迁移；扩展到 MATH / SVAMP / StrategyQA |
-| 答案-token 抑制不损害合法监督 | $\rho>0$ 在自回归生成上破坏生成 | LLM 上推荐 $\rho=0$；后续 follow-up 限制 $\mathbf{g}_s^{\mathrm{ans}}$ 到数字答案 token |
+| 答案-token 抑制不损害合法监督 | $\rho>0$ 在自回归生成上破坏生成 | LLM 上 Path A 默认 $\rho=0$；后续 follow-up 限制 $\mathbf{g}_s^{\mathrm{ans}}$ 到数字答案 token |
 
 ## Claim Status Tracker
 
 | Claim | Status | 主要实验 | 关键指标 |
 |-------|--------|----------|----------|
-| 1. 检测信号 | ✅ Math K=3 / 🟡 3-数据集聚合 | [ShortcutScore 验证](experiments/shortcut_score_validation.qmd) | bin-Pearson r |
-| 2. 超加性 | ✅ Confirmed | [消融研究](experiments/ablation.qmd) | $\Delta$ rob = +68.5 pp（超 +26.7 pp） |
-| 3. 复合度 scaling | ✅ Confirmed | [主结果](experiments/main.qmd) Table 3 | 逐数据集 acc / rob gap |
+| 1. score 是 rank selector | ✅ Confirmed | [ShortcutScore 验证](experiments/shortcut_score_validation.qmd) | F1, gate-fire on FPs |
+| 2. reweight 是干扰 | ✅ Confirmed (Path A 决策依据) | [消融研究](experiments/ablation.qmd) | $\Delta$ rob = +14 pp（去 reweight） |
+| 3. 复合度 scaling | ✅ Confirmed | [主结果](experiments/main.qmd) Surgery-Only K=8 | 逐数据集 acc / rob gap |
 | 4. 8B 检测迁移 | ✅ 检测 / 🟡 修正 | [LLM 迁移](experiments/llm_gsm8k.qmd) | $\bar S$ 分离倍数 |

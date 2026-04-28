@@ -9,8 +9,8 @@ format: html
 
 | 术语 | 中文解释 |
 |------|----------|
-| [SART]{.term data-tip="Shortcut-Aware Reasoning Training — 短路径感知推理训练，本论文方法：基于梯度结构的样本检测 + 冲突门控梯度修正。"} | Shortcut-Aware Reasoning Training，论文方法：从梯度结构识别 shortcut 样本，并以冲突门控的方式修正其梯度方向。 |
-| [ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = shortcut 倾向高。"} | $S(s)=\alpha\,\max(0,\tau_A-A(s))+\beta\,\max(0,R(s)-\tau_R)$，量化样本的 shortcut 倾向。 |
+| [SART]{.term data-tip="Shortcut-Aware Reasoning Training — 短路径感知推理训练，本论文方法：基于梯度结构的样本检测 + 冲突门控梯度修正（Path A：Surgery-Only）。"} | Shortcut-Aware Reasoning Training，论文方法（Path A）：从梯度结构识别 shortcut 样本（rank selector），并以冲突门控的方式修正其梯度方向。 |
+| [ShortcutScore]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} | $S(s)=\alpha\,\max(0,\tau_A-A(s))+\beta\,\max(0,R(s)-\tau_R)$，作为 surgery 的样本选择器（**rank-only**，不需要 calibrated）。 |
 | [Gradient Surgery]{.term data-tip="梯度手术 — PCGrad 风格的逐样本梯度修正：仅当 g_s · g_V < 0 时才把 g_s 的冲突分量投影掉。"} | PCGrad 风格的逐样本梯度修正：当样本梯度与验证梯度内积为负时投影掉冲突方向。 |
 | [PCGrad]{.term data-tip="PCGrad (Yu et al. 2020) — 多任务学习里通过把任务梯度投影到彼此正交方向来化解冲突的算法。"} | Yu 等 2020 年提出的多任务梯度冲突化解算法。 |
 | [conflict-only projection]{.term data-tip="冲突门控投影 — 只在内积 < 0 时才执行投影，避免把已经对齐的有用方向也擦掉。"} | 仅在 $\mathbf{g}_s^\top\mathbf{g}_{\mathcal{V}}<0$ 时才执行投影，保留正向对齐的有用方向。 |
@@ -23,7 +23,7 @@ format: html
 | [$\mathbf{g}_{\mathcal{V}}$]{.term data-tip="g_V — 验证集梯度 ∇_θ (1/|V|) Σ ℓ(θ;v)；代表「能改善真规则泛化」的更新方向。"} | 验证集平均梯度，代表「能改善真规则泛化」的更新方向。 |
 | [$A(s)$]{.term data-tip="非迁移对齐 — A(s)=cos(g_s, g_V)；低 = 该样本梯度不利于真规则泛化。"} | $A(s)=\cos(\mathbf{g}_s,\mathbf{g}_{\mathcal{V}})$；越低 = 越不可迁移。 |
 | [$R(s)$]{.term data-tip="答案-token 梯度集中度 — 答案 token 的梯度范数占比；高 = 模型在学「答什么」而非「怎么推」。"} | $R(s)=\sum_{t\in T_{\mathrm{ans}}}\|\nabla\ell_t\|/\sum_{t\in T_{\mathrm{ans}}\cup T_{\mathrm{reason}}}\|\nabla\ell_t\|$。 |
-| [$w(s)$]{.term data-tip="样本权重 — w(s)=exp(−λ S(s))；ShortcutScore 高 → 权重小 → 梯度贡献被压缩。"} | 样本权重 $w(s)=\exp(-\lambda S(s))$；用于反向传播前的梯度缩放。 |
+| $w(s)$（**已弃用**） | 早期 SART 的样本权重 $w(s)=\exp(-\lambda S(s))$；Path A 已删除。 |
 
 ## 超参数
 
@@ -32,10 +32,10 @@ format: html
 | [$\tau_A$]{.term data-tip="τ_A — 对齐阈值；A(s) 低于该值视为「非迁移」。论文默认 0.3。"} | 非迁移对齐阈值，默认 0.3。 |
 | [$\tau_R$]{.term data-tip="τ_R — 集中度阈值；R(s) 高于该值视为「答案主导」。论文默认 0.5。"} | 答案-token 集中度阈值，默认 0.5。 |
 | [$\alpha,\beta$]{.term data-tip="α, β — ShortcutScore 中两项 (1−A) 与 R 的相对权重；论文默认 α=β=1.0。"} | $S(s)$ 的两项加权系数，默认均为 1.0。 |
-| [$\lambda$]{.term data-tip="λ — 指数 reweighting 强度；越大 → shortcut 样本被压得越狠。论文默认 3.0。"} | 指数 reweighting 强度，默认 3.0。 |
+| $\lambda$（**已弃用**） | 早期 SART 的指数 reweighting 强度；Path A 已删除该超参。 |
 | [$\gamma$]{.term data-tip="γ — 冲突投影强度，γ=1 完全擦除冲突分量。论文 main 用 1.0；Math 单特征建议 0.8。"} | 冲突投影强度，默认 1.0；越大投影越彻底。 |
 | [$\rho$]{.term data-tip="ρ — 答案-token 梯度抑制强度，ρ=1 完全去掉答案-token 梯度贡献。论文 main 用 0.5。"} | 答案-token 梯度抑制系数，默认 0.5。 |
-| [$K$]{.term data-tip="K — Warmup 阶段 epoch 数；reweighting 与 surgery 在 K 之后才生效。论文默认 max(5, epochs/6)。"} | Warmup 阶段 epoch 数，默认 $\max(5,\,\text{epochs}/6)$。 |
+| [$K$]{.term data-tip="K — Warmup 阶段 epoch 数；surgery 在 K 之后才生效。论文 Path A 默认 K=8。"} | Warmup 阶段 epoch 数，Path A 默认 $K=8$。 |
 
 ## 数据集与设置
 
