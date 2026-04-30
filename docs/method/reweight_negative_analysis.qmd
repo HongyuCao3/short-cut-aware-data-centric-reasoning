@@ -1,0 +1,184 @@
+---
+title: "Reweight 负贡献分析（§4.2 反驳段的实证升级）"
+format:
+  html:
+    toc: true
+    code-fold: true
+---
+
+> **本页对应论文 §4.2 "Why Conflict-Only Surgery, Not Reweighting or Removal" 段落。把论文里那一句 "shrinks magnitude but leaves direction unchanged"（reweight 仅缩量不改向）从概念论证升级为：(1) 概念图示、(2) 实证负贡献的量化、(3) 三层归因诊断、(4) 反向证据的诚实交代。结论支撑 [Path A](../experiments/ablation.qmd) 的结构性辩护——不是调参失败，而是设计书内部矛盾。**
+
+> 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
+
+## 1. 概念：reweight 是 [magnitude knob]{.term data-tip="magnitude knob — 仅改变向量长度（幅度）、不改变方向的标量缩放算子；类比音量旋钮，只调声音大小不改内容。"}
+
+任何梯度向量 [$\mathbf{g}_s$]{.term data-tip="g_s — 样本 s 的逐样本梯度 ∇_θ ℓ(θ;s)。"} 都有两个独立属性：
+
+- **方向（direction）**：告诉参数往哪边走；
+- **幅度（magnitude / 长度）**：告诉参数走多远。
+
+[Scalar reweight]{.term data-tip="scalar reweight — 用一个标量 w(s)∈(0,1] 给整条梯度向量乘缩放；从线性代数上严格只改幅度，不改方向。"} $\mathbf{g}_s' = w(s)\cdot \mathbf{g}_s$ 在线性代数上**严格只改幅度，不改方向**——$w(s)$ 是标量，乘标量不能旋转向量。
+
+[Gradient Surgery]{.term data-tip="梯度手术 — PCGrad 风格的逐样本梯度修正：仅当 g_s · g_V < 0 时才把 g_s 的冲突分量投影掉。"} 是另一回事——它通过投影**真的改变方向**，可以叫它 [direction knob]{.term data-tip="direction knob — 通过投影 / 分解让向量真正改变方向的算子；surgery 的本质形态。"}。
+
+> **音量旋钮类比**：音响里在放一首跑调的歌（方向错），你拧小音量（缩幅度），歌还是那首跑调的歌——只是声音小了。要修，得换首歌（换方向），不是把音量调小。
+
+ASCII 示意：
+
+```
+原向量 g_s         ──────────────────►   长度=1.0, 方向=θ
+reweight 后         ───►                  长度=0.135, 方向=θ（不变）
+                    ↑                     ↑
+                  变短                   方向一字不变
+
+surgery（投影）：
+g_s            ──────────►
+                ↘  保留有用分量
+g_V        ←─←─←─
+                ↘  投影掉冲突分量
+g_s'           ───↗                      新方向 θ'（与 θ 不同）
+```
+
+论文 §4.2 现有那句 "*shrinks magnitude but leaves direction unchanged*" 就是在说"reweight 是 magnitude knob——而 shortcut 的本质问题是方向错了，调幅度治不了根。"
+
+## 2. 实证：reweight 在 SART 中的净贡献（K=8）
+
+paper-default warmup [$K{=}8$]{.term data-tip="K — Warmup 阶段 epoch 数；surgery 在 K 之后才生效。论文 Path A 默认 K=8。"} 下三个数据集的 [Robustness]{.term data-tip="Robustness — perturbed 切分上的准确率；shortcut 模型必翻车，所以是判别真不真学到规则的关键指标。"} 比较：
+
+| 数据集 | [Full SART]{.term data-tip="Full SART — 旧叙事下 reweight + surgery 双组件全开的方法配置。"} rob | [Surgery-Only]{.term data-tip="Surgery-Only — Path A 下只保留 surgery、删掉 reweight 的方法配置。"} rob | reweight 净贡献 |
+|---|---:|---:|---:|
+| [Math-Arithmetic]{.term data-tip="Math 数据集 — 二分类 a+b ≥ 10？真规则=求和，shortcut=a≥5（单特征）。"} | 0.301 | **0.419** | **−11.8 pp** |
+| [Financial-Analysis]{.term data-tip="Financial 数据集 — 多特征二分类，真规则=利润率≥5 ∧ 负债<5，shortcut=营收≥5。"} | 0.417 | 0.430 | +1.3 pp（噪声内）|
+| [Causal-Reasoning]{.term data-tip="Causal 数据集 — 含混淆变量 z 的因果方向二分类，真规则=x≥5 ∧ z<3，shortcut=x 与 y 的相关≥5。"} | 0.505 | **0.795** | **−29.0 pp** |
+
+**如何看表**
+
+- **每行**：固定数据集，比较"加 reweight 与否"两个 SART 配置；
+- **第二列**：reweight + surgery 同开（旧 Full SART）的鲁棒性；
+- **第三列**：只开 surgery、删掉 reweight 的鲁棒性；
+- **第四列 = 第二列 − 第三列**：reweight 这个组件**额外**给鲁棒性带来多少（正=贡献，负=拖累）。
+
+**趋势的含义**
+
+- 三个数据集里 **2/3 净负、1/3 噪声内**——reweight 在 K=8 没有任何 dataset 上是净正贡献；
+- Causal 上 **−29 pp** 是触目惊心的——reweight 把 surgery 已经拿到的鲁棒性吐回去近一半；
+- 如果 reweight 真的是论文宣称的"软化 shortcut 样本以保留有用信息"，应该在 surgery 之上锦上添花；实证是**雪上加霜**——这是设计与目标不一致的强信号。
+
+数据来源：[`results/full_sart_K_sweep.json`](../../results/full_sart_K_sweep.json) + [`results/surgery_only_K_sweep.json`](../../results/surgery_only_K_sweep.json)。
+
+## 3. 三层归因诊断：为什么 reweight 净负？
+
+把"reweight 拖累 surgery"这个事实拆成三层独立的责任，分别讨论可修复性：
+
+### 层 1：Hardcode（[$\lambda$]{.term data-tip="λ — 早期 SART 指数 reweight 强度；w(s)=exp(−λ·S(s))；论文默认 λ=2，激进。Path A 已删除。"}=2 太激进） — 30% 责任
+
+`w(s) = exp(-λ·S(s))` 在 λ=2 下：
+
+| [$S(s)$]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} | $w(s)$ | 抑制幅度 |
+|---:|---:|---|
+| 0.5 | 0.37 | -63% |
+| 1.0 | 0.135 | **-87%** |
+| 1.5 | 0.05 | -95% |
+| 2.0 | 0.018 | -98% |
+
+S=1 的样本几乎被静音。**理论上调小 λ（如 0.3）能温和化**：
+
+| $S(s)$ | $w(s) = \exp(-0.3 S)$ | 抑制幅度 |
+|---:|---:|---|
+| 1.0 | 0.74 | -26% |
+| 2.0 | 0.55 | -45% |
+
+但这样 $w \in [0.7, 1.0]$ 接近 no-op——对 batch 梯度合成几乎无影响。这给出一个**判别准则**：
+
+> 如果 hardcode 是主因 → 温和 λ 下 SART 应趋近 Surgery-Only（reweight 变 no-op）；
+> 如果 design 是主因 → 即便温和 λ 也救不出 reweight 独有的正贡献。
+
+我们没专门跑 λ 扫描，但可从 [Gap 6 + Gap 7](../experiments/shortcut_score_validation.qmd) 数据反推：reweight 在 K∈{8, 30} 任何一个 cell 都没有净正贡献——也就是**没有"等待被释放的正贡献"**。**这把"主因是 hardcode"基本排除**。
+
+### 层 2：设计动机（**致命**） — 70% 责任
+
+reweight 的设计意图同时承担两个目标：
+
+- **G1**：减少 [shortcut 样本]{.term data-tip="shortcut 样本 — 通过表面相关而非真规则压低 loss 的样本；其梯度方向通常与 g_V 反向。"} 对 loss 的贡献（让模型不要继续学 shortcut）；
+- **G2**：保留 shortcut 样本里的有用成分（比 hard removal 软）。
+
+**问题：G1 和 G2 在 scalar 形式下数学上不可兼得。**
+
+设 $\mathbf{g}_s = \mathbf{g}_s^{\mathrm{good}} + \mathbf{g}_s^{\mathrm{bad}}$（沿 / 逆 [$\mathbf{g}_{\mathcal{V}}$]{.term data-tip="g_V — 验证集梯度 ∇_θ (1/|V|) Σ ℓ(θ;v)；代表「能改善真规则泛化」的更新方向。"} 两个分量分解）。reweight 给整条向量乘 $w(s)$：
+
+$$
+w(s)\cdot \mathbf{g}_s = w(s)\cdot \mathbf{g}_s^{\mathrm{good}} + w(s)\cdot \mathbf{g}_s^{\mathrm{bad}}
+$$
+
+其中 $w(s)$ 是 reweight 给样本 $s$ 的标量权重，$\mathbf{g}_s^{\mathrm{good}}$ / $\mathbf{g}_s^{\mathrm{bad}}$ 分别是该样本梯度沿正向 / 反向 $\mathbf{g}_{\mathcal{V}}$ 的分量。
+
+**有用分量与有害分量被以同样比例缩水**：$w=0.135$ 时 good 和 bad 都被砍到 13.5%。
+
+要同时满足 G1 + G2，必须有**两个独立的标量**——一个缩 good、一个缩 bad。但 good / bad 的分解需要先知道 $\mathbf{g}_{\mathcal{V}}$（即先做投影）。
+
+> **核心结论**：要"保留有用方向、去掉有害方向"，**唯一的数学工具是 directional 算子（投影）**——这个工具的名字叫 surgery。reweight 作为 scalar 算子，**从结构上就不可能实现 G2**——它能做到 G1，但实现 G1 的代价就是同时违反 G2。
+
+这不是 hyperparameter 能修的事——是 reweight 的**公式选错了形式**：选了一个标量 `exp(−λS)`，去同时承担两个本质上需要矢量分解的任务。
+
+### 层 3：信号使用方式 — [cardinal vs ordinal]{.term data-tip="cardinal vs ordinal — cardinal 用绝对数值（如 S=1.0 比 S=0.5 严重一倍），ordinal 仅用排序（第 5 名比第 10 名靠前）。两者在统计学上不可互换。"} 错配
+
+[shortcut_score.qmd](shortcut_score.qmd) §4 与论文 §4.1 都明确声明 detector 是 **rank-only** 信号：
+
+> *The detector is intentionally a rank signal: it does not need to be a calibrated estimator of shortcut probability—only to order the samples well enough...*
+
+但 `w = exp(-λS)` 用的是 $S$ 的**绝对数值**——它把 $S{=}0.5$ 与 $S{=}1.0$ 解释成"严重一倍"。这是**把 ordinal 信号当 cardinal 信号用**。
+
+> **类比**：你给学生考试排了名（rank-only），但你不知道第 5 名比第 10 名到底差多少分。然后你说"我按名次取 exp 当作奖学金系数"——指数函数把一个本不可比的标度强行赋予了精确的连续含义。
+
+[Gap 5/6 实证](../experiments/shortcut_score_validation.qmd) 也直接验证：detector 的 rank quality（Pearson $r$）与下游鲁棒性收益**解耦**——Causal 上 $r$ 升 → robustness 反而**降**。这等于直接把 cardinal 假设证伪了。
+
+### 三层归因汇总
+
+| 层 | 问题 | 严重度 | 可修复性 |
+|---|---|---|---|
+| 1 | Hardcode：λ=2 抑制过激进 | 中 | 调 λ 即可，但调温和后 reweight 趋近 no-op |
+| **2** | **设计动机**：scalar 公式无法同时实现 G1+G2 | **致命** | **修不了，必须换 operator（→ surgery）** |
+| 3 | 信号使用方式：rank 当 cardinal 用 | 高 | 修了也只能在 G2 不可能的前提下做无用功 |
+
+## 4. 反向证据：K=3 时 reweight 反而救场（必须诚实交代）
+
+数据里有一组**反向证据**值得单独看——warmup 极短（K=3）时，reweight 在 Financial / Causal 上**反而拉一把**：
+
+| 数据集 | [SART_K3]{.term data-tip="SART_K3 — Full SART (reweight+surgery) 在 K=3 warmup 下的配置。"} rob | [SO_K3]{.term data-tip="SO_K3 — Surgery-Only 在 K=3 warmup 下的配置。"} rob | reweight 贡献 |
+|---|---:|---:|---:|
+| Math | 0.265 | 0.373 | −10.8 pp |
+| Financial | **0.329** | 0.133 | **+19.6 pp** |
+| Causal | **0.493** | 0.275 | **+21.8 pp** |
+
+**如何看表**
+
+- 与 §2 同结构，但 warmup K 从 8 缩到 3——模型在 score 计算时还远没收敛；
+- Financial / Causal 上 **reweight 净正**（与 §2 K=8 时的净负相反）。
+
+**趋势的含义**
+
+K=3 时 surgery 单干在 Financial / Causal 上做得很差——因为 warmup 太短，surgery 触发判据 [`cos(g_s, g_V) < 0`]{.term data-tip="conflict-only gating — surgery 只在样本梯度与验证梯度内积为负时才执行投影；判据基于 batch 级或样本级 cos 符号。"} 在乱跳。这时 reweight 的均匀压缩**歪打正着**做了能量正则化（稳定剂）——它降低了所有样本（不管对错）的有效学习率，让 surgery 在 noisy gating 下不至于把训练带偏。
+
+但这并不为 reweight 的设计动机辩护——它只是说明：**在 surgery 暂时失灵的窗口里，reweight 偶然以"能量正则化"的副作用救了场**。这是"歪打正着"，**不是 reweight 设计书里写的"软化 shortcut 样本以保留信息"**。一旦 K 进入合理区间（K≥8），surgery 自己稳定下来后，reweight 立即变负贡献——救场效果消失，副作用占优。
+
+> **诚实总结**：reweight 在它"该起作用"的位置（K≥8 + surgery 工作正常）一直在拖后腿；只在 surgery 暂时失灵时偶然救场，但救场用的根本不是设计意图，而是误打误撞的稳定剂。
+
+## 5. Path A 的结构性正当性
+
+把 §3 + §4 合起来读：
+
+- reweight 在 K≥8（合理区间）净负——设计书目标根本没达成；
+- 净负的根因不是 hardcode（30% 责任），而是 scalar 公式无法同时承担 G1+G2 的内部矛盾（70% 责任）；
+- 设计书内部矛盾不是 hyperparameter 能修的——必须从结构上换 operator；
+- 换的 operator 就是 surgery（directional projection），它已经在做 G2 的真正内容——保留有用分量、投影掉有害分量。
+
+**Path A 不是"调参失败放弃"——而是识别出 reweight 的设计书内部矛盾后从结构上解决：把 [$S(s)$]{.term data-tip="ShortcutScore S(s) — 把非迁移对齐 (1−A) 与答案集中度 R 线性组合得到的标量；高 = 更可能 shortcut，flag 进入 surgery 的样本集。"} 退化为 diagnostic-only（仅做 sample selector，不做 magnitude action），让 surgery 单独承担方法的修正职责**。这是论文 §4.2 现有那段 "Why Conflict-Only Surgery, Not Reweighting" 概念论证的实证升级版——把 "decoupled from detector calibration, no gain over surgery" 升级为 "actively anti-helpful by 11.8–29.0 pp on 2/3 datasets at paper-default K"。
+
+> **对论文写作的启示**：§4.2 现有那段反驳论证应该补一个段落讲清楚 "reweight + surgery 同开比 surgery 单干差"，因为单"reweight 单干无增益"还不够说服读者**砍掉 reweight 是有 upside 的**——读者会想"反正没坏处吧，多一层保险"。Path A 的关键说服点恰恰是"留着它会主动伤"，不是"留着它无效"。
+
+## 6. 与其他模块的交叉链接
+
+- **§4.1 detector 定位**：[ShortcutScore（§4.1）](shortcut_score.qmd) ——本页 §3 层 3 引用的 "rank-only signal" 声明出处。
+- **§4.2 现有反驳段落**：[Gradient Surgery（§4.2）](gradient_surgery.qmd) ——本页是它的实证升级；那一页是 Path A 后 SART 唯一修正器的方法描述。
+- **§5.3 ablation**：[消融研究（§5.3）](../experiments/ablation.qmd) ——本页 §2/§4 的表格在那里有更完整的 K-sweep + 组件级去除实证。
+- **§5.4 detector 校准**：[ShortcutScore 验证（§5.4）](../experiments/shortcut_score_validation.qmd) ——本页 §3 层 3 引用的 "Gap 5/6 r 与 robustness 解耦" 实证出处。

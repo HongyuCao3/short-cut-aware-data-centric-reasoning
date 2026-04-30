@@ -51,6 +51,8 @@ website:
             href: method/shortcut_score.qmd
           - text: "Gradient Surgery（§4.2）"
             href: method/gradient_surgery.qmd
+          - text: "Reweight 负贡献分析（§4.2 反驳段升级）"
+            href: method/reweight_negative_analysis.qmd
           - text: "LLM 工程优化（§4 末段）"
             href: method/vram_reduction.qmd
       - section: "实验（§5）"

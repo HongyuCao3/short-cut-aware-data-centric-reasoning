@@ -14,6 +14,27 @@ format: html
 | [Gradient Surgery]{.term data-tip="梯度手术 — PCGrad 风格的逐样本梯度修正：仅当 g_s · g_V < 0 时才把 g_s 的冲突分量投影掉。"} | PCGrad 风格的逐样本梯度修正：当样本梯度与验证梯度内积为负时投影掉冲突方向。 |
 | [PCGrad]{.term data-tip="PCGrad (Yu et al. 2020) — 多任务学习里通过把任务梯度投影到彼此正交方向来化解冲突的算法。"} | Yu 等 2020 年提出的多任务梯度冲突化解算法。 |
 | [conflict-only projection]{.term data-tip="冲突门控投影 — 只在内积 < 0 时才执行投影，避免把已经对齐的有用方向也擦掉。"} | 仅在 $\mathbf{g}_s^\top\mathbf{g}_{\mathcal{V}}<0$ 时才执行投影，保留正向对齐的有用方向。 |
+| [conflict-only gating]{.term data-tip="conflict-only gating — surgery 只在样本梯度与验证梯度内积为负时才执行投影；判据基于 batch 级或样本级 cos 符号。"} | 投影前的布尔触发器：$\mathbf{g}_s^\top\mathbf{g}_{\mathcal{V}}<0$ 才让 projection 启动。 |
+
+## 算子概念（reweight 负贡献分析）
+
+| 术语 | 中文解释 |
+|------|----------|
+| [magnitude knob]{.term data-tip="magnitude knob — 仅改变向量长度（幅度）、不改变方向的标量缩放算子；类比音量旋钮，只调声音大小不改内容。"} | 仅改变向量长度的标量算子；reweight 是 magnitude knob——音量旋钮类比。 |
+| [direction knob]{.term data-tip="direction knob — 通过投影 / 分解让向量真正改变方向的算子；surgery 的本质形态。"} | 通过投影 / 分解真正改变向量方向的算子；surgery 是 direction knob。 |
+| [scalar reweight]{.term data-tip="scalar reweight — 用一个标量 w(s)∈(0,1] 给整条梯度向量乘缩放；从线性代数上严格只改幅度，不改方向。"} | $\mathbf{g}_s' = w(s)\cdot\mathbf{g}_s$ 的标量缩放；保留 g_s 方向。Path A 已弃用。 |
+| [cardinal vs ordinal]{.term data-tip="cardinal vs ordinal — cardinal 用绝对数值（如 S=1.0 比 S=0.5 严重一倍），ordinal 仅用排序（第 5 名比第 10 名靠前）。两者在统计学上不可互换。"} | 数据/信号的两种使用方式；rank-only signal 不能当 cardinal 用。 |
+| [shortcut 样本]{.term data-tip="shortcut 样本 — 通过表面相关而非真规则压低 loss 的样本；其梯度方向通常与 g_V 反向。"} | 通过表面相关压低 loss 的样本；梯度方向通常与 $\mathbf{g}_{\mathcal{V}}$ 反向。 |
+
+## 方法变体名称
+
+| 术语 | 中文解释 |
+|------|----------|
+| [Full SART]{.term data-tip="Full SART — 旧叙事下 reweight + surgery 双组件全开的方法配置。"} | 旧叙事下 reweight + surgery 双组件全开；K=8 在 2/3 数据集净负，被 Path A 替代。 |
+| [Surgery-Only]{.term data-tip="Surgery-Only — Path A 下只保留 surgery、删掉 reweight 的方法配置。"} | Path A 默认配置；K=8 在 Causal 上达 0.795 robustness，比 Full SART 高 +29 pp。 |
+| Reweight-Only | 只开 reweight、关 surgery 的对照变体；Math 上 robustness=0 一直；Path A 已弃。 |
+| [SART_K3]{.term data-tip="SART_K3 — Full SART (reweight+surgery) 在 K=3 warmup 下的配置。"} | Full SART 在 K=3 warmup 下的 cell；Financial / Causal 上 reweight 反向救场。 |
+| [SO_K3]{.term data-tip="SO_K3 — Surgery-Only 在 K=3 warmup 下的配置。"} | Surgery-Only 在 K=3 warmup 下的 cell；warmup 太短时 surgery 触发器乱跳。 |
 
 ## 关键梯度量
 
