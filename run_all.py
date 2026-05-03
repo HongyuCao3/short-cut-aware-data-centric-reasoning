@@ -242,13 +242,13 @@ def run_synthetic_experiments(all_results, collected_data_all, dataset_names):
         print(f'  Accuracy: {results_meta["accuracy_clean"]:.3f}, '
               f'Robustness: {results_meta["robustness"]:.3f}')
 
-        # (m) Our Full Method
-        print('\n[13/13] Training: Our Method (Reweighting + Gradient Surgery)...')
+        # (m) Our Full Method (Path A: conflict-only surgery, no reweighting)
+        print('\n[13/13] Training: Our Method (Path A: Conflict-Only Gradient Surgery)...')
         set_seed()
         model_ours = create_model()
         t0 = time.time()
         model_ours, collected = train_our_method(
-            model_ours, ds, use_reweighting=True, use_gradient_surgery=True,
+            model_ours, ds, use_reweighting=False, use_gradient_surgery=True,
             collect_scores=True
         )
         print(f'  Training time: {time.time()-t0:.1f}s')

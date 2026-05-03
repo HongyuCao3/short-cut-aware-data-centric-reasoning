@@ -1,0 +1,55 @@
+PROFILE = server, device = cuda
+D5: SART-as-filter — S(s) ranking + drop top-k%, then SFT
+/home/asurite.ad.asu.edu/hongyuca/miniconda3/envs/principle-guided-reasoning/lib/python3.10/site-packages/torch/nn/modules/transformer.py:382: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+
+SmallGPT params: 18,962,467
+
+=========================================================
+=== Dataset: Causal-Reasoning ===
+=========================================================
+  Phase 1: Warmup (8 epochs)
+  Phase 2: Computing ShortcutScores...
+  Filter: dropped 7000/10000 (70% by S(s) ranking)
+    Precision (dropped & actually shortcut): 70.1%
+    Recall (shortcut samples found by filter): 69.9%
+    Kept set clean fraction: 29.6% (oracle drop achieves 100.0%)
+  Phase 3: SFT on 3000 kept samples (50 epochs)
+/home/asurite.ad.asu.edu/hongyuca/miniconda3/envs/principle-guided-reasoning/lib/python3.10/site-packages/torch/nn/modules/transformer.py:382: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+
+  Result: acc=0.795, rob=0.595, time=47.1s
+
+=========================================================
+=== Dataset: Math-Arithmetic ===
+=========================================================
+  Phase 1: Warmup (8 epochs)
+  Phase 2: Computing ShortcutScores...
+  Filter: dropped 7000/10000 (70% by S(s) ranking)
+    Precision (dropped & actually shortcut): 71.6%
+    Recall (shortcut samples found by filter): 71.1%
+    Kept set clean fraction: 32.1% (oracle drop achieves 100.0%)
+  Phase 3: SFT on 3000 kept samples (50 epochs)
+
+  Result: acc=0.801, rob=0.827, time=50.9s
+
+=========================================================
+=== Dataset: Financial-Analysis ===
+=========================================================
+  Phase 1: Warmup (8 epochs)
+  Phase 2: Computing ShortcutScores...
+  Filter: dropped 7000/10000 (70% by S(s) ranking)
+    Precision (dropped & actually shortcut): 65.7%
+    Recall (shortcut samples found by filter): 65.8%
+    Kept set clean fraction: 20.3% (oracle drop achieves 100.0%)
+  Phase 3: SFT on 3000 kept samples (50 epochs)
+
+  Result: acc=0.620, rob=0.242, time=54.6s
+
+=== Done in 1641.7s (27.4 min) ===
+
+=== Summary ===
+Dataset                    Acc     Rob   Filter P   Filter R    Kept Clean %
+Causal-Reasoning         0.795   0.595      70.1%      69.9%           29.6%
+Math-Arithmetic          0.801   0.827      71.6%      71.1%           32.1%
+Financial-Analysis       0.620   0.242      65.7%      65.8%           20.3%

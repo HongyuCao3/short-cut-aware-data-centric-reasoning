@@ -1,0 +1,58 @@
+PROFILE = server, device = cuda
+D3+D2 hybrid: per-shortcut-group surgery with oracle is_shortcut
+/home/asurite.ad.asu.edu/hongyuca/miniconda3/envs/principle-guided-reasoning/lib/python3.10/site-packages/torch/nn/modules/transformer.py:382: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+
+SmallGPT params: 18,962,467
+
+=========================================================
+=== Dataset: Causal-Reasoning ===
+=========================================================
+  Phase 1: Warmup (8 epochs)
+  Phase 3: Oracle group-surgery (42 epochs)
+    Epoch 8/42, Loss: 1.0514, shortcut-gate fires 36/79 (45.6%)
+    Epoch 16/42, Loss: 2.8656, shortcut-gate fires 34/79 (43.0%)
+    Epoch 24/42, Loss: 0.7503, shortcut-gate fires 40/79 (50.6%)
+    Epoch 32/42, Loss: 3.1038, shortcut-gate fires 37/79 (46.8%)
+    Epoch 40/42, Loss: 0.5178, shortcut-gate fires 37/79 (46.8%)
+  [Oracle-group gate diagnostics] total fires 1624/3318 (48.9%); shortcut-group cos_sim range [-0.998, 0.999], mean 0.003
+
+  Result: acc=0.673, rob=0.360, time=204.1s, fire_rate=48.9%, cos_sim mean=0.003
+
+=========================================================
+=== Dataset: Math-Arithmetic ===
+=========================================================
+/home/asurite.ad.asu.edu/hongyuca/miniconda3/envs/principle-guided-reasoning/lib/python3.10/site-packages/torch/nn/modules/transformer.py:382: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+  Phase 1: Warmup (8 epochs)
+  Phase 3: Oracle group-surgery (42 epochs)
+    Epoch 8/42, Loss: 0.9380, shortcut-gate fires 37/79 (46.8%)
+    Epoch 16/42, Loss: 4.4139, shortcut-gate fires 37/77 (48.1%)
+    Epoch 24/42, Loss: 8.7593, shortcut-gate fires 38/79 (48.1%)
+    Epoch 32/42, Loss: 5.3732, shortcut-gate fires 36/79 (45.6%)
+    Epoch 40/42, Loss: 1.1369, shortcut-gate fires 43/79 (54.4%)
+  [Oracle-group gate diagnostics] total fires 1684/3305 (51.0%); shortcut-group cos_sim range [-0.999, 0.999], mean -0.029
+
+  Result: acc=0.882, rob=0.441, time=196.2s, fire_rate=51.0%, cos_sim mean=-0.029
+
+=========================================================
+=== Dataset: Financial-Analysis ===
+=========================================================
+  Phase 1: Warmup (8 epochs)
+  Phase 3: Oracle group-surgery (42 epochs)
+    Epoch 8/42, Loss: 1.3790, shortcut-gate fires 38/79 (48.1%)
+    Epoch 16/42, Loss: 9.6446, shortcut-gate fires 36/79 (45.6%)
+    Epoch 24/42, Loss: 13.6012, shortcut-gate fires 39/79 (49.4%)
+    Epoch 32/42, Loss: 3.7636, shortcut-gate fires 39/79 (49.4%)
+    Epoch 40/42, Loss: 1.8531, shortcut-gate fires 37/79 (46.8%)
+  [Oracle-group gate diagnostics] total fires 1659/3318 (50.0%); shortcut-group cos_sim range [-0.999, 0.999], mean -0.018
+
+  Result: acc=0.626, rob=0.390, time=199.3s, fire_rate=50.0%, cos_sim mean=-0.018
+
+=== Done in 758.8s (12.6 min) ===
+
+=== Summary (compare to D1 SO_K8 and D4 OracleDrop) ===
+Dataset                    Acc     Rob   Gate Fire %   cos_sim Mean
+Causal-Reasoning         0.673   0.360          48.9          0.003
+Math-Arithmetic          0.882   0.441          51.0         -0.029
+Financial-Analysis       0.626   0.390          50.0         -0.018

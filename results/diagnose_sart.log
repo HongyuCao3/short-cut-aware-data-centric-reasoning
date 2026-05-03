@@ -1,0 +1,91 @@
+PROFILE = server, device = cuda
+Diagnostic: D1 (gate fire rate) + D4 (oracle drop)
+/home/asurite.ad.asu.edu/hongyuca/miniconda3/envs/principle-guided-reasoning/lib/python3.10/site-packages/torch/nn/modules/transformer.py:382: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+
+SmallGPT params: 18,962,467
+
+=========================================================
+=== Dataset: Causal-Reasoning ===
+=========================================================
+
+--- [D1] Surgery-Only K=8 with gate diagnostics ---
+  Phase 1: Warmup (8 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.2930, Avg weight: 1.0000
+  Phase 3: Weighted retraining (42 epochs)
+    Epoch 8/42, Loss: 0.4184, gate fires 38/79 (48.1%)
+    Epoch 16/42, Loss: 2.0329, gate fires 37/79 (46.8%)
+    Epoch 24/42, Loss: 0.5479, gate fires 39/79 (49.4%)
+    Epoch 32/42, Loss: 2.4396, gate fires 36/79 (45.6%)
+    Epoch 40/42, Loss: 0.2986, gate fires 36/79 (45.6%)
+  [Gate diagnostics] total fires 1651/3318 (49.8%); cos_sim range [-0.999, 0.999], mean -0.010
+
+  D1 acc=0.569, rob=0.162, time=250.5s
+  D1 gate_fire_rate=49.8%, cos_sim mean=-0.010, range=[-0.999, 0.999]
+
+--- [D4] Oracle-drop SFT (drop is_shortcut=True samples) ---
+  Train: 10000 -> 2980 (7020 dropped, 70.2%)
+/home/asurite.ad.asu.edu/hongyuca/miniconda3/envs/principle-guided-reasoning/lib/python3.10/site-packages/torch/nn/modules/transformer.py:382: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+  D4 acc=1.000, rob=1.000, time=35.2s
+
+=========================================================
+=== Dataset: Math-Arithmetic ===
+=========================================================
+
+--- [D1] Surgery-Only K=8 with gate diagnostics ---
+  Phase 1: Warmup (8 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.2592, Avg weight: 1.0000
+  Phase 3: Weighted retraining (42 epochs)
+    Epoch 8/42, Loss: 0.1146, gate fires 37/79 (46.8%)
+    Epoch 16/42, Loss: 1.4283, gate fires 37/79 (46.8%)
+    Epoch 24/42, Loss: 1.0194, gate fires 40/79 (50.6%)
+    Epoch 32/42, Loss: 1.7880, gate fires 39/79 (49.4%)
+    Epoch 40/42, Loss: 0.2159, gate fires 40/79 (50.6%)
+  [Gate diagnostics] total fires 1641/3318 (49.5%); cos_sim range [-0.999, 0.999], mean -0.003
+
+  D1 acc=0.804, rob=0.323, time=373.0s
+  D1 gate_fire_rate=49.5%, cos_sim mean=-0.003, range=[-0.999, 0.999]
+
+--- [D4] Oracle-drop SFT (drop is_shortcut=True samples) ---
+  Train: 10000 -> 2948 (7052 dropped, 70.5%)
+  D4 acc=1.000, rob=1.000, time=38.0s
+
+=========================================================
+=== Dataset: Financial-Analysis ===
+=========================================================
+
+--- [D1] Surgery-Only K=8 with gate diagnostics ---
+  Phase 1: Warmup (8 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.2998, Avg weight: 1.0000
+  Phase 3: Weighted retraining (42 epochs)
+    Epoch 8/42, Loss: 0.8402, gate fires 37/79 (46.8%)
+    Epoch 16/42, Loss: 3.4528, gate fires 34/79 (43.0%)
+    Epoch 24/42, Loss: 4.6383, gate fires 41/79 (51.9%)
+    Epoch 32/42, Loss: 3.6006, gate fires 38/79 (48.1%)
+    Epoch 40/42, Loss: 1.2831, gate fires 34/79 (43.0%)
+  [Gate diagnostics] total fires 1633/3318 (49.2%); cos_sim range [-1.000, 0.999], mean 0.003
+
+  D1 acc=0.671, rob=0.368, time=392.5s
+  D1 gate_fire_rate=49.2%, cos_sim mean=0.003, range=[-1.000, 0.999]
+
+--- [D4] Oracle-drop SFT (drop is_shortcut=True samples) ---
+  Train: 10000 -> 3010 (6990 dropped, 69.9%)
+  D4 acc=1.000, rob=1.000, time=37.5s
+
+=== Diagnostics done in 1497.6s (25.0 min) ===
+
+=== Summary ===
+Dataset                 Method             Acc     Rob   Gate Fire %   cos_sim Mean
+Causal-Reasoning        SO_K8_d1         0.569   0.162          49.8         -0.010
+Causal-Reasoning        OracleDrop       1.000   1.000             -              -
+Math-Arithmetic         SO_K8_d1         0.804   0.323          49.5         -0.003
+Math-Arithmetic         OracleDrop       1.000   1.000             -              -
+Financial-Analysis      SO_K8_d1         0.671   0.368          49.2          0.003
+Financial-Analysis      OracleDrop       1.000   1.000             -              -

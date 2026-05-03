@@ -1003,10 +1003,19 @@ def train_our_method(model, dataset, use_reweighting=True, use_gradient_surgery=
     use_adaptive_lambda = ('lambda_start' in _c and 'lambda_end' in _c
                            and use_reweighting)
 
+    # Gate-fire diagnostics (D1): track how often the conflict gate triggers
+    gate_fires_total = 0
+    gate_batches_total = 0
+    cos_sim_sum = 0.0
+    cos_sim_min = float('inf')
+    cos_sim_max = float('-inf')
+
     model.train()
     for epoch in range(main_epochs):
         total_loss = 0.0
         n_batches = 0
+        epoch_fires = 0
+        epoch_batches = 0
 
         # Adaptive lambda: recompute weights each epoch
         if use_adaptive_lambda:
@@ -1056,10 +1065,16 @@ def train_our_method(model, dataset, use_reweighting=True, use_gradient_surgery=
                 norm_gv = g_V.norm()
                 if norm_bg > 1e-10 and norm_gv > 1e-10:
                     cos_sim = (batch_grad @ g_V) / (norm_bg * norm_gv)
-                    if cos_sim.item() < 0:
+                    cs_val = cos_sim.item()
+                    epoch_batches += 1
+                    cos_sim_sum += cs_val
+                    if cs_val < cos_sim_min: cos_sim_min = cs_val
+                    if cs_val > cos_sim_max: cos_sim_max = cs_val
+                    if cs_val < 0:
+                        epoch_fires += 1
                         g_mod = apply_gradient_surgery(
                             batch_grad, batch_grad, g_V,
-                            -cos_sim.item(), 0.0,
+                            -cs_val, 0.0,
                             gamma=hp_gamma, rho=hp_rho)
                         # Preserve original gradient scale
                         g_mod = g_mod * (norm_bg / g_mod.norm().clamp(min=1e-10))
@@ -1072,8 +1087,20 @@ def train_our_method(model, dataset, use_reweighting=True, use_gradient_surgery=
             total_loss += loss.item()
             n_batches += 1
 
+        gate_fires_total += epoch_fires
+        gate_batches_total += epoch_batches
+
         if verbose and (epoch + 1) % max(1, main_epochs // 5) == 0:
-            print(f"    Epoch {epoch+1}/{main_epochs}, Loss: {total_loss/n_batches:.4f}")
+            fire_pct = 100.0 * epoch_fires / max(epoch_batches, 1)
+            print(f"    Epoch {epoch+1}/{main_epochs}, Loss: {total_loss/n_batches:.4f}, "
+                  f"gate fires {epoch_fires}/{epoch_batches} ({fire_pct:.1f}%)")
+
+    if use_gradient_surgery and verbose and gate_batches_total > 0:
+        avg_cs = cos_sim_sum / gate_batches_total
+        total_pct = 100.0 * gate_fires_total / gate_batches_total
+        print(f"  [Gate diagnostics] total fires {gate_fires_total}/{gate_batches_total} "
+              f"({total_pct:.1f}%); cos_sim range [{cos_sim_min:.3f}, {cos_sim_max:.3f}], "
+              f"mean {avg_cs:.3f}")
 
     if collect_scores:
         return model, collected_data

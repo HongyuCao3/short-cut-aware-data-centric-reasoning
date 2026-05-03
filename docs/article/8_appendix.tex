@@ -92,6 +92,33 @@ Table~\ref{tab:sensitivity} reports SART at three $(\gamma, \rho)$ settings on e
 \textbf{(3) The recommended default $(\gamma{=}1.0, \rho{=}0.3)$ improves over the prior default on average.} Against the earlier $(\gamma{=}0.8, \rho{=}0.7)$ setting, the recommended default gains $+6.5$\,pp accuracy and $+10.7$\,pp robustness on average; per-task tuning adds another $+8.2$\,pp robustness by switching to $\gamma{=}0.8$ on Math. In deployment, a practitioner who cannot tune per-task should use $(\gamma{=}1.0, \rho{=}0.3)$; one who can should estimate the shortcut's feature cardinality (e.g., from the shortcut detector's coefficient structure) and back off $\gamma$ for single-feature cases.
 
 %-----------------------------------------------------------------------------
+\section{Per-Dataset Accuracy and Reasoning-Consistency Breakdown}
+\label{sec:appendix_per_dataset}
+
+Table~\ref{tab:per_dataset_appendix} reports the per-dataset clean accuracy and reasoning-consistency components of the merged Table~\ref{tab:main_results} for the five representative methods. The Math column has Acc$\equiv$Rsn by construction (the Math task admits no separator-prefixed reasoning chain).
+
+\begin{table}[h]
+\centering
+\caption{Per-dataset clean accuracy (\textbf{Acc}) and reasoning consistency (\textbf{Rsn}) for the five representative methods of Table~\ref{tab:main_results}. Per-dataset robustness appears in the bottom block of Table~\ref{tab:main_results}. \textbf{Bold}: best per dataset.}
+\label{tab:per_dataset_appendix}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{l cc cc cc}
+\toprule
+ & \multicolumn{2}{c}{\textsc{Math}} & \multicolumn{2}{c}{\textsc{Financial}} & \multicolumn{2}{c}{\textsc{Causal}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+\textbf{Method} & Acc & Rsn & Acc & Rsn & Acc & Rsn \\
+\midrule
+SFT                  & 77.6 & 77.6 & 66.4 & 46.8 & 62.4 & 43.4 \\
+Data Filtering       & 82.6 & 82.6 & 72.6 & 60.8 & 69.0 & 50.8 \\
+Group DRO            & \textbf{86.8} & \textbf{86.8} & 68.0 & 48.8 & 65.8 & 48.8 \\
+Influence Filtering  & 81.4 & 81.4 & 63.4 & 59.6 & 83.2 & 64.2 \\
+\textbf{SART (Ours)} & 82.9 & 82.9 & \textbf{69.9} & \textbf{69.9} & \textbf{89.3} & \textbf{73.4} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%-----------------------------------------------------------------------------
 \section{Why Detection F1 Is Not the Right Endpoint}
 \label{sec:appendix_f1_decoupling}
 

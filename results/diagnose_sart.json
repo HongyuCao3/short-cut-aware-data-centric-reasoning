@@ -1,0 +1,68 @@
+{
+  "Causal-Reasoning": {
+    "SO_K8_d1": {
+      "accuracy_clean": 0.5686666666666667,
+      "robustness": 0.162,
+      "train_sec": 250.48444819450378,
+      "gate_stats": {
+        "fires": 1651,
+        "batches": 3318,
+        "fire_rate_pct": 49.8,
+        "cos_sim_min": -0.999,
+        "cos_sim_max": 0.999,
+        "cos_sim_mean": -0.01
+      }
+    },
+    "OracleDrop": {
+      "accuracy_clean": 1.0,
+      "robustness": 1.0,
+      "n_kept": 2980,
+      "n_dropped": 7020,
+      "train_sec": 35.20018792152405
+    }
+  },
+  "Math-Arithmetic": {
+    "SO_K8_d1": {
+      "accuracy_clean": 0.804,
+      "robustness": 0.3233333333333333,
+      "train_sec": 372.9712564945221,
+      "gate_stats": {
+        "fires": 1641,
+        "batches": 3318,
+        "fire_rate_pct": 49.5,
+        "cos_sim_min": -0.999,
+        "cos_sim_max": 0.999,
+        "cos_sim_mean": -0.003
+      }
+    },
+    "OracleDrop": {
+      "accuracy_clean": 1.0,
+      "robustness": 1.0,
+      "n_kept": 2948,
+      "n_dropped": 7052,
+      "train_sec": 37.99762582778931
+    }
+  },
+  "Financial-Analysis": {
+    "SO_K8_d1": {
+      "accuracy_clean": 0.6706666666666666,
+      "robustness": 0.368,
+      "train_sec": 392.53476762771606,
+      "gate_stats": {
+        "fires": 1633,
+        "batches": 3318,
+        "fire_rate_pct": 49.2,
+        "cos_sim_min": -1.0,
+        "cos_sim_max": 0.999,
+        "cos_sim_mean": 0.003
+      }
+    },
+    "OracleDrop": {
+      "accuracy_clean": 1.0,
+      "robustness": 1.0,
+      "n_kept": 3010,
+      "n_dropped": 6990,
+      "train_sec": 37.515055418014526
+    }
+  }
+}

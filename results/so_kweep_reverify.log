@@ -1,0 +1,139 @@
+PROFILE = server, device = cuda
+K sweep = [3, 8, 30], total epochs = 50
+lambda = 2.0, tau_A = 0.3, tau_R = 0.5
+Variant: SURGERY-ONLY  (use_reweighting=False)
+/home/asurite.ad.asu.edu/hongyuca/miniconda3/envs/principle-guided-reasoning/lib/python3.10/site-packages/torch/nn/modules/transformer.py:382: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+
+SmallGPT params: 18,962,467
+
+--- [Math-Arithmetic] SFT baseline (epochs=50) ---
+  SFT acc=0.759, rob=0.000, time=107.9s
+
+--- [Math-Arithmetic] Surgery-Only K=3 (no reweight, total epochs=50) ---
+/home/asurite.ad.asu.edu/hongyuca/miniconda3/envs/principle-guided-reasoning/lib/python3.10/site-packages/torch/nn/modules/transformer.py:382: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+  Phase 1: Warmup (3 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.2798, Avg weight: 1.0000
+  Phase 3: Weighted retraining (47 epochs)
+    Epoch 9/47, Loss: 0.0772
+    Epoch 18/47, Loss: 0.1814
+    Epoch 27/47, Loss: 0.4517
+    Epoch 36/47, Loss: 0.3930
+    Epoch 45/47, Loss: 0.0491
+  SO K=3 acc=0.863, rob=0.505, time=253.7s
+
+--- [Math-Arithmetic] Surgery-Only K=8 (no reweight, total epochs=50) ---
+  Phase 1: Warmup (8 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.2592, Avg weight: 1.0000
+  Phase 3: Weighted retraining (42 epochs)
+    Epoch 8/42, Loss: 0.1146
+    Epoch 16/42, Loss: 1.4283
+    Epoch 24/42, Loss: 1.0194
+    Epoch 32/42, Loss: 1.7880
+    Epoch 40/42, Loss: 0.2159
+  SO K=8 acc=0.804, rob=0.323, time=256.9s
+
+--- [Math-Arithmetic] Surgery-Only K=30 (no reweight, total epochs=50) ---
+  Phase 1: Warmup (30 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.2851, Avg weight: 1.0000
+  Phase 3: Weighted retraining (20 epochs)
+    Epoch 4/20, Loss: 0.0450
+    Epoch 8/20, Loss: 0.0355
+    Epoch 12/20, Loss: 0.0859
+    Epoch 16/20, Loss: 0.0758
+    Epoch 20/20, Loss: 0.0348
+  SO K=30 acc=0.793, rob=0.140, time=248.7s
+
+--- [Financial-Analysis] SFT baseline (epochs=50) ---
+  SFT acc=0.495, rob=0.004, time=112.1s
+
+--- [Financial-Analysis] Surgery-Only K=3 (no reweight, total epochs=50) ---
+  Phase 1: Warmup (3 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.2982, Avg weight: 1.0000
+  Phase 3: Weighted retraining (47 epochs)
+    Epoch 9/47, Loss: 0.4990
+    Epoch 18/47, Loss: 1.1793
+    Epoch 27/47, Loss: 1.4532
+    Epoch 36/47, Loss: 1.9184
+    Epoch 45/47, Loss: 1.3869
+  SO K=3 acc=0.652, rob=0.431, time=255.4s
+
+--- [Financial-Analysis] Surgery-Only K=8 (no reweight, total epochs=50) ---
+  Phase 1: Warmup (8 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.2998, Avg weight: 1.0000
+  Phase 3: Weighted retraining (42 epochs)
+    Epoch 8/42, Loss: 0.8402
+    Epoch 16/42, Loss: 3.4528
+    Epoch 24/42, Loss: 4.6383
+    Epoch 32/42, Loss: 3.6006
+    Epoch 40/42, Loss: 1.2831
+  SO K=8 acc=0.671, rob=0.368, time=255.6s
+
+--- [Financial-Analysis] Surgery-Only K=30 (no reweight, total epochs=50) ---
+  Phase 1: Warmup (30 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.2899, Avg weight: 1.0000
+  Phase 3: Weighted retraining (20 epochs)
+    Epoch 4/20, Loss: 0.1059
+    Epoch 8/20, Loss: 0.2150
+    Epoch 12/20, Loss: 0.4529
+    Epoch 16/20, Loss: 0.2094
+    Epoch 20/20, Loss: 0.1078
+  SO K=30 acc=0.666, rob=0.342, time=243.3s
+
+--- [Causal-Reasoning] SFT baseline (epochs=50) ---
+  SFT acc=0.505, rob=0.009, time=104.8s
+
+--- [Causal-Reasoning] Surgery-Only K=3 (no reweight, total epochs=50) ---
+  Phase 1: Warmup (3 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.2875, Avg weight: 1.0000
+  Phase 3: Weighted retraining (47 epochs)
+    Epoch 9/47, Loss: 1.0037
+    Epoch 18/47, Loss: 3.5693
+    Epoch 27/47, Loss: 1.2226
+    Epoch 36/47, Loss: 2.4512
+    Epoch 45/47, Loss: 0.4147
+  SO K=3 acc=0.709, rob=0.408, time=256.0s
+
+--- [Causal-Reasoning] Surgery-Only K=8 (no reweight, total epochs=50) ---
+  Phase 1: Warmup (8 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.2930, Avg weight: 1.0000
+  Phase 3: Weighted retraining (42 epochs)
+    Epoch 8/42, Loss: 0.4184
+    Epoch 16/42, Loss: 2.0329
+    Epoch 24/42, Loss: 0.5479
+    Epoch 32/42, Loss: 2.4396
+    Epoch 40/42, Loss: 0.2986
+  SO K=8 acc=0.569, rob=0.162, time=254.5s
+
+--- [Causal-Reasoning] Surgery-Only K=30 (no reweight, total epochs=50) ---
+  Phase 1: Warmup (30 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.3158, Avg weight: 1.0000
+  Phase 3: Weighted retraining (20 epochs)
+    Epoch 4/20, Loss: 0.2236
+    Epoch 8/20, Loss: 0.3591
+    Epoch 12/20, Loss: 0.3316
+    Epoch 16/20, Loss: 0.4422
+    Epoch 20/20, Loss: 0.1295
+  SO K=30 acc=0.565, rob=0.141, time=255.8s
+
+=== Sweep done in 3008.0s (50.1 min) ===
+Saved /home/asurite.ad.asu.edu/hongyuca/short-cut-aware-data-centric-reasoning/results/surgery_only_K_sweep.png

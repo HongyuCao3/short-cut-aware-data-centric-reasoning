@@ -3,74 +3,74 @@
     "SFT": {
       "accuracy_clean": 0.7593333333333333,
       "robustness": 0.0,
-      "train_sec": 140.25856971740723
+      "train_sec": 107.90338897705078
     },
     "SO_K3": {
-      "accuracy_clean": 0.8793333333333333,
-      "robustness": 0.37266666666666665,
-      "train_sec": 485.3146924972534,
+      "accuracy_clean": 0.8633333333333333,
+      "robustness": 0.5046666666666667,
+      "train_sec": 253.70402812957764,
       "warmup_epochs": 3
     },
     "SO_K8": {
-      "accuracy_clean": 0.8286666666666667,
-      "robustness": 0.4186666666666667,
-      "train_sec": 437.213684797287,
+      "accuracy_clean": 0.804,
+      "robustness": 0.3233333333333333,
+      "train_sec": 256.87759613990784,
       "warmup_epochs": 8
     },
     "SO_K30": {
-      "accuracy_clean": 0.8026666666666666,
-      "robustness": 0.24333333333333335,
-      "train_sec": 374.376104593277,
+      "accuracy_clean": 0.7926666666666666,
+      "robustness": 0.14,
+      "train_sec": 248.71460270881653,
       "warmup_epochs": 30
     }
   },
   "Financial-Analysis": {
     "SFT": {
-      "accuracy_clean": 0.49466666666666664,
-      "robustness": 0.0,
-      "train_sec": 137.31142020225525
+      "accuracy_clean": 0.49533333333333335,
+      "robustness": 0.004,
+      "train_sec": 112.13486456871033
     },
     "SO_K3": {
-      "accuracy_clean": 0.5206666666666667,
-      "robustness": 0.13333333333333333,
-      "train_sec": 406.6543872356415,
+      "accuracy_clean": 0.652,
+      "robustness": 0.43066666666666664,
+      "train_sec": 255.41746044158936,
       "warmup_epochs": 3
     },
     "SO_K8": {
-      "accuracy_clean": 0.6993333333333334,
-      "robustness": 0.43,
-      "train_sec": 407.18503856658936,
+      "accuracy_clean": 0.6706666666666666,
+      "robustness": 0.368,
+      "train_sec": 255.57932353019714,
       "warmup_epochs": 8
     },
     "SO_K30": {
-      "accuracy_clean": 0.716,
-      "robustness": 0.42533333333333334,
-      "train_sec": 393.70130681991577,
+      "accuracy_clean": 0.666,
+      "robustness": 0.342,
+      "train_sec": 243.3339033126831,
       "warmup_epochs": 30
     }
   },
   "Causal-Reasoning": {
     "SFT": {
-      "accuracy_clean": 0.5106666666666667,
-      "robustness": 0.019333333333333334,
-      "train_sec": 134.17734169960022
+      "accuracy_clean": 0.5046666666666667,
+      "robustness": 0.008666666666666666,
+      "train_sec": 104.81338953971863
     },
     "SO_K3": {
-      "accuracy_clean": 0.6066666666666667,
-      "robustness": 0.2753333333333333,
-      "train_sec": 405.05048418045044,
+      "accuracy_clean": 0.7093333333333334,
+      "robustness": 0.408,
+      "train_sec": 256.0047986507416,
       "warmup_epochs": 3
     },
     "SO_K8": {
-      "accuracy_clean": 0.8933333333333333,
-      "robustness": 0.7946666666666666,
-      "train_sec": 381.05575704574585,
+      "accuracy_clean": 0.5686666666666667,
+      "robustness": 0.162,
+      "train_sec": 254.49657368659973,
       "warmup_epochs": 8
     },
     "SO_K30": {
-      "accuracy_clean": 0.62,
-      "robustness": 0.22733333333333333,
-      "train_sec": 383.9798057079315,
+      "accuracy_clean": 0.5646666666666667,
+      "robustness": 0.14133333333333334,
+      "train_sec": 255.7739381790161,
       "warmup_epochs": 30
     }
   }

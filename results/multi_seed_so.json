@@ -1,0 +1,9 @@
+{
+  "Math-Arithmetic": {
+    "SFT": {
+      "accuracy_clean": 0.7593333333333333,
+      "robustness": 0.0,
+      "train_sec": 101.04939389228821
+    }
+  }
+}

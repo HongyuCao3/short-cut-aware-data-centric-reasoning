@@ -1,0 +1,41 @@
+{
+  "Causal-Reasoning": {
+    "OracleGroupSurgery": {
+      "accuracy_clean": 0.6733333333333333,
+      "robustness": 0.36,
+      "train_sec": 204.1051890850067,
+      "gate_fires": 1624,
+      "surgery_eligible": 3318,
+      "fire_rate_pct": 48.9451476793249,
+      "cos_sim_mean": 0.0028824236439322047,
+      "cos_sim_min": -0.9979737997055054,
+      "cos_sim_max": 0.9994762539863586
+    }
+  },
+  "Math-Arithmetic": {
+    "OracleGroupSurgery": {
+      "accuracy_clean": 0.882,
+      "robustness": 0.44133333333333336,
+      "train_sec": 196.2351942062378,
+      "gate_fires": 1684,
+      "surgery_eligible": 3305,
+      "fire_rate_pct": 50.953101361573374,
+      "cos_sim_mean": -0.028918098232780486,
+      "cos_sim_min": -0.9985581636428833,
+      "cos_sim_max": 0.9994982481002808
+    }
+  },
+  "Financial-Analysis": {
+    "OracleGroupSurgery": {
+      "accuracy_clean": 0.626,
+      "robustness": 0.39,
+      "train_sec": 199.3337435722351,
+      "gate_fires": 1659,
+      "surgery_eligible": 3318,
+      "fire_rate_pct": 50.0,
+      "cos_sim_mean": -0.018492358811812968,
+      "cos_sim_min": -0.9989812970161438,
+      "cos_sim_max": 0.9989095330238342
+    }
+  }
+}

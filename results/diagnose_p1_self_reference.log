@@ -1,0 +1,76 @@
+PROFILE = server, device = cuda
+P1: Self-reference PCGrad (g_anchor = mean grad over top-S(s) samples)
+/home/asurite.ad.asu.edu/hongyuca/miniconda3/envs/principle-guided-reasoning/lib/python3.10/site-packages/torch/nn/modules/transformer.py:382: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+
+SmallGPT params: 18,962,467
+
+=========================================================
+=== Dataset: Causal-Reasoning ===
+=========================================================
+  Phase 1: Warmup (8 epochs)
+  Phase 2: Computing ShortcutScores...
+  Anchor set: top 10% by S(s) = 1000 samples
+    Anchor composition: shortcut 70.1%, clean 29.9%
+  Computing g_anchor (mean grad over anchor set)...
+    g_anchor norm = 2.474e+00, g_V norm = 2.252e+00
+    cos(g_anchor, g_V) = -0.532 (if ≈ +1, anchor ≈ g_V; if ≠ +1, self-reference adds new info)
+  Phase 3: Self-reference group-surgery (42 epochs); anchor norm = 2.474e+00
+    Epoch 8/42, Loss: 1.2621, shortcut-anchor align (cos>0) gate fires 42/79 (53.2%)
+    Epoch 16/42, Loss: 0.8375, shortcut-anchor align (cos>0) gate fires 42/79 (53.2%)
+    Epoch 24/42, Loss: 0.5764, shortcut-anchor align (cos>0) gate fires 39/79 (49.4%)
+    Epoch 32/42, Loss: 0.1973, shortcut-anchor align (cos>0) gate fires 43/79 (54.4%)
+    Epoch 40/42, Loss: 0.1020, shortcut-anchor align (cos>0) gate fires 50/79 (63.3%)
+  [Self-reference gate diagnostics] cos>0 fires 1786/3318 (53.8%); shortcut-group cos_sim with g_anchor: range [-0.505, 0.727], mean 0.016
+
+  Result: acc=0.709, rob=0.394, shortcut-group cos_sim with g_anchor: +0.016
+
+=========================================================
+=== Dataset: Math-Arithmetic ===
+=========================================================
+  Phase 1: Warmup (8 epochs)
+/home/asurite.ad.asu.edu/hongyuca/miniconda3/envs/principle-guided-reasoning/lib/python3.10/site-packages/torch/nn/modules/transformer.py:382: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+  Phase 2: Computing ShortcutScores...
+  Anchor set: top 10% by S(s) = 1000 samples
+    Anchor composition: shortcut 83.3%, clean 16.7%
+  Computing g_anchor (mean grad over anchor set)...
+    g_anchor norm = 4.566e+00, g_V norm = 8.770e-01
+    cos(g_anchor, g_V) = -0.851 (if ≈ +1, anchor ≈ g_V; if ≠ +1, self-reference adds new info)
+  Phase 3: Self-reference group-surgery (42 epochs); anchor norm = 4.566e+00
+    Epoch 8/42, Loss: 0.0557, shortcut-anchor align (cos>0) gate fires 42/79 (53.2%)
+    Epoch 16/42, Loss: 0.0373, shortcut-anchor align (cos>0) gate fires 45/79 (57.0%)
+    Epoch 24/42, Loss: 0.0333, shortcut-anchor align (cos>0) gate fires 39/79 (49.4%)
+    Epoch 32/42, Loss: 0.0304, shortcut-anchor align (cos>0) gate fires 24/79 (30.4%)
+    Epoch 40/42, Loss: 0.0294, shortcut-anchor align (cos>0) gate fires 14/79 (17.7%)
+  [Self-reference gate diagnostics] cos>0 fires 1431/3318 (43.1%); shortcut-group cos_sim with g_anchor: range [-0.851, 0.910], mean -0.015
+
+  Result: acc=0.759, rob=0.000, shortcut-group cos_sim with g_anchor: -0.015
+
+=========================================================
+=== Dataset: Financial-Analysis ===
+=========================================================
+  Phase 1: Warmup (8 epochs)
+  Phase 2: Computing ShortcutScores...
+  Anchor set: top 10% by S(s) = 1000 samples
+    Anchor composition: shortcut 48.0%, clean 52.0%
+  Computing g_anchor (mean grad over anchor set)...
+    g_anchor norm = 7.628e+00, g_V norm = 1.831e+00
+    cos(g_anchor, g_V) = +0.264 (if ≈ +1, anchor ≈ g_V; if ≠ +1, self-reference adds new info)
+  Phase 3: Self-reference group-surgery (42 epochs); anchor norm = 7.628e+00
+    Epoch 8/42, Loss: 0.1784, shortcut-anchor align (cos>0) gate fires 37/79 (46.8%)
+    Epoch 16/42, Loss: 0.1678, shortcut-anchor align (cos>0) gate fires 41/79 (51.9%)
+    Epoch 24/42, Loss: 0.1146, shortcut-anchor align (cos>0) gate fires 34/79 (43.0%)
+    Epoch 32/42, Loss: 0.0954, shortcut-anchor align (cos>0) gate fires 34/79 (43.0%)
+    Epoch 40/42, Loss: 0.0877, shortcut-anchor align (cos>0) gate fires 35/79 (44.3%)
+  [Self-reference gate diagnostics] cos>0 fires 1545/3318 (46.6%); shortcut-group cos_sim with g_anchor: range [-0.676, 0.680], mean -0.014
+
+  Result: acc=0.515, rob=0.046, shortcut-group cos_sim with g_anchor: -0.014
+
+=== Done in 1567.9s (26.1 min) ===
+
+=== Summary (compare to D3+D2 with g_V) ===
+Dataset                    Acc     Rob  cos(g_short,g_anc)   cos(g_anc,g_V)   Anchor Short %
+Causal-Reasoning         0.709   0.394             +0.016          -0.532            70.1%
+Math-Arithmetic          0.759   0.000             -0.015          -0.851            83.3%
+Financial-Analysis       0.515   0.046             -0.014          +0.264            48.0%

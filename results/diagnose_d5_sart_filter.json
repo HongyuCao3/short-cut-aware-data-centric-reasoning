@@ -1,0 +1,41 @@
+{
+  "Causal-Reasoning": {
+    "D5": {
+      "accuracy_clean": 0.7946666666666666,
+      "robustness": 0.5946666666666667,
+      "train_sec": 47.087958335876465,
+      "drop_fraction": 0.7,
+      "n_kept": 3000,
+      "n_dropped": 7000,
+      "filter_precision_pct": 70.11428571428571,
+      "filter_recall_pct": 69.91452991452991,
+      "kept_clean_pct": 29.599999999999998
+    }
+  },
+  "Math-Arithmetic": {
+    "D5": {
+      "accuracy_clean": 0.8013333333333333,
+      "robustness": 0.8273333333333334,
+      "train_sec": 50.92272663116455,
+      "drop_fraction": 0.7,
+      "n_kept": 3000,
+      "n_dropped": 7000,
+      "filter_precision_pct": 71.62857142857143,
+      "filter_recall_pct": 71.10039705048213,
+      "kept_clean_pct": 32.06666666666666
+    }
+  },
+  "Financial-Analysis": {
+    "D5": {
+      "accuracy_clean": 0.62,
+      "robustness": 0.242,
+      "train_sec": 54.62591314315796,
+      "drop_fraction": 0.7,
+      "n_kept": 3000,
+      "n_dropped": 7000,
+      "filter_precision_pct": 65.71428571428571,
+      "filter_recall_pct": 65.80829756795423,
+      "kept_clean_pct": 20.333333333333332
+    }
+  }
+}

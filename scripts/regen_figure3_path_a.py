@@ -1,16 +1,18 @@
-"""Regenerate Figure 3 as a Path-A 2-panel layout for the docs.
+"""Regenerate Figure 3 as a 1x3 evidence-chain layout for the docs.
 
-Path A drops the reweight component, so panel (c) — the reweight curve
-w(s) = exp(-lambda * S(s)) — no longer corresponds to anything in the
-method. The remaining panels are:
+Three panels read left-to-right as one argument: detection ranks correctly
+(a), the conflict gate filters within that ranking (b), and the gated
+direction-correction is the load-bearing primitive (c).
 
   (a) S(s) vs shortcut rate — ShortcutScore as a rank signal for sample
       selection (the conflict-gated projection's gating set).
   (b) A(s) split into TP / FP / TN / FN cells against tau_S* — diagnoses
       whether the surgery's gating set has the right geometry.
+  (c) Ablation bars (Acc / Rob) — conflict-only projection is the single
+      load-bearing primitive of SART.
 
 Reads: results/collected_data_synthetic.pkl
-Writes: docs/figures/figure3.png  (2-panel, replaces 3-panel docs version)
+Writes: docs/figures/figure3.png  (3-panel)
         docs/figures/figure3_diagnostics.json
 """
 from __future__ import annotations
@@ -52,7 +54,7 @@ def main():
     is_sc = np.array(collected["is_shortcut"], dtype=float)
     alignments = np.array(collected["alignments"], dtype=float)
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.6))
+    fig, axes = plt.subplots(1, 3, figsize=(16.5, 4.4))
     summary = {}
 
     # Panel (a) — S(s) vs shortcut rate
@@ -142,6 +144,33 @@ def main():
     summary["best_F1"] = best_f1
     summary["FP_mean_A"] = fp_mean_A
     summary["FP_gate_fire_pct"] = fp_gate_rate
+
+    # Panel (c) — Ablation bars: Acc / Rob across SART variants
+    abl_labels = ["SFT", "SART-rwt", "w/o\nproj.", "w/o\nsuppr.", "SART\n(Full)"]
+    abl_acc = [58.8, 71.4, 64.2, 79.6, 80.7]
+    abl_rob = [0.6, 40.8, 18.3, 50.9, 54.8]
+    x = np.arange(len(abl_labels))
+    w = 0.38
+    bars_acc = axes[2].bar(x - w / 2, abl_acc, w, label="Accuracy",
+                            color="steelblue", alpha=0.85)
+    bars_rob = axes[2].bar(x + w / 2, abl_rob, w, label="Robustness",
+                            color="firebrick", alpha=0.85)
+    for b, v in zip(bars_acc, abl_acc):
+        axes[2].text(b.get_x() + b.get_width() / 2, v + 1.5, f"{v:.1f}",
+                     ha="center", va="bottom", fontsize=8)
+    for b, v in zip(bars_rob, abl_rob):
+        axes[2].text(b.get_x() + b.get_width() / 2, v + 1.5, f"{v:.1f}",
+                     ha="center", va="bottom", fontsize=8)
+    axes[2].set_xticks(x)
+    axes[2].set_xticklabels(abl_labels, fontsize=9)
+    axes[2].set_ylabel("Score (%)")
+    axes[2].set_ylim(0, 100)
+    axes[2].set_title("(c) Ablation: Accuracy and Robustness\n"
+                      "removing conflict-only projection collapses Rob 54.8 -> 18.3")
+    axes[2].legend(loc="upper left", fontsize=8)
+    axes[2].grid(axis="y", alpha=0.3)
+    summary["ablation_acc"] = abl_acc
+    summary["ablation_rob"] = abl_rob
 
     plt.tight_layout()
     os.makedirs(DOCS_FIG_DIR, exist_ok=True)

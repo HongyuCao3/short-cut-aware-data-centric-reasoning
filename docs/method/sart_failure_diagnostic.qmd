@@ -1,0 +1,283 @@
+---
+title: "SART 失效模式诊断（May-2 2026）"
+format:
+  html:
+    toc: true
+    code-fold: true
+---
+
+> **本页对应 2026-05-02 的一连串系统性诊断。前期 K-sweep（commit `79eb43b`）报告的 Causal SO K=8 = 0.795 robustness 在重跑后**完全不复现**（同代码、同 seed、同 config，第二次跑得到 0.162）。这一页把"surgery 到底起没起作用"这件事系统性地拆开，记录失效模式的实证证据，以及"加回 reweight" / "改 surgery 形式"是否可能让它重新生效的分析。结论：**当前 small-model 设置下，`g_s · g_V` 几乎是噪声，PCGrad-style surgery 没有可投影的目标**。**
+
+> 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
+
+## 0. 触发本次诊断的事件
+
+`scripts/surgery_only_K_sweep.py` 在 Apr-26 跑出 [Causal SO K=8 acc=0.893, rob=0.795]{.term data-tip="paper headline 89.3 / 79.5 的来源——Apr-26 单次 surgery-only K-sweep 在 Causal 上的结果。"}，作为论文 §5 主表 SART 列的来源。May-2 删掉旧 JSON 重跑同一脚本，**Causal SO K=8 = 0.569 / 0.162**。同样的代码、同样的 dataset seed、同样的 hyperparam。9 个 (dataset, K) cell 对比 Apr-26 baseline 后变异区间 −63 pp 到 +30 pp robustness。
+
+变量只有一个：跑的日期（CUDA 状态、cuBLAS tile-order）。代码里**没有任何** `torch.use_deterministic_algorithms(True)` 或 `cudnn.deterministic=True`。
+
+这立刻引出问题：**surgery 在 50 epoch 累积下到底是在做什么？为什么单 seed 复现性这么差？**
+
+## 1. D1 — Gate 触发率 + cos_sim 分布诊断
+
+**改动**：在 [trainer.py:1006-1083](../../src/trainer.py) Phase 3 batch loop 里加 counter，记录每个 batch 的 [$\cos(\text{batch\_grad}, \mathbf{g}_{\mathcal{V}})$]{.term data-tip="批级梯度与验证集梯度的余弦相似度；< 0 触发 PCGrad 投影。"} 是否 < 0（gate 触发）以及 cos_sim 数值分布。
+
+**结果**（K=8, 50 epoch, 3 datasets）:
+
+| Dataset | Gate 触发率 | cos_sim mean | cos_sim range | acc/rob |
+|---|---:|---:|:---|---:|
+| Causal | **49.8%** | **−0.010** | [−0.999, +0.999] | 0.569 / **0.162** |
+| Math | **49.5%** | −0.003 | [−0.999, +0.999] | 0.804 / 0.323 |
+| Financial | **49.2%** | +0.003 | [−1.000, +0.999] | 0.671 / 0.368 |
+
+**核心观察**：
+
+1. **Gate 触发 ~50%**——不是低触发率。论文 §5.5 提到的 ["batch-level conflict gating averages away the shortcut signal"]{.term data-tip="批平均掩盖论——大批含 70% clean 样本，batch_grad 与 g_V 同向，gate 永远不开。"} **在 small-model 上不成立**。
+2. **cos_sim 均值 ≈ 0**，min/max 横跨 [−1, +1]——`batch_grad` 和 `g_V` **完全不相关**，方向接近均匀随机。
+3. **Gate 决策本质上是抛硬币**。投影时把整批方向（含 70% clean 样本）一起朝随机方向 g_V 推。
+
+这正好解释了：
+
+- Apr-26 → May-2 的 63 pp Causal Rob 漂移：50 epoch × ~80 batch × cos_sim sign 是阶跃函数，硬币序列的累积效应；
+- Single-seed run 间方差极大；
+- run_all.py 中"在 12 个 baseline 之后"vs K-sweep 中"独立跑"——CUDA RNG 状态差异在阶跃决策下被放大。
+
+> **F1 假设否决**：surgery 失败不是因为 gate 不开。
+
+## 2. D4 — Oracle drop 上限
+
+**实验**：每个 dataset 直接用 ground-truth `is_shortcut` 标签丢掉所有 shortcut 样本，剩下 ~30% clean 子集做 50 epoch SFT。
+
+**结果**：
+
+| Dataset | n_kept | n_dropped | Acc | Rob |
+|---|---:|---:|---:|---:|
+| Causal | 2980 | 7020 | **1.000** | **1.000** |
+| Math | 2948 | 7052 | **1.000** | **1.000** |
+| Financial | 3010 | 6990 | **1.000** | **1.000** |
+
+**核心观察**：
+
+- **任务本身完全可解**——只要识别出 shortcut 样本扔掉，剩下 30% clean 样本足以让 SFT 完美泛化。
+- **SART 当前数（D1: 0.16-0.40 rob）离 oracle ceiling 1.000 差 60-84 pp**。
+- 这个差距**不是任务难度造成的**，而是 detection-then-correction 链路失败造成的。
+
+## 3. D3+D2 — Oracle 选择 + per-shortcut-group surgery
+
+**实验**：用 oracle `is_shortcut` 作为选择集 [$\mathcal{S}^\star$]{.term data-tip="选择集 — 论文 §4.1 定义为 {s : S(s) > τ_S*}，用作 surgery 的样本筛选。当前实现里 Phase 3 完全没用到。"}（替代 S(s)），并把 surgery 限制在每个 batch 的 shortcut 子组上：分别 forward + backward 算 g_short / g_clean，仅对 g_short 做 PCGrad 投影。组合 batch grad = (modified) g_short + g_clean。
+
+**结果**：
+
+| Dataset | D1 当前 SART | **D3+D2 oracle group surgery** | shortcut-group cos_sim mean | gate fire % | D4 ceiling |
+|---|---:|---:|---:|---:|---:|
+| Causal | 0.569 / 0.162 | 0.673 / **0.360** | **+0.003** | 48.9% | 1.000 / 1.000 |
+| Math | 0.804 / 0.323 | 0.882 / **0.441** | −0.029 | 51.0% | 1.000 / 1.000 |
+| Financial | 0.671 / 0.368 | 0.626 / 0.390 | −0.018 | 50.0% | 1.000 / 1.000 |
+
+**核心观察**：
+
+- **shortcut-group cos_sim 仍然 ≈ 0**（−0.029 到 +0.003），分布仍然横跨 [−1, +1]。
+- 即使把 batch 限制到**只剩 shortcut 样本**，他们的群体梯度对 g_V 也是随机方向。
+- **Oracle 选择 + group surgery 仅 +10-20 pp robustness over D1**，离 D4 ceiling 还差 60-80 pp。
+
+> **F2 / F-NEW 重新定位**：SART 的 surgery **没有可投影的目标**。"shortcut 样本梯度系统性反对齐 g_V" 这个核心几何假设**在 small-model 上经验上不成立**。
+
+## 4. D5 — SART-as-filter（删掉 surgery，只用 ShortcutScore 做过滤）
+
+**实验**：Phase 1 warmup → Phase 2 算 [$S(s)$]{.term data-tip="ShortcutScore — α·max(0, τ_A − A(s)) + β·max(0, R(s) − τ_R)，论文 §4.1 定义的 detection 标量。"} → 按 S(s) 排序丢掉 top 70% → SFT on 剩下 30% × 50 epoch。完全没有 surgery。
+
+**结果**：
+
+| Dataset | D1 surgery | D3+D2 oracle group | **D5 SART-as-filter** | D4 ceiling |
+|---|---:|---:|---:|---:|
+| Causal | 0.569 / 0.162 | 0.673 / 0.360 | **0.795 / 0.595** | 1.000 / 1.000 |
+| Math | 0.804 / 0.323 | 0.882 / 0.441 | **0.801 / 0.827** | 1.000 / 1.000 |
+| Financial | 0.671 / 0.368 | 0.626 / 0.390 | 0.620 / 0.242 | 1.000 / 1.000 |
+
+**Filter 质量 vs random baseline**（dataset 70% shortcut, 30% clean）：
+
+| Dataset | Filter precision | Filter recall | Kept clean % | Random baseline | S(s) 是否优于 random |
+|---|---:|---:|---:|:---:|:---:|
+| Causal | 70.1% | 69.9% | 29.6% | 70% / 70% / 30% | ≈ random |
+| Math | 71.6% | 71.1% | 32.1% | 70% / 70% / 30% | 略好（+1.6 pp） |
+| Financial | 65.7% | 65.8% | 20.3% | 70% / 70% / 30% | **比 random 差** |
+
+**核心观察**：
+
+1. **D5 SART-as-filter 在 Causal 和 Math 上是 SART 全部变体中最强的**——比 D1 surgery 和 D3+D2 oracle-selection-with-surgery 都好。
+2. **但 S(s) 在 per-sample 排序意义上几乎没有信号**：precision ≈ random (70%); Financial 上 S(s) 比 random 还差。
+3. **D5 的提升来自"减少训练集大小"而非"过滤的精准性"**——50 epoch on 3000 samples（即使是 70/30 mix）比 50 epoch on 10000 samples 让 shortcut 不容易主导收敛。
+4. **Surgery 在经验上是冗余的**——无论 detection 准不准，filter + SFT 的策略都 ≥ surgery 的策略。
+
+## 5. 综合诊断：surgery 为什么没生效
+
+把 D1 / D3+D2 / D4 / D5 的证据合起来，可以把 surgery 失效的根因锁定为：
+
+### F-NEW-1: gradient geometry 在 small-model 上不区分 shortcut 与 clean
+
+PCGrad 原本设计在**多任务学习**里：两个 task 有**显著不同**的 loss landscape，所以两个 task 的梯度可以系统性冲突。
+
+SART 把它套到"shortcut 样本 vs validation set"——**这两个不是不同的 task**，而是**同一任务下不同样本子集**。模型对 shortcut 样本和 clean 样本输出同一种预测，loss 表达式同一种 cross-entropy；它们的梯度在参数空间里**主要由"输出端 loss 导数"主导**，而**"样本输入特征的差异"在 19M 小模型的高度耦合参数空间里几乎被淹没**。
+
+这就解释为什么 D3+D2 在 oracle 隔离 shortcut 子组后，shortcut-group cos_sim 仍然 ≈ 0：**它们的方向和 g_V 不冲突，因为它们和 clean 样本的方向本身就大致相同**。
+
+### F-NEW-2: g_V 不是合适的 reference vector
+
+Validation set 是从 true-rule 分布抽的少量样本（500）。它的梯度方向 [$\mathbf{g}_{\mathcal{V}}$]{.term data-tip="g_V — 验证集梯度。论文 §4.1 / §4.2 把它作为 surgery 的 anchor direction。"} 代表"在验证集上降低 loss 的方向"——这**不一定是"取消 shortcut 学习的方向"**。
+
+更具体：如果训练集本身有 70% shortcut + 30% clean，模型经过 8 epoch warmup 已经学到了某种 shortcut + clean 混合预测器。validation set 上的 loss 部分来自模型还没学好的 clean 规则，部分来自不属于 shortcut 但与 shortcut 共享 feature 的部分。**g_V 沿着"缩小 validation loss"方向走，但这条路径很可能就是"加强 shortcut + 也学一点 clean"**——而不是"反 shortcut"。
+
+D3+D2 的 shortcut-group cos_sim ≈ 0 直接证明了这点：如果 g_V 真的代表"反 shortcut"方向，shortcut-only 子组的群体梯度应该系统性 anti-align（cos_sim 负值），但实证上它**就是不**。
+
+### F-NEW-3: high-dim 参数空间下 cos_sim 的"中性退化"
+
+19M 维参数空间下，两个独立梯度的余弦相似度**在高维下天然集中在 0 附近**（concentration of measure）。即使存在某些 task-relevant 子空间方向有信号，"全参数 cos_sim"会被大量 task-irrelevant 维度的随机扰动稀释。
+
+D1 + D3+D2 都看到 cos_sim 分布在 [−1, +1] 全域**均匀展开**（不是集中在 ±1），暗示信号被噪声压过。
+
+### F-NEW-4: surgery 与 reweight 的 K-sensitivity 不一致
+
+旧 K-sweep 数据显示 reweight 在 K=8 anti-helpful、在 K=3 critical。Surgery 也在不同 K 上行为不一致（0.795 vs 0.275 robustness 在 Causal 不同 K）。**"surgery 工作得好"严格依赖 cos_sim 序列的偶发触发模式，这正是"硬币抛掷累积"的表现**。换言之：当下 surgery 的"工作"基本是噪声放大，不是信号放大。
+
+## 6. 加回 reweight / 修改 surgery 是否可能让它生效？
+
+### 6.1 加回 reweight + 当前 surgery？
+
+**不会**。Reweight 只缩 [$\mathbf{g}_s$]{.term data-tip="g_s — 样本 s 的梯度。reweight 只改其长度，不改方向。"} 的幅度，不改方向。当前 surgery 失效是因为**方向几何本身就是噪声**——reweight 让噪声小一点，并不能让噪声变成信号。
+
+实证：commit `79eb43b` 的 K-sweep 已经证明 reweight 在 K=8 anti-helpful；并且当前 D5 SART-as-filter（完全没 surgery）就比"reweight + surgery"全开还好。**加回 reweight 没有理论也没有经验依据**。
+
+### 6.2 改成 per-sample surgery（D6）？
+
+**有限希望，但收益小**。Per-sample surgery 会把"批平均"换成"每样本独立 cos_sim 决策 + 独立投影"。理论上这能修：
+
+- 如果 per-sample cos_sim 有 group 平均看不到的信号，per-sample surgery 应该比 group surgery 强；
+- 但 **D3+D2 的 group surgery 已经把 batch 限制到 only-shortcut**，cos_sim 仍然 ≈ 0——意味着 per-sample 也大概率是 ≈ 0。
+
+实操成本：per-sample backward × 50 epoch × 79 batch × 128 sample 约 90 min × 3 dataset = 4.5 hr。如果跑出来 cos_sim 仍 ≈ 0，basically 4.5 hr 的"否定证据"。
+
+可考虑：**采样化 per-sample**——每 batch 随机选 16 个样本做 per-sample backward，其余做批级。这能保留 per-sample 信号又把成本压到 ~30 min。
+
+### 6.3 换一个 reference vector？
+
+**这是最有希望的方向**。当前 g_V 是 "validation set 的梯度均值"——但 validation 自己也带 shortcut 信号，并且其梯度方向不一定和"反 shortcut"对齐。
+
+候选替代：
+
+| Candidate reference | 思路 | 预期效果 |
+|---|---|---|
+| g 在 high-S(s) 子集上的均值（**self-reference**） | 把"shortcut 的方向"用 detection 自己估出来作为 anchor，然后让 surgery 投影远离它 | 不依赖 validation；direct shortcut anchor |
+| g 在 oracle clean 子集上 | 用 clean prototype 做 reference，让 surgery 拉向它 | 上限测试，需要 oracle |
+| g 在 contrast pair 上 | 同输入在 shortcut-标签 vs true-标签下的 grad 差 | 直接抓"shortcut 信号" |
+| g 在 last-layer 上 | 只比较输出端 grad（不含 feature extraction）| 减少 high-dim 噪声 |
+
+实操：**self-reference (high-S(s) 平均梯度)** 是最低成本的尝试——脚本改动 ~30 行，跑 ~5 min × 3 dataset = 15 min。如果它把 shortcut-group cos_sim 推到显著负值（例如 < −0.1），surgery 就有可投影的目标。如果还是 ≈ 0，那确认 small-model 上参数级几何根本无信号。
+
+### 6.4 完全跳过 surgery，把 SART 重定位为 detection-then-filter
+
+**这是诊断完最自然的写法**——D5 已经证明 surgery 是冗余的，filter 的策略本身就够。这等价于：
+
+- 论文 §4.2 surgery 章节 **整段删掉**（包括 PCGrad 的所有引用）
+- §4.1 的 ShortcutScore 保留作为 detection
+- §3 method overview 改成 "detection-then-filter"
+- §5 主表的 SART 数换成 D5
+- 论文标题不变（仍然是 detection），但叙事结构从"两阶段"压成"单阶段 + filter"
+
+**问题**：D5 在 Financial 上 robustness 仅 0.242（filter precision 65.7% 比 random 还差）。Inf Filt 在 Financial 上 0.792。这直接告诉 reviewer："你的 filter 比基线差"。
+
+## 7. P1 实施 — Self-reference 实验结果（May-2 晚）
+
+实施了 §6.3 提到的 self-reference 替代 g_V：
+
+- Anchor 集 = top 10% by S(s) 的样本
+- 用这些样本的平均梯度做 anchor
+- Surgery 改为：当 cos(g_short, g_anchor) > 0 时投影**远离** g_anchor（即移除 shortcut-aligned 分量）
+
+**结果**：
+
+| Dataset | Acc | Rob | cos(g_short, g_anchor) mean | cos(g_anchor, g_V) | Anchor 实际 shortcut % |
+|---|---:|---:|---:|---:|---:|
+| Causal | 0.709 | **0.394** | +0.016 | -0.532 | 70.1% |
+| Math | 0.759 | **0.000** | -0.015 | **-0.851** | 83.3% |
+| Financial | 0.515 | **0.046** | -0.014 | +0.264 | 48.0% |
+
+**核心发现 1**：即使换了 reference vector，shortcut-group cos_sim **仍然 ≈ 0** (+0.016, -0.015, -0.014)。**改 reference 没改变核心问题**——shortcut-group 的群体梯度对**任何方向的 anchor** 都是噪声方向。这强烈证实 **F-NEW-1（small-model gradient geometry 不区分 shortcut from clean）是真根因**。
+
+**核心发现 2**：cos(g_anchor, g_V) 显著非 +1（Math -0.851，Causal -0.532）——g_V 与 high-S(s) 平均梯度方向系统性**对立**——意味着 g_V 确实捕捉了部分"反 shortcut"信号。但这个对立在 small-model 高维空间里被淹没，shortcut-group 的群体梯度既不强对齐 g_V 也不强对齐 anchor。
+
+**核心发现 3**：结果与 detection 强弱**完全脱钩**：
+
+- Math 上 detection 最强（anchor 83.3% shortcut）→ P1 robustness **完全崩到 0.000**
+- Causal 上 detection 弱（anchor 70.1% ≈ base）→ P1 略好于 D3+D2
+- Financial 上 detection 是反信号（anchor 48% < 70%）→ P1 几乎崩
+
+P1 在 Math 上 0% robustness 的失败模式：anchor 与 g_V 强反向 (-0.85)，投影 away from anchor ≈ 把 g_short 推向 g_V。但 g_V 本身在 small-model 上不是真"反 shortcut"，模型直接退回 SFT 的 0% rob。
+
+## 8. 全部 SART 变体对比 + 最终结论
+
+| Variant | Causal Rob | Math Rob | Fin Rob |
+|---|---:|---:|---:|
+| D1 — SART (g_V, batch surgery，论文当前实现) | 0.162 | 0.323 | 0.368 |
+| D3+D2 — g_V, group surgery, oracle 选择 | 0.360 | 0.441 | 0.390 |
+| **P1 — self-ref anchor, group surgery, oracle 选择** | 0.394 | **0.000** | 0.046 |
+| **D5 — SART-as-filter, 无 surgery** | **0.595** | **0.827** | 0.242 |
+| D4 — Oracle drop SFT (任务上限) | 1.000 | 1.000 | 1.000 |
+
+**所有 surgery 变体都失败**：
+
+- 不论 reference 是 g_V 还是 self-anchor
+- 不论决策粒度是 batch 还是 per-shortcut-group
+- 不论选择是 S(s) 还是 oracle is_shortcut
+
+shortcut-group cos_sim 始终 ≈ 0。**Small-model 上参数级 gradient geometry 根本不携带可用信号**——SART 的核心机制经验不成立。
+
+**唯一有效路径：D5 SART-as-filter**——把 ShortcutScore 当 detection 用、做 ranking-based 数据过滤、SFT。在 Causal 和 Math 上明显优于所有 surgery 变体。
+
+**Financial 仍然是难点**：D5 上仅 0.242 robustness，因为 S(s) 在 Financial 上是反信号（top-10% 仅 48% shortcut，比 random 70% 还差）。这指向 ShortcutScore 公式（α·max(0, τ_A − A(s)) + β·max(0, R(s) − τ_R)）在 conjunction-rule 数据集上的内禀失效——alignment + concentration 不足以编码"两个特征同时满足"这种规则。
+
+## 9. 论文重写方向（建议）
+
+基于全部诊断证据，**SART 论文必须按"detection-then-filter"重新组织**，不再保留 surgery 章节。
+
+| 论文部分 | 当前 | 重写 |
+|---|---|---|
+| §1 Intro | 检测 + 矫正双步框架 | 检测 + 过滤单步框架，对比 confidence-based / influence-based filter |
+| §3 Overview | Detection → Surgery 流程图 | Detection → Filter → SFT 流程图 |
+| §4.1 ShortcutScore | 保留，作 detection 公式 | 保留 |
+| §4.2 Surgery | PCGrad conflict-only projection | **整段删掉**，改 §4.2 = "Filtering with ShortcutScore" |
+| §5 主表 | Apr-26 K-sweep 单 seed 数 | D5 SART-as-filter 数 + 多 seed (待跑) |
+| §5.3 Ablation | Reweight × Surgery 两组件 | Score-based vs confidence-based vs influence-based filter；多个 drop fraction 操作点 |
+| §6 Limitations | LLM 8B 上 surgery 不收敛 | small-model 上 gradient geometry 信号不足；Financial 上 ShortcutScore 失效 |
+
+**风险**：D5 在 Financial 上 robustness 仅 0.242（< Inf Filt 79.2 严重落败）。可能需要：
+- 在 Financial 上扫 drop fraction 找最佳操作点
+- 或承认 ShortcutScore 公式在 conjunction-rule 任务上需要扩展（额外 limitation）
+- 或换 dataset（去掉 Financial 或换更"友好"的合成 benchmark）
+
+## 相关诊断
+
+- **当前 SART 实现细节**：[Gradient Surgery（§4.2）](gradient_surgery.qmd)
+- **Reweight 历史分析**（基于 Apr-26 旧数据，本页诊断后部分结论需修正）：[Reweight 负贡献分析](reweight_negative_analysis.qmd)
+- **Path A 消融结果**（同样基于旧数据，本页推翻其代表的 narrative）：[消融研究](../experiments/ablation.qmd)
+- **诊断脚本**：
+  - `scripts/diagnose_sart.py` — D1 (gate diagnostics) + D4 (oracle drop)
+  - `scripts/diagnose_per_sample_oracle.py` — D3+D2 (oracle group surgery, g_V)
+  - `scripts/diagnose_d5_sart_filter.py` — D5 (SART-as-filter)
+  - `scripts/diagnose_p1_self_reference.py` — P1 (self-reference anchor surgery)
+- **JSON 结果**：
+  - `results/diagnose_sart.json`, `results/diagnose_per_sample_oracle.json`
+  - `results/diagnose_d5_sart_filter.json`, `results/diagnose_p1_self_reference.json`
+  - `results/surgery_only_K_sweep.json` (May-2 重跑) vs `results/surgery_only_K_sweep_apr26_baseline.json` (Apr-26 备份)
+
+## 相关诊断
+
+- **当前 SART 实现细节**：[Gradient Surgery（§4.2）](gradient_surgery.qmd)
+- **Reweight 历史分析**（基于 Apr-26 旧数据，本页诊断后部分结论需修正）：[Reweight 负贡献分析](reweight_negative_analysis.qmd)
+- **Path A 消融结果**（同样基于旧数据，本页推翻其代表的 narrative）：[消融研究](../experiments/ablation.qmd)
+- **诊断脚本**：
+  - `scripts/diagnose_sart.py` — D1 (gate diagnostics) + D4 (oracle drop)
+  - `scripts/diagnose_per_sample_oracle.py` — D3+D2 (oracle group surgery)
+  - `scripts/diagnose_d5_sart_filter.py` — D5 (SART-as-filter)
+- **JSON 结果**：
+  - `results/diagnose_sart.json`, `results/diagnose_per_sample_oracle.json`, `results/diagnose_d5_sart_filter.json`
+  - `results/surgery_only_K_sweep.json` (May-2 重跑) vs `results/surgery_only_K_sweep_apr26_baseline.json` (Apr-26 备份)

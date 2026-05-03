@@ -1,0 +1,675 @@
+/home/asurite.ad.asu.edu/hongyuca/miniconda3/envs/principle-guided-reasoning/lib/python3.10/site-packages/torch/nn/modules/transformer.py:382: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+/home/asurite.ad.asu.edu/hongyuca/miniconda3/envs/principle-guided-reasoning/lib/python3.10/site-packages/torch/nn/modules/transformer.py:382: UserWarning: enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.norm_first was True
+  warnings.warn(
+======================================================================
+Gradient-Aware Shortcut Detection and Correction
+Experimental Evaluation
+======================================================================
+Profile: server
+Dataset type: synthetic
+Device: cuda
+GPUs: 1
+  GPU 0: NVIDIA H100 NVL (100.0 GB)
+Seed: 42
+
+Synthetic model: d=512, layers=6, heads=8, ff=2048
+Synthetic data: train=10000, val=2000, test=3000
+Synthetic training: bs=128, lr=0.001, epochs=50
+
+--- Generating Synthetic Datasets ---
+  Math-Arithmetic: train=10000, val=2000, test_clean=1500, test_perturbed=1500
+  Financial-Analysis: train=10000, val=2000, test_clean=1500, test_perturbed=1500
+  Causal-Reasoning: train=10000, val=2000, test_clean=1500, test_perturbed=1500
+Synthetic model parameters: 18,962,467
+
+======================================================================
+EXPERIMENT 1: Overall Method Performance (Synthetic)
+======================================================================
+
+--- Dataset: Math-Arithmetic ---
+
+[1/13] Training: Standard Fine-Tuning...
+  Epoch 10/50, Loss: 0.0333
+  Epoch 20/50, Loss: 0.0332
+  Epoch 30/50, Loss: 0.0299
+  Epoch 40/50, Loss: 0.0292
+  Epoch 50/50, Loss: 0.0288
+  Training time: 100.1s
+  Evaluating...
+  Accuracy: 0.759, Robustness: 0.000
+
+[2/13] Evaluating: Self-Consistency Decoding...
+  Accuracy: 0.783, Robustness: 0.111
+
+[3/13] Training: Data Filtering...
+  Data Filtering: kept 3000/10000 samples
+  Epoch 10/50, Loss: 0.0398
+  Epoch 20/50, Loss: 0.0361
+  Epoch 30/50, Loss: 0.0301
+  Epoch 40/50, Loss: 0.0290
+  Epoch 50/50, Loss: 0.0278
+  Training time: 43.7s
+  Evaluating...
+  Accuracy: 0.769, Robustness: 0.030, F1: 0.692
+
+[4/13] Training: JTT (Just Train Twice)...
+  JTT Phase 1: Warmup (5 epochs)
+  JTT Phase 2: 0/10000 error samples identified
+  JTT Phase 3: Upsampled 10000 -> 10000 samples
+  JTT Phase 4: Retraining (50 epochs)
+  Epoch 10/50, Loss: 0.0314
+  Epoch 20/50, Loss: 0.0305
+  Epoch 30/50, Loss: 0.0298
+  Epoch 40/50, Loss: 0.0294
+  Epoch 50/50, Loss: 0.0291
+  Training time: 110.6s
+  Evaluating...
+  Accuracy: 0.759, Robustness: 0.000
+
+[5/13] Training: Focal Loss...
+  Epoch 10/50, Loss: 0.0092
+  Epoch 20/50, Loss: 0.0079
+  Epoch 30/50, Loss: 0.0077
+  Epoch 40/50, Loss: 0.0075
+  Epoch 50/50, Loss: 0.0074
+  Training time: 104.9s
+  Evaluating...
+  Accuracy: 0.759, Robustness: 0.000
+
+[6/13] Training: Group DRO...
+  Epoch 10/50, Loss: 0.0398, q=[0.484, 0.516]
+  Epoch 20/50, Loss: 0.0351, q=[0.491, 0.509]
+  Epoch 30/50, Loss: 0.0342, q=[0.495, 0.505]
+  Epoch 40/50, Loss: 0.0337, q=[0.498, 0.502]
+  Epoch 50/50, Loss: 0.0330, q=[0.500, 0.500]
+  Training time: 95.8s
+  Evaluating...
+  Accuracy: 0.841, Robustness: 0.457
+
+[7/13] Training: IRM...
+  Epoch 10/50, Loss: 0.0400
+  Epoch 20/50, Loss: 0.0423
+  Epoch 30/50, Loss: 0.0360
+  Epoch 40/50, Loss: 0.0349
+  Epoch 50/50, Loss: 0.0342
+  Training time: 120.8s
+  Evaluating...
+  Accuracy: 0.841, Robustness: 0.457
+
+[8/13] Training: V-REx...
+  Epoch 10/50, Loss: 0.0391
+  Epoch 20/50, Loss: 0.0351
+  Epoch 30/50, Loss: 0.0342
+  Epoch 40/50, Loss: 0.0337
+  Epoch 50/50, Loss: 0.0331
+  Training time: 102.9s
+  Evaluating...
+  Accuracy: 0.851, Robustness: 0.487
+
+[9/13] Training: Fishr...
+  Epoch 10/50, Loss: 0.0333
+  Epoch 20/50, Loss: 0.0332
+  Epoch 30/50, Loss: 0.0299
+  Epoch 40/50, Loss: 0.0292
+  Epoch 50/50, Loss: 0.0288
+  Training time: 192.8s
+  Evaluating...
+  Accuracy: 0.759, Robustness: 0.000
+
+[10/13] Training: LfF...
+  Epoch 10/50, Loss: 0.0336
+  Epoch 20/50, Loss: 0.0308
+  Epoch 30/50, Loss: 0.0296
+  Epoch 40/50, Loss: 0.0292
+  Epoch 50/50, Loss: 0.0288
+  Training time: 188.8s
+  Evaluating...
+  Accuracy: 0.759, Robustness: 0.000
+
+[11/13] Training: Influence Filtering...
+  Influence Phase 1: Warmup (5 epochs)
+  Influence Phase 2: Computing influence scores...
+  Influence Phase 3: Removed 3000, kept 7000/10000
+  Influence Phase 4: Retraining (50 epochs)
+  Epoch 10/50, Loss: 0.0000
+  Epoch 20/50, Loss: 0.0000
+  Epoch 30/50, Loss: 0.0000
+  Epoch 40/50, Loss: 0.0000
+  Epoch 50/50, Loss: 0.0000
+  Training time: 275.3s
+  Evaluating...
+  Accuracy: 0.797, Robustness: 0.492
+
+[12/13] Training: Meta-Reweighting...
+  Epoch 10/50, Loss: 0.0319
+  Epoch 20/50, Loss: 0.0307
+  Epoch 30/50, Loss: 0.0300
+  Epoch 40/50, Loss: 0.0294
+  Epoch 50/50, Loss: 0.0290
+  Training time: 118.4s
+  Evaluating...
+  Accuracy: 0.759, Robustness: 0.000
+
+[13/13] Training: Our Method (Reweighting + Gradient Surgery)...
+  Phase 1: Warmup (8 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.2592, Avg weight: 0.6035
+  Phase 3: Weighted retraining (42 epochs)
+    Epoch 8/42, Loss: 0.1213
+    Epoch 16/42, Loss: 0.4674
+    Epoch 24/42, Loss: 0.4076
+    Epoch 32/42, Loss: 0.3441
+    Epoch 40/42, Loss: 0.1217
+  Training time: 252.7s
+  Evaluating...
+  Accuracy: 0.827, Robustness: 0.466, F1: 0.774, Alignment: 0.038
+
+--- Dataset: Financial-Analysis ---
+
+[1/13] Training: Standard Fine-Tuning...
+  Epoch 10/50, Loss: 0.1141
+  Epoch 20/50, Loss: 0.1324
+  Epoch 30/50, Loss: 0.0934
+  Epoch 40/50, Loss: 0.0908
+  Epoch 50/50, Loss: 0.0879
+  Training time: 104.2s
+  Evaluating...
+  Accuracy: 0.495, Robustness: 0.004
+
+[2/13] Evaluating: Self-Consistency Decoding...
+  Accuracy: 0.558, Robustness: 0.117
+
+[3/13] Training: Data Filtering...
+  Data Filtering: kept 3000/10000 samples
+  Epoch 10/50, Loss: 0.1325
+  Epoch 20/50, Loss: 0.0844
+  Epoch 30/50, Loss: 0.0793
+  Epoch 40/50, Loss: 0.0440
+  Epoch 50/50, Loss: 0.0232
+  Training time: 45.8s
+  Evaluating...
+  Accuracy: 0.691, Robustness: 0.407, F1: 0.836
+
+[4/13] Training: JTT (Just Train Twice)...
+  JTT Phase 1: Warmup (5 epochs)
+  JTT Phase 2: 0/10000 error samples identified
+  JTT Phase 3: Upsampled 10000 -> 10000 samples
+  JTT Phase 4: Retraining (50 epochs)
+  Epoch 10/50, Loss: 0.1885
+  Epoch 20/50, Loss: 0.0955
+  Epoch 30/50, Loss: 0.0926
+  Epoch 40/50, Loss: 0.0886
+  Epoch 50/50, Loss: 0.0805
+  Training time: 113.6s
+  Evaluating...
+  Accuracy: 0.552, Robustness: 0.102
+
+[5/13] Training: Focal Loss...
+  Epoch 10/50, Loss: 0.0250
+  Epoch 20/50, Loss: 0.0249
+  Epoch 30/50, Loss: 0.0217
+  Epoch 40/50, Loss: 0.0157
+  Epoch 50/50, Loss: 0.0107
+  Training time: 98.0s
+  Evaluating...
+  Accuracy: 0.620, Robustness: 0.234
+
+[6/13] Training: Group DRO...
+  Epoch 10/50, Loss: 0.1234, q=[0.541, 0.459]
+  Epoch 20/50, Loss: 0.1103, q=[0.514, 0.486]
+  Epoch 30/50, Loss: 0.1048, q=[0.505, 0.495]
+  Epoch 40/50, Loss: 0.0998, q=[0.501, 0.499]
+  Epoch 50/50, Loss: 0.0873, q=[0.498, 0.502]
+  Training time: 105.3s
+  Evaluating...
+  Accuracy: 0.735, Robustness: 0.434
+
+[7/13] Training: IRM...
+  Epoch 10/50, Loss: 0.1403
+  Epoch 20/50, Loss: 0.1297
+  Epoch 30/50, Loss: 0.1183
+  Epoch 40/50, Loss: 0.1132
+  Epoch 50/50, Loss: 0.1065
+  Training time: 128.0s
+  Evaluating...
+  Accuracy: 0.732, Robustness: 0.460
+
+[8/13] Training: V-REx...
+  Epoch 10/50, Loss: 0.1686
+  Epoch 20/50, Loss: 0.1188
+  Epoch 30/50, Loss: 0.1045
+  Epoch 40/50, Loss: 0.1024
+  Epoch 50/50, Loss: 0.0973
+  Training time: 106.0s
+  Evaluating...
+  Accuracy: 0.760, Robustness: 0.504
+
+[9/13] Training: Fishr...
+  Epoch 10/50, Loss: 0.1141
+  Epoch 20/50, Loss: 0.1324
+  Epoch 30/50, Loss: 0.0934
+  Epoch 40/50, Loss: 0.0908
+  Epoch 50/50, Loss: 0.0879
+  Training time: 215.4s
+  Evaluating...
+  Accuracy: 0.495, Robustness: 0.004
+
+[10/13] Training: LfF...
+  Epoch 10/50, Loss: 0.1115
+  Epoch 20/50, Loss: 0.1218
+  Epoch 30/50, Loss: 0.0924
+  Epoch 40/50, Loss: 0.0900
+  Epoch 50/50, Loss: 0.0857
+  Training time: 193.4s
+  Evaluating...
+  Accuracy: 0.509, Robustness: 0.017
+
+[11/13] Training: Influence Filtering...
+  Influence Phase 1: Warmup (5 epochs)
+  Influence Phase 2: Computing influence scores...
+  Influence Phase 3: Removed 3000, kept 7000/10000
+  Influence Phase 4: Retraining (50 epochs)
+  Epoch 10/50, Loss: 0.1200
+  Epoch 20/50, Loss: 0.0697
+  Epoch 30/50, Loss: 0.0610
+  Epoch 40/50, Loss: 0.0540
+  Epoch 50/50, Loss: 0.0472
+  Training time: 279.7s
+  Evaluating...
+  Accuracy: 0.894, Robustness: 0.792
+
+[12/13] Training: Meta-Reweighting...
+  Epoch 10/50, Loss: 0.1267
+  Epoch 20/50, Loss: 0.0988
+  Epoch 30/50, Loss: 0.0930
+  Epoch 40/50, Loss: 0.0891
+  Epoch 50/50, Loss: 0.0808
+  Training time: 115.8s
+  Evaluating...
+  Accuracy: 0.540, Robustness: 0.087
+
+[13/13] Training: Our Method (Reweighting + Gradient Surgery)...
+  Phase 1: Warmup (8 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.2998, Avg weight: 0.5584
+  Phase 3: Weighted retraining (42 epochs)
+    Epoch 8/42, Loss: 0.5123
+    Epoch 16/42, Loss: 4.0944
+    Epoch 24/42, Loss: 3.9667
+    Epoch 32/42, Loss: 5.6010
+    Epoch 40/42, Loss: 0.6145
+  Training time: 263.0s
+  Evaluating...
+  Accuracy: 0.596, Robustness: 0.353, F1: 0.661, Alignment: 0.040
+
+--- Dataset: Causal-Reasoning ---
+
+[1/13] Training: Standard Fine-Tuning...
+  Epoch 10/50, Loss: 0.1100
+  Epoch 20/50, Loss: 0.1042
+  Epoch 30/50, Loss: 0.0937
+  Epoch 40/50, Loss: 0.0915
+  Epoch 50/50, Loss: 0.0885
+  Training time: 99.8s
+  Evaluating...
+  Accuracy: 0.505, Robustness: 0.009
+
+[2/13] Evaluating: Self-Consistency Decoding...
+  Accuracy: 0.574, Robustness: 0.113
+
+[3/13] Training: Data Filtering...
+  Data Filtering: kept 3000/10000 samples
+  Epoch 10/50, Loss: 0.1858
+  Epoch 20/50, Loss: 0.0935
+  Epoch 30/50, Loss: 0.0766
+  Epoch 40/50, Loss: 0.0436
+  Epoch 50/50, Loss: 0.0187
+  Training time: 45.2s
+  Evaluating...
+  Accuracy: 0.613, Robustness: 0.236, F1: 0.898
+
+[4/13] Training: JTT (Just Train Twice)...
+  JTT Phase 1: Warmup (5 epochs)
+  JTT Phase 2: 0/10000 error samples identified
+  JTT Phase 3: Upsampled 10000 -> 10000 samples
+  JTT Phase 4: Retraining (50 epochs)
+  Epoch 10/50, Loss: 0.0995
+  Epoch 20/50, Loss: 0.0972
+  Epoch 30/50, Loss: 0.0931
+  Epoch 40/50, Loss: 0.0909
+  Epoch 50/50, Loss: 0.0875
+  Training time: 115.1s
+  Evaluating...
+  Accuracy: 0.507, Robustness: 0.015
+
+[5/13] Training: Focal Loss...
+  Epoch 10/50, Loss: 0.3018
+  Epoch 20/50, Loss: 0.0244
+  Epoch 30/50, Loss: 0.0253
+  Epoch 40/50, Loss: 0.0231
+  Epoch 50/50, Loss: 0.0221
+  Training time: 101.3s
+  Evaluating...
+  Accuracy: 0.507, Robustness: 0.013
+
+[6/13] Training: Group DRO...
+  Epoch 10/50, Loss: 0.2350, q=[0.564, 0.436]
+  Epoch 20/50, Loss: 0.1209, q=[0.524, 0.476]
+  Epoch 30/50, Loss: 0.1100, q=[0.513, 0.487]
+  Epoch 40/50, Loss: 0.1057, q=[0.504, 0.496]
+  Epoch 50/50, Loss: 0.1032, q=[0.499, 0.501]
+  Training time: 109.3s
+  Evaluating...
+  Accuracy: 0.707, Robustness: 0.423
+
+[7/13] Training: IRM...
+  Epoch 10/50, Loss: 0.1573
+  Epoch 20/50, Loss: 0.1256
+  Epoch 30/50, Loss: 0.1195
+  Epoch 40/50, Loss: 0.1157
+  Epoch 50/50, Loss: 0.1106
+  Training time: 117.3s
+  Evaluating...
+  Accuracy: 0.726, Robustness: 0.442
+
+[8/13] Training: V-REx...
+  Epoch 10/50, Loss: 0.2292
+  Epoch 20/50, Loss: 0.1154
+  Epoch 30/50, Loss: 0.1069
+  Epoch 40/50, Loss: 0.1049
+  Epoch 50/50, Loss: 0.0996
+  Training time: 106.3s
+  Evaluating...
+  Accuracy: 0.739, Robustness: 0.459
+
+[9/13] Training: Fishr...
+  Epoch 10/50, Loss: 0.1100
+  Epoch 20/50, Loss: 0.1042
+  Epoch 30/50, Loss: 0.0937
+  Epoch 40/50, Loss: 0.0915
+  Epoch 50/50, Loss: 0.0885
+  Training time: 220.2s
+  Evaluating...
+  Accuracy: 0.505, Robustness: 0.009
+
+[10/13] Training: LfF...
+  Epoch 10/50, Loss: 0.1042
+  Epoch 20/50, Loss: 0.1721
+  Epoch 30/50, Loss: 0.0952
+  Epoch 40/50, Loss: 0.0914
+  Epoch 50/50, Loss: 0.0883
+  Training time: 193.7s
+  Evaluating...
+  Accuracy: 0.504, Robustness: 0.004
+
+[11/13] Training: Influence Filtering...
+  Influence Phase 1: Warmup (5 epochs)
+  Influence Phase 2: Computing influence scores...
+  Influence Phase 3: Removed 3000, kept 7000/10000
+  Influence Phase 4: Retraining (50 epochs)
+  Epoch 10/50, Loss: 0.1837
+  Epoch 20/50, Loss: 0.0690
+  Epoch 30/50, Loss: 0.0555
+  Epoch 40/50, Loss: 0.0469
+  Epoch 50/50, Loss: 0.0389
+  Training time: 288.5s
+  Evaluating...
+  Accuracy: 0.922, Robustness: 0.836
+
+[12/13] Training: Meta-Reweighting...
+  Epoch 10/50, Loss: 0.1318
+  Epoch 20/50, Loss: 0.1189
+  Epoch 30/50, Loss: 0.0946
+  Epoch 40/50, Loss: 0.0922
+  Epoch 50/50, Loss: 0.0902
+  Training time: 102.4s
+  Evaluating...
+  Accuracy: 0.502, Robustness: 0.003
+
+[13/13] Training: Our Method (Reweighting + Gradient Surgery)...
+  Phase 1: Warmup (8 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.2930, Avg weight: 0.5578
+  Phase 3: Weighted retraining (42 epochs)
+    Epoch 8/42, Loss: 0.2834
+    Epoch 16/42, Loss: 0.6198
+    Epoch 24/42, Loss: 0.6880
+    Epoch 32/42, Loss: 0.9372
+    Epoch 40/42, Loss: 0.1953
+  Training time: 258.2s
+  Evaluating...
+  Accuracy: 0.834, Robustness: 0.783, F1: 0.661, Alignment: 0.015
+
+======================================================================
+EXPERIMENTS 2 & 3: Ablation Studies (Synthetic)
+======================================================================
+
+--- Dataset: Math-Arithmetic ---
+
+[1/2] Training: Reweighting Only...
+  Phase 1: Warmup (8 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.2592, Avg weight: 0.6035
+  Phase 3: Weighted retraining (42 epochs)
+    Epoch 8/42, Loss: 0.0174
+    Epoch 16/42, Loss: 0.0170
+    Epoch 24/42, Loss: 0.0165
+    Epoch 32/42, Loss: 0.0161
+    Epoch 40/42, Loss: 0.0161
+  Training time: 246.6s
+  Evaluating...
+  Accuracy: 0.759, Robustness: 0.000
+
+[2/2] Training: Gradient Surgery Only...
+  Phase 1: Warmup (8 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.2592, Avg weight: 1.0000
+  Phase 3: Weighted retraining (42 epochs)
+    Epoch 8/42, Loss: 0.1146
+    Epoch 16/42, Loss: 1.4283
+    Epoch 24/42, Loss: 1.0194
+    Epoch 32/42, Loss: 1.7880
+    Epoch 40/42, Loss: 0.2159
+  Training time: 251.9s
+  Evaluating...
+  Accuracy: 0.804, Robustness: 0.323
+
+--- Dataset: Financial-Analysis ---
+
+[1/2] Training: Reweighting Only...
+  Phase 1: Warmup (8 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.2998, Avg weight: 0.5584
+  Phase 3: Weighted retraining (42 epochs)
+    Epoch 8/42, Loss: 0.0517
+    Epoch 16/42, Loss: 0.0506
+    Epoch 24/42, Loss: 0.0491
+    Epoch 32/42, Loss: 0.0455
+    Epoch 40/42, Loss: 0.0366
+  Training time: 250.4s
+  Evaluating...
+  Accuracy: 0.575, Robustness: 0.141
+
+[2/2] Training: Gradient Surgery Only...
+  Phase 1: Warmup (8 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.2998, Avg weight: 1.0000
+  Phase 3: Weighted retraining (42 epochs)
+    Epoch 8/42, Loss: 0.8402
+    Epoch 16/42, Loss: 3.4528
+    Epoch 24/42, Loss: 4.6383
+    Epoch 32/42, Loss: 3.6006
+    Epoch 40/42, Loss: 1.2831
+  Training time: 258.1s
+  Evaluating...
+  Accuracy: 0.671, Robustness: 0.368
+
+--- Dataset: Causal-Reasoning ---
+
+[1/2] Training: Reweighting Only...
+  Phase 1: Warmup (8 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.2930, Avg weight: 0.5578
+  Phase 3: Weighted retraining (42 epochs)
+    Epoch 8/42, Loss: 0.0533
+    Epoch 16/42, Loss: 0.0517
+    Epoch 24/42, Loss: 0.0501
+    Epoch 32/42, Loss: 0.0452
+    Epoch 40/42, Loss: 0.0348
+  Training time: 255.2s
+  Evaluating...
+  Accuracy: 0.597, Robustness: 0.187
+
+[2/2] Training: Gradient Surgery Only...
+  Phase 1: Warmup (8 epochs)
+  Phase 2: Computing ShortcutScores...
+    Scored 10000/10000 samples
+    Avg ShortcutScore: 0.2930, Avg weight: 1.0000
+  Phase 3: Weighted retraining (42 epochs)
+    Epoch 8/42, Loss: 0.4184
+    Epoch 16/42, Loss: 2.0329
+    Epoch 24/42, Loss: 0.5479
+    Epoch 32/42, Loss: 2.4396
+    Epoch 40/42, Loss: 0.2986
+  Training time: 260.9s
+  Evaluating...
+  Accuracy: 0.569, Robustness: 0.162
+
+--- Computing gradient alignment for Standard FT baseline ---
+  Math-Arithmetic Standard FT alignment: -0.171
+  Financial-Analysis Standard FT alignment: -0.091
+  Causal-Reasoning Standard FT alignment: -0.044
+
+======================================================================
+GENERATING RESULTS
+======================================================================
+
+
+====================================================================================================
+Table 1: Overall Method Performance and Baseline Superiority
+====================================================================================================
+Method                           Accuracy   Robustness    Reasoning  SC Det F1
+------------------------------------------------------------------------------------------
+Standard Fine-Tuning                58.6%         0.4%        42.4%          -
+Self-Consistency Decoding           63.8%        11.4%        42.4%          -
+Data Filtering                      69.1%        22.4%        60.5%       0.81
+JTT (Just Train Twice)              60.6%         3.9%        45.6%          -
+Focal Loss                          62.9%         8.2%        48.8%          -
+Group DRO                           76.1%        43.8%        67.9%          -
+IRM                                 76.6%        45.3%        68.5%          -
+V-REx                               78.3%        48.4%        69.6%          -
+Fishr                               58.6%         0.4%        42.4%          -
+LfF                                 59.1%         0.7%        42.9%          -
+Influence Filtering                 87.1%        70.7%        74.1%          -
+Meta-Reweighting                    60.0%         3.0%        44.9%          -
+Our Method (Full)                   75.2%        53.4%        64.8%       0.70
+==========================================================================================
+
+Per-Dataset Breakdown:
+
+  Dataset: Math-Arithmetic
+  Method                          Acc Clean  Acc Perturb    Reasoning
+  ----------------------------------------------------------------------
+  Standard Fine-Tuning                75.9%         0.0%        75.9%
+  Self-Consistency Decoding           78.3%        11.1%        75.9%
+  Data Filtering                      76.9%         3.0%        76.9%
+  JTT (Just Train Twice)              75.9%         0.0%        75.9%
+  Focal Loss                          75.9%         0.0%        75.9%
+  Group DRO                           84.1%        45.7%        84.1%
+  IRM                                 84.1%        45.7%        84.1%
+  V-REx                               85.1%        48.7%        85.1%
+  Fishr                               75.9%         0.0%        75.9%
+  LfF                                 75.9%         0.0%        75.9%
+  Influence Filtering                 79.7%        49.2%        80.7%
+  Meta-Reweighting                    75.9%         0.0%        75.9%
+  Our Method (Full)                   82.7%        46.6%        84.0%
+
+  Dataset: Financial-Analysis
+  Method                          Acc Clean  Acc Perturb    Reasoning
+  ----------------------------------------------------------------------
+  Standard Fine-Tuning                49.5%         0.4%        25.6%
+  Self-Consistency Decoding           55.8%        11.7%        25.6%
+  Data Filtering                      69.1%        40.7%        62.0%
+  JTT (Just Train Twice)              55.2%        10.2%        33.9%
+  Focal Loss                          62.0%        23.4%        44.4%
+  Group DRO                           73.5%        43.4%        59.9%
+  IRM                                 73.2%        46.0%        60.2%
+  V-REx                               76.0%        50.4%        62.9%
+  Fishr                               49.5%         0.4%        25.6%
+  LfF                                 50.9%         1.7%        27.4%
+  Influence Filtering                 89.4%        79.2%        71.5%
+  Meta-Reweighting                    54.0%         8.7%        33.7%
+  Our Method (Full)                   59.6%        35.3%        52.1%
+
+  Dataset: Causal-Reasoning
+  Method                          Acc Clean  Acc Perturb    Reasoning
+  ----------------------------------------------------------------------
+  Standard Fine-Tuning                50.5%         0.9%        25.5%
+  Self-Consistency Decoding           57.4%        11.3%        25.5%
+  Data Filtering                      61.3%        23.6%        42.5%
+  JTT (Just Train Twice)              50.7%         1.5%        26.9%
+  Focal Loss                          50.7%         1.3%        25.9%
+  Group DRO                           70.7%        42.3%        59.6%
+  IRM                                 72.6%        44.2%        61.2%
+  V-REx                               73.9%        45.9%        60.7%
+  Fishr                               50.5%         0.9%        25.5%
+  LfF                                 50.4%         0.4%        25.5%
+  Influence Filtering                 92.2%        83.6%        70.0%
+  Meta-Reweighting                    50.2%         0.3%        25.1%
+  Our Method (Full)                   83.4%        78.3%        58.1%
+
+
+======================================================================
+Table 2: Contribution of Shortcut-aware Reweighting
+======================================================================
+Configuration                      Accuracy    SC Det F1
+----------------------------------------------------------------------
+Full Method (Both)                    75.2%         0.70
+Gradient Surgery Only                 68.1%         0.66
+Reweighting Only                      64.4%         0.86
+======================================================================
+
+
+================================================================================
+Table 3: Contribution of Gradient Surgery
+================================================================================
+Configuration                    Accuracy   Robustness   Grad Align
+--------------------------------------------------------------------------------
+Standard FT (Baseline)              58.6%         0.4%        -0.10
+Gradient Surgery Only               68.1%        28.4%         0.01
+Reweighting Only                    64.4%        10.9%        -0.10
+Full Method (Both)                  75.2%        53.4%         0.03
+================================================================================
+
+
+======================================================================
+Table 4: Ablation Studies - Component Contributions
+======================================================================
+Component Removed                       Acc Drop     Rob Drop
+----------------------------------------------------------------------
+Remove Reweighting (GS only)                7.1%        25.0%
+Remove Grad Surgery (RW only)              10.9%        42.5%
+
+Full Method Accuracy: 75.2%
+Full Method Robustness: 53.4%
+======================================================================
+
+======================================================================
+ALL EXPERIMENTS COMPLETED in 149.2 minutes
+Results saved to: /home/asurite.ad.asu.edu/hongyuca/short-cut-aware-data-centric-reasoning/results
+======================================================================
+
+Key Findings:
+  Accuracy improvement over Standard FT: 16.6%
+  Accuracy improvement over Data Filtering: 6.2%
+  Robustness improvement: 53.0%
+  Average Shortcut Detection F1: 0.70

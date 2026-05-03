@@ -6,6 +6,8 @@ format:
     code-fold: true
 ---
 
+> ⚠️ **本页"surgery 实证强 → reweight 是干扰"这条结论已被 May-2 诊断动摇——见 [SART 失效模式诊断](sart_failure_diagnostic.qmd)**。本页基于 Apr-26 K-sweep 单次跑得到的 Causal SO K=8 = 0.795 数据。重跑同代码同 seed 得到 0.162（−63 pp）；D1/D3+D2 诊断显示 *batch_grad 与 g_V 的 cos_sim ≈ 0*，surgery 决策接近抛硬币。**reweight = magnitude knob, surgery = direction knob 的概念区分仍然成立**（保留作 method-selection 论证），但"surgery 在 K=8 上稳定好于 reweight"的实证支撑不复存在——表中 Surgery-Only 的 0.795 应理解为单 seed outlier。本页结论需配合诊断页一起读。
+
 > **本页对应论文 §4.2 "Why Conflict-Only Surgery, Not Reweighting or Removal" 段落。把论文里那一句 "shrinks magnitude but leaves direction unchanged"（reweight 仅缩量不改向）从概念论证升级为：(1) 概念图示、(2) 实证负贡献的量化、(3) 三层归因诊断、(4) 反向证据的诚实交代。结论支撑 [Path A](../experiments/ablation.qmd) 的结构性辩护——不是调参失败，而是设计书内部矛盾。**
 
 > 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。

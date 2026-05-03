@@ -3,6 +3,8 @@ title: "消融研究（§5.3，Path A）"
 format: html
 ---
 
+> ⚠️ **本页表中数字（Surgery Only Causal Rob 0.795 等）已被 May-2 诊断证伪——见 [SART 失效模式诊断](../method/sart_failure_diagnostic.qmd)**。重跑同代码同 seed 得到 Causal Rob 0.162（−63 pp），3/3 dataset 上 surgery 不再优于 reweight。诊断结论：当前 small-model 设置下 *batch_grad 对 g_V 的 cos_sim ≈ 0，surgery 决策是噪声*。本页保留作 Path A 决策当时的证据档案，但其支撑的论文 narrative 需要重写。
+
 > **本页对应论文 §5.3 Ablation。Path A 把 reweight 砍掉后，「消融」的定义改变——不再是 Reweight × Surgery 的两组件超加性，而是 **Surgery vs no-Surgery + 每个 surgery sub-step 的去除性测试**。**
 
 > 💡 本页首次出现的术语带**虚下划线**，悬停可看到中文 tooltip 解释。
