@@ -110,7 +110,7 @@
 \item {\bf Experiments compute resources}
     \item[] Question: For each experiment, does the paper provide sufficient information on the computer resources (type of compute workers, memory, time of execution) needed to reproduce the experiments?
     \item[] Answer: \answerYes{}
-    \item[] Justification: \S\ref{sec:exp_llm_transfer} reports SART completes in $\sim$60\,s per synthetic dataset on Apple M-series and under 3\,min per dataset on NVIDIA H100 NVL, at $\sim$2.5$\times$ the cost of plain SFT. The LLM pilot uses Qwen3-8B with LoRA rank-16 adapters ($\sim$15.3M trainable parameters, 0.19\% of the backbone) over a 3-epoch budget.
+    \item[] Justification: Appendix~\ref{sec:appendix_compute} documents the compute resources used. Synthetic-scale training of the 3.2M-parameter transformer completes in $\sim$60\,s per dataset on an Apple M-series laptop and under 3\,min per dataset on a single NVIDIA H100 NVL, at $\sim$2.5$\times$ the wall-clock of plain SFT. The LLM pilot (Appendix~\ref{sec:appendix_llm_transfer}) uses Qwen3-8B with LoRA rank-16 adapters (15.3M trainable parameters, $0.19\%$ of the backbone) under a 3-epoch budget on a single H100 NVL. Total reported compute is on the order of a few GPU-hours; preliminary and exploratory runs consumed an additional 2--3$\times$.
     \item[] Guidelines:
     \begin{itemize}
         \item The answer \answerNA{} means that the paper does not include experiments.

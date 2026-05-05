@@ -63,6 +63,18 @@ $\mathbf{g}_{\mathcal{V}}$ changes slowly relative to the model parameters, so w
 These three mechanisms are orthogonal to the ShortcutScore and surgery formulations: any alternative proxy that preserves inner-product geometry---Fisher-diagonal projections, last-layer gradients, or implicit-differentiation approximations~\cite{koh2020understandingblackboxpredictionsinfluence}---can be slotted in without altering Eqs.~(5) or~(\ref{eq:gradient_surgery}).
 
 %-----------------------------------------------------------------------------
+\section{Compute Resources}
+\label{sec:appendix_compute}
+
+\textbf{Synthetic-scale training.} The 3.2M-parameter GPT-style transformer used in Sections~\ref{sec:exp_main}--\ref{sec:exp_detection} is small enough to fit on a single CPU; SART completes one full 40-epoch training run in $\sim$60\,s per synthetic dataset on an Apple M-series laptop and in under 3\,min per dataset on a single NVIDIA H100 NVL GPU (memory footprint $<$1\,GB in either case). Across the three benchmarks and the 80-configuration hyperparameter grid (Appendix~\ref{sec:appendix_sensitivity}), the total compute for the main results in Table~\ref{tab:main_results} is on the order of a few GPU-hours.
+
+\textbf{Cost overhead vs.\ plain SFT.} SART runs at $\sim$2.5$\times$ the per-step wall-clock of plain SFT at synthetic scale, with the overhead dominated by the per-sample gradient computation in Algorithm~\ref{alg:sart} step~2 and amortized by the periodic refresh of $\mathbf{g}_{\mathcal{V}}$ every $k{=}5$ steps. The per-step memory overhead is bounded by the batch-size-many per-sample gradient vectors, which collapse to a per-sample LoRA-gradient or a $d_{\mathrm{sk}}{=}1024$ random sketch at LLM scale (Appendix~\ref{sec:scalable_gradients}).
+
+\textbf{LLM pilot.} The Qwen3-8B / GSM8K diagnostic pilot in Appendix~\ref{sec:appendix_llm_transfer} uses LoRA rank-16 adapters on $q/k/v/o$ projections (15.3M trainable parameters, $0.19\%$ of the backbone) under a 3-epoch budget on a single H100 NVL, with $\mathbf{g}_{\mathcal{V}}$ refreshed once per epoch. Each variant in Table~\ref{tab:llm_transfer} completes in well under one GPU-hour.
+
+\textbf{Total project compute.} The reported numbers reflect only the runs that appear in the paper. Preliminary and exploratory runs (alternative scoring rules, $(\gamma,\rho)$ schedules outside the reported grid, and earlier versions of the SART-rwt and PCGrad-gated variants) consumed an additional 2--3$\times$ the reported compute, bounded above by a few tens of H100-hours.
+
+%-----------------------------------------------------------------------------
 \section{Hyperparameter Sensitivity under Conflict-Only Surgery}
 \label{sec:appendix_sensitivity}
 
