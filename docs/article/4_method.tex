@@ -1,69 +1,74 @@
-\section{Method}
-\label{sec:method}
+\subsection{Detection: \textsc{ShortcutScore} from Gradient Geometry}
+\label{sec:method_detection}
 
-\subsection{ShortcutScore: Gradient-Structure Detection}
+Because shortcut samples are typically correctly labeled and produce strong, low-loss gradients, loss- and label-based filters cannot separate them from legitimately informative samples. We instead detect shortcut-promoting samples from the geometry of their gradients, using two complementary signals that cover both axes along which a shortcut gradient can be harmful.
 
-\noindent\textbf{Why Gradient-Structure Detection.}
-Standard empirical risk minimization treats all training samples equally, optimizing the average token-level loss across the dataset. This is problematic because shortcut reasoning samples---those that achieve low loss by exploiting keyword correlations, answer memorization, or surface pattern matching---generate strong gradients that efficiently reduce training loss but do not support generalizable reasoning. Critically, such samples are often correctly labeled, making them invisible to conventional data quality filters or scalar loss-based criteria. We therefore detect shortcut-promoting samples from the geometry of their gradients rather than from labels or loss values, identifying two complementary geometric signatures: (1) \textbf{Non-Transfer Alignment.} per-sample gradients are poorly aligned with the validation gradient, signaling updates that reduce loss without improving held-out reasoning; (2) \textbf{Answer-Gradient Concentration.} gradient energy concentrates on final-answer tokens rather than intermediate reasoning tokens, signaling the model learns \emph{what to answer} rather than \emph{how to reason}. \uline{Our guidance is therefore to treat the detector as a rank signal rather than a calibrated estimator: it only needs to order samples well enough that the downstream surgery's per-sample conflict gate has the right working set to act on, with the gate itself absorbing rank-level false positives.}
-
-\noindent\textbf{Step 1: Non-Transfer Gradient Alignment.}
-For each training sample $s = (x, y)$, we compute the per-sample gradient $\mathbf{g}_s = \nabla_\theta \ell(\theta; s)$ and the validation gradient
+\textbf{Non-Transfer Gradient Alignment.} For each training sample $s = (x, y)$ we compute the per-sample gradient $\mathbf{g}_s = \nabla_\theta \ell(\theta; s)$ and the validation gradient
 \begin{equation}
-    \mathbf{g}_{\mathcal{V}} = \nabla_\theta \frac{1}{|\mathcal{V}|} \sum_{v \in \mathcal{V}} \ell(\theta; v).
+    \mathbf{g}_{\mathcal{V}} = \nabla_\theta \frac{1}{|\mathcal{V}|} \sum_{v \in \mathcal{V}} \ell(\theta; v),
 \end{equation}
-The non-transfer gradient alignment is then defined as:
+and define their non-transfer alignment as
 \begin{equation}
     A(s) = \cos(\mathbf{g}_s,\, \mathbf{g}_{\mathcal{V}}) = \frac{\mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}}}{\|\mathbf{g}_s\|\|\mathbf{g}_{\mathcal{V}}\|}.
 \end{equation}
-A low value of $A(s)$ indicates that the gradient of sample $s$ points in a direction inconsistent with improving validation reasoning performance---a hallmark of shortcut exploitation.
+A low value of $A(s)$ indicates that $s$ pulls the parameters in a direction inconsistent with improving validation reasoning---a hallmark of shortcut exploitation. Geometrically, $A(s)$ is the angle between the direction in which $s$ updates the model and the direction in which held-out reasoning quality grows.
 
-\noindent\textbf{Step 2: Answer-Gradient Concentration.}
-Let $T_{\mathrm{ans}}$ and $T_{\mathrm{reason}}$ denote the index sets of answer tokens and reasoning tokens in the output sequence. The answer-gradient concentration is defined as
+\textbf{Answer-Gradient Concentration.} Let $T_{\mathrm{ans}}$ and $T_{\mathrm{reason}}$ denote the index sets of answer tokens and reasoning tokens in the output sequence. The answer-gradient concentration is
 \begin{equation}
     R(s) = \frac{\sum_{t \in T_{\mathrm{ans}}} \|\nabla_\theta \ell_t\|}{\sum_{t \in T_{\mathrm{ans}} \cup T_{\mathrm{reason}}} \|\nabla_\theta \ell_t\|},
 \end{equation}
-where $\ell_t$ is the token-level loss at position $t$. A high value of $R(s)$ indicates that the model's parameter updates are driven predominantly by answer prediction rather than by learning intermediate reasoning steps. When a token-level answer/reasoning split is unavailable (answer-only supervision, $T_{\mathrm{reason}}{=}\emptyset$), we set $R(s){=}\tau_R$ so that $S(s)$ degenerates gracefully to an alignment-only score; Appendix~\ref{sec:appendix_graceful} gives the derivation.
+where $\ell_t$ is the token-level loss at position $t$. A high $R(s)$ indicates updates dominated by answer prediction rather than by intermediate reasoning steps: the model learns \emph{what to answer} rather than \emph{how to reason}. When the answer/reasoning split is unavailable (answer-only supervision, $T_{\mathrm{reason}}=\emptyset$), we set $R(s)=\tau_R$ so the second score term vanishes and \textsc{ShortcutScore} degrades gracefully to an alignment-only detector (Appendix~\ref{sec:appendix_graceful}).
 
-\noindent\textbf{Step 3: ShortcutScore and Selection Set.}
-The two signals combine into the \textbf{ShortcutScore}:
+\textbf{\textsc{ShortcutScore} and Selection Set.} The two signals combine into a single rank,
 \begin{equation}
     S(s) = \alpha \cdot \max(0,\, \tau_A - A(s)) + \beta \cdot \max(0,\, R(s) - \tau_R),
 \end{equation}
-where $\tau_A$ and $\tau_R$ are thresholds defining low alignment and high concentration, and $\alpha, \beta$ are balancing hyperparameters (defaults in Appendix~\ref{sec:appendix_sensitivity}). Samples with high $S(s)$ are flagged as shortcut-promoting, forming the selection set
+in which $\tau_A,\tau_R$ are thresholds and $\alpha,\beta$ are balancing hyperparameters. Samples with high $S(s)$ enter the selection set
 \begin{equation}
     \mathcal{S}^\star = \{\, s \in \mathcal{D} : S(s) > \tau_S^\star \,\},
 \end{equation}
-where $\tau_S^\star$ is set to the F1-optimal threshold on $S(s)$ over a held-out probe (in our experiments $\tau_S^\star \approx 0$, so the selection set is approximately the upper half of the score distribution; see \S\ref{sec:exp_detection}). Samples in $\mathcal{S}^\star$ enter the gradient-surgery step (\S\ref{sec:gradient_surgery}); samples outside $\mathcal{S}^\star$ contribute their gradient unchanged. The validation gradient $\mathbf{g}_{\mathcal{V}}$ is recomputed periodically to keep the alignment signal up to date without excessive overhead. Algorithmic details appear in Appendix~\ref{sec:appendix_algorithm}.
+where $\tau_S^\star$ is set to the F1-optimal threshold over a held-out probe. Samples in $\mathcal{S}^\star$ enter the gradient-surgery step (\S\ref{sec:gradient_surgery}); samples outside $\mathcal{S}^\star$ contribute their gradient unchanged. The validation gradient $\mathbf{g}_{\mathcal{V}}$ is recomputed periodically to keep the alignment signal current without per-step overhead.
 
+The detector is a rank, not a calibrated estimator. It only needs to order samples well enough that the downstream conflict gate has the right working set; the gate itself absorbs rank-level false positives by refusing to project whenever a flagged sample's gradient has not yet turned harmful. Pseudocode appears in Appendix~\ref{sec:appendix_algorithm}.
 
-%-----------------------------------------------------------
-\subsection{Conflict-Only Gradient Surgery}
+\subsection{Correction: Conflict-Only Gradient Surgery}
 \label{sec:gradient_surgery}
 
-\noindent\textbf{Why Conflict-Only Surgery, Not Reweighting or Removal.}
-Detection alone identifies which samples need intervention but does not modify a single update. Two natural correction strategies fail. (1) \textbf{Hard Removal.} Dropping the entire sample (e.g., data filtering or influence-based selection) discards the validation-aligned component the sample still carries. A shortcut-flagged sample is a mixed object: even when its gradient direction is overall harmful, a non-trivial subspace of its gradient remains aligned with $\mathbf{g}_{\mathcal{V}}$, and that subspace would have helped training had it been preserved. (2) \textbf{Scalar Reweighting.} Multiplying the per-sample gradient by a continuous weight (e.g., $w(s) = \exp(-\lambda S(s))$) shrinks magnitude but leaves direction unchanged: a downweighted-but-still-pointing-the-wrong-way gradient is still pointing the wrong way. Empirically, scalar reweighting is decoupled from the detector's calibration and offers no gain over conflict-only surgery alone (see ablation in \S\ref{sec:exp_ablation}). \uline{The minimal correction that both preserves the useful component of a shortcut sample and cancels its harmful direction is therefore conditional directional projection: act on direction, not on magnitude, and act only when there is a genuine conflict to resolve. We instantiate this principle via a PCGrad-style~\cite{yu2020gradient} conflict-only projection, augmented with an optional answer-gradient suppression term where the second detection signal $R(s)$ indicates the gradient is dominated by answer tokens.}
+Detection identifies which samples need intervention; correction modifies their gradients. Following the opener, we want a correction that acts on direction rather than magnitude and only when there is a genuine conflict to resolve.
 
-\noindent\textbf{Step 1: Conflict-Only Projection for Non-Transfer Alignment.}
-For each $s \in \mathcal{S}^\star$, we remove the component of $\mathbf{g}_s$ that conflicts with $\mathbf{g}_{\mathcal{V}}$, following the PCGrad conflict-removal principle. Concretely, we project only when the two gradients genuinely disagree:
+\textbf{Minimal Directional Correction.} For each flagged sample $s \in \mathcal{S}^\star$, we seek the smallest modification of $\mathbf{g}_s$ that removes its conflict with the validation-improving direction:
+\begin{equation}
+\label{eq:projection_objective}
+    \min_{\widetilde{\mathbf{g}}_s} \;\;
+    \|\widetilde{\mathbf{g}}_s - \mathbf{g}_s\|_2^2
+    \quad \text{s.t.} \quad
+    \widetilde{\mathbf{g}}_s^\top \mathbf{g}_{\mathcal{V}} \ge 0.
+\end{equation}
+This objective makes the correction principle explicit: preserve as much of the original update as possible subject to non-conflict with $\mathbf{g}_{\mathcal{V}}$. Its closed-form solution is the Euclidean projection onto the half-space $\{\widetilde{\mathbf{g}} : \widetilde{\mathbf{g}}^\top \mathbf{g}_{\mathcal{V}} \geq 0\}$, applied with a strength parameter $\gamma \in [0,1]$:
 \begin{equation}
 \label{eq:gradient_surgery}
     \mathbf{g}_s' =
     \begin{cases}
-        \mathbf{g}_s - \gamma\,\dfrac{\mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}}}{\|\mathbf{g}_{\mathcal{V}}\|^2}\,\mathbf{g}_{\mathcal{V}}, & \text{if } \mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}} < 0, \\[4pt]
-        \mathbf{g}_s, & \text{otherwise,}
+        \mathbf{g}_s - \gamma\,\dfrac{\mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}}}{\|\mathbf{g}_{\mathcal{V}}\|^2}\,\mathbf{g}_{\mathcal{V}}, & \mathbf{g}_s^\top \mathbf{g}_{\mathcal{V}} < 0, \\[4pt]
+        \mathbf{g}_s, & \text{otherwise.}
     \end{cases}
 \end{equation}
-where $\gamma \in [0,1]$ is the projection strength ($\gamma{=}1$ fully removes the conflicting component). This conflict-gated rule is deliberately asymmetric: even a shortcut-flagged sample may carry a small positive alignment with $\mathbf{g}_{\mathcal{V}}$, and erasing that component would discard a validation-improving direction---the opposite of our goal. Projection fires only in the truly harmful case ($\mathbf{g}_s$ points against validation), and the resulting $\mathbf{g}_s'$ then has non-negative inner product with $\mathbf{g}_{\mathcal{V}}$.
+This rule coincides with PCGrad-style~\cite{yu2020gradient} conflict removal but is derived here as the minimal feasible correction to the per-sample update. It is deliberately asymmetric: even a flagged sample may carry a useful aligned component, which should be preserved; projection fires only when the gradient genuinely opposes validation improvement.
 
-\noindent\textbf{Step 2: Suppression for Answer-Gradient Concentration.}
-For $s \in \mathcal{S}^\star$ with $R(s) > \tau_R$, we further decompose $\mathbf{g}_s'$ into answer-token and reasoning-token components and suppress the answer-dominant part:
+\textbf{Answer-Token Suppression.} For $s \in \mathcal{S}^\star$ with $R(s) > \tau_R$, we further decompose $\mathbf{g}_s'$ into answer-token and reasoning-token components and suppress the answer-dominant part:
 \begin{equation}
     \mathbf{g}_s'' = (1 - \rho)\,\mathbf{g}_s'^{\,\mathrm{ans}} + \mathbf{g}_s'^{\,\mathrm{reason}},
 \end{equation}
-where $\rho \in [0,1]$ is the suppression coefficient. Setting $\rho{=}0$ disables this term, recovering pure conflict-only projection; setting $\rho{=}1$ removes the answer-token gradient contribution entirely, forcing the model to update from intermediate reasoning signals only. Empirically, $\rho{>}0$ is beneficial on tasks whose shortcut signal manifests in answer tokens but harms autoregressive generation in large language models (see \S\ref{sec:exp_llm_transfer}); we therefore use $\rho{=}0$ as the default in the LLM regime.
+where $\rho \in [0,1]$ is the suppression coefficient. Setting $\rho=0$ disables this term and recovers pure conflict-only projection; setting $\rho=1$ removes the answer-token gradient entirely. In practice $\rho>0$ is beneficial for tasks with token-localized shortcuts but may harm autoregressive generation in pretrained LLMs, so we default to $\rho=0$ in that regime.
 
-\noindent\textbf{Combined Update Rule.}
-At each training step, the per-sample gradient enters surgery only if $s \in \mathcal{S}^\star$. The batch gradient is the unweighted sum of corrected per-sample gradients, $\mathbf{g}_{\mathrm{batch}} = \sum_{s \in \mathrm{batch}, s \in \mathcal{S}^\star} \mathbf{g}_s'' \;+\; \sum_{s \in \mathrm{batch}, s \notin \mathcal{S}^\star} \mathbf{g}_s$, which then drives a standard optimizer step. The validation gradient $\mathbf{g}_{\mathcal{V}}$ is refreshed every $k$ steps (Section~\ref{sec:exp_llm_transfer}) so the conflict test and projection direction remain accurate. Pseudocode for the combined SART step is in Appendix~\ref{sec:appendix_algorithm}.
+\textbf{Combined Update Rule.} The batch gradient is
+\[
+\mathbf{g}_{\mathrm{batch}} =
+\sum_{s \in \mathcal{B},\, s \in \mathcal{S}^\star} \mathbf{g}_s'' \;+\;
+\sum_{s \in \mathcal{B},\, s \notin \mathcal{S}^\star} \mathbf{g}_s,
+\]
+fed to a standard optimizer (e.g., AdamW). The validation gradient $\mathbf{g}_{\mathcal{V}}$ is refreshed every $k$ steps so the projection direction remains current.
 
-\paragraph{Scaling to pretrained LLMs.}
-A naive implementation stores a dense per-sample gradient of dimension $|\theta|$, which is $\sim$28\,GB in FP32 for a 7B backbone. We keep SART tractable on pretrained LLMs by (i) restricting trainable capacity to LoRA adapters~\cite{hu2022lora} so each per-sample gradient collapses to $\sim$32\,MB without altering Eqs.~(5) or~(\ref{eq:gradient_surgery}); (ii) optionally replacing gradients by fixed-seed Johnson--Lindenstrauss sketches of dimension $d_{\mathrm{sk}}{=}1024$ during scoring, which preserves the cosine alignment $A(s)$ up to $\varepsilon$-error; and (iii) refreshing $\mathbf{g}_{\mathcal{V}}$ every $k$ steps rather than every step, since it changes slowly relative to $\theta$. These three mechanisms are orthogonal to the \textsc{ShortcutScore} and surgery formulations---any alternative inner-product-preserving proxy (Fisher-diagonal, last-layer gradients, influence approximations~\cite{koh2020understandingblackboxpredictionsinfluence}) can be slotted in without changing the method. Full derivations and ablations appear in Appendix~\ref{sec:scalable_gradients}.
+\paragraph{Detection--Correction symmetry.} Detection determines \emph{which samples} require intervention; correction determines \emph{which directions} within those samples should be retained. Removing either layer weakens the method: detection without correction passes harmful directions to the optimizer unchanged, while correction without detection erases useful signal from clean samples.
+
+\paragraph{Scaling to pretrained LLMs.} A naive implementation requires storing dense per-sample gradients, which is infeasible for large models. We address this through three orthogonal mechanisms. First, we restrict optimization to a low-dimensional trainable subspace such as LoRA adapters~\cite{hu2022lora}, reducing gradient size without altering the formulation. Second, we optionally use random sketches that preserve inner products under the Johnson--Lindenstrauss lemma, so cosine alignment $A(s)$ is approximated within $\varepsilon$-error during scoring. Third, we update $\mathbf{g}_{\mathcal{V}}$ periodically rather than every step. These approximations preserve the alignment geometry while making SART practical at scale; any inner-product-preserving proxy (Fisher-diagonal, last-layer gradients, influence approximations~\cite{koh2020understandingblackboxpredictionsinfluence}) can be slotted in. Full derivations appear in Appendix~\ref{sec:scalable_gradients}.
