@@ -1,7 +1,7 @@
-\section{Problem Formulation}
+\vspace{-0.2cm}
+\section{Background and Problem Setup}
 
-\subsection{Training as Gradient Composition}
-
+\textbf{Training as Gradient Composition.}
 We study supervised training of language models on reasoning tasks. Let $\mathcal{D}=\{(x_i,y_i)\}_{i=1}^{N}$ be the training set, $\mathcal{V}=\{(x_j,y_j)\}_{j=1}^{M}$ a small held-out probe ($M\!\ll\!N$) drawn from a distribution that reflects generalizable reasoning, $\theta$ the model parameters, and $\ell(\theta;x,y)$ the token-level negative log-likelihood. Standard training minimizes the empirical risk
 \begin{equation}
     \min_{\theta} \; \frac{1}{N} \sum_{i=1}^{N} \ell(\theta;\, x_i, y_i),
@@ -12,8 +12,7 @@ treating all samples as equally informative and aggregating their contributions 
 \end{equation}
 This view exposes a structural fact: training is entirely determined by the geometry of per-sample gradients. Any distinction between reasoning and shortcut behavior must therefore manifest in how gradients contribute to parameter updates, not in scalar loss values or sample identities.
 
-\subsection{Reasoning vs.\ Shortcut as Gradient Alignment}
-
+\textbf{Reasoning vs.\ Shortcut as Gradient Alignment.}
 We introduce a validation gradient
 \begin{equation}
     \mathbf{g}_{\mathcal{V}} = \nabla_\theta \frac{1}{|\mathcal{V}|} \sum_{v \in \mathcal{V}} \ell(\theta;\, v),
@@ -24,22 +23,19 @@ representing the directions in parameter space that improve generalizable reason
 \end{equation}
 This yields a gradient-level characterization: \emph{reasoning-consistent} samples have $A(s)>0$ and produce updates that move the model along directions of validation improvement, while \emph{shortcut} samples have $A(s)\leq 0$ and produce updates that reduce training loss but fail to transfer to held-out reasoning. The definition departs from label- or data-based notions of shortcut learning: it identifies shortcut behavior as a mismatch between training gradients and generalization gradients, observable from training dynamics alone.
 
-\subsection{Gradient Decomposition Perspective}
-
+\textbf{The Gradient Decomposition Perspective.}
 A key observation is that a single training sample is not purely good or bad. Its gradient typically mixes useful and harmful directional components. We formalize this by decomposing each per-sample gradient with respect to $\mathbf{g}_{\mathcal{V}}$,
 \begin{equation}
     \mathbf{g}_s = \mathbf{g}_s^{\,\parallel} + \mathbf{g}_s^{\,\perp},
 \end{equation}
 where $\mathbf{g}_s^{\,\parallel}$ is the component aligned with $\mathbf{g}_{\mathcal{V}}$ (useful, generalization-improving) and $\mathbf{g}_s^{\,\perp}$ is the component orthogonal to or conflicting with $\mathbf{g}_{\mathcal{V}}$ (potentially harmful). Under standard training both components are applied equally, so updates mix reasoning-improving and shortcut-inducing directions without distinction. This exposes a structural limitation of existing methods: \textbf{sample removal}~\cite{koh2020understandingblackboxpredictionsinfluence,bengio2009curriculum} discards both components together, \textbf{scalar reweighting}~\cite{lin2018focallossdenseobject,liu2021justtraintwiceimproving} rescales both components together, and \textbf{loss shaping} reshapes the optimizer's view of scalar loss but cannot tell them apart. None of these mechanisms acts at the level where the distinction actually exists---the \emph{direction} of the gradient.
 
-\subsection{The SART Objective}
-
-Rather than imposing a hard non-conflict constraint at every step---which would be over-strong under multi-solution reasoning or noisy validation gradients---we seek to \emph{reduce the contribution of updates that systematically conflict with the validation gradient}. We retain the standard empirical-risk objective,
+\textbf{The SART Objective.}
+Rather than imposing a hard non-conflict constraint at every step: which would be over-strong under multi-solution reasoning or noisy validation gradients. We seek to \emph{reduce the contribution of updates that systematically conflict with the validation gradient}. We retain the standard empirical-risk objective,
 \begin{equation}
     \min_{\theta} \; \frac{1}{N} \sum_{i=1}^{N} \ell(\theta;\, x_i, y_i),
 \end{equation}
 and apply a per-sample correction operator $\mathcal{T}(\mathbf{g}_s, \mathbf{g}_{\mathcal{V}})$ that selectively modifies the small subset of gradients exhibiting shortcut characteristics. The operator satisfies three properties: \textbf{directional correction}, $\langle \mathcal{T}(\mathbf{g}_s, \mathbf{g}_{\mathcal{V}}),\, \mathbf{g}_{\mathcal{V}} \rangle \geq 0$ when $\mathcal{T}$ fires, so the corrected gradient does not systematically oppose generalization; \textbf{minimal distortion}, $\mathcal{T}(\mathbf{g}_s, \mathbf{g}_{\mathcal{V}}) \approx \mathbf{g}_s$ when $\mathbf{g}_s$ is already aligned, so useful updates pass through unchanged; and \textbf{selective application}, applied only to gradients that exhibit shortcut characteristics, so the operator does not interfere with clean training. The core problem therefore reduces to: how to detect and correct only the systematically harmful component of each gradient while preserving its useful contribution.
 
-\subsection{From Formulation to Algorithm}
-
+\textbf{Design Implications.}
 The formulation decomposes into two subproblems. \textbf{Detection} estimates which samples contain misaligned gradient components without relying on shortcut labels or environment partitions. \textbf{Correction} modifies gradients at the directional level, removing only the conflicting component and leaving the rest untouched. Section~\ref{sec:method} instantiates this with a \textsc{ShortcutScore} that combines gradient alignment with token-level gradient concentration, and a per-sample, conflict-only projection that fires only when $\langle \mathbf{g}_s, \mathbf{g}_{\mathcal{V}}\rangle < 0$. Together, these form \emph{Shortcut-Aware Reasoning Training} (SART).

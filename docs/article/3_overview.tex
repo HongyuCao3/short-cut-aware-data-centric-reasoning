@@ -1,15 +1,12 @@
-\section{Overview}
+\section{Shortcut-Aware Reasoning Training}
+\label{sec:method}
 
-\begin{figure}
+\begin{figure}[t]
     \centering
-    \includegraphics[width=\linewidth]{figures/editable/short_cut_aware_framework.pdf}
-    \caption{
-    Overview of SART. (A) Per-sample gradient alignment with the validation gradient and answer-token concentration form two complementary geometric signals.
-    (B) \textsc{ShortcutScore} combines both signals into a single rank that flags shortcut-prone samples.
-    (D) Conflict-only gradient surgery removes only the component of a flagged sample's gradient that genuinely opposes $\mathbf{g}_{\mathcal{V}}$, preserving validation-aligned directions already present in $\mathbf{g}_s$.
-    (E) Updates prioritize reasoning signals over shortcut patterns.
-    }
+    \includegraphics[width=\linewidth]{figures/short_cut_aware_framework2.png}
+    \caption{SART as a detection-then-correction framework for shortcut-aware reasoning training. \textbf{(A)} Per-sample gradients are read against a small validation gradient $\mathbf{g}_{\mathcal{V}}$ for non-transfer alignment and against a token-level partition for answer-gradient concentration. \textbf{(B)} The two signals combine into a unified \textsc{ShortcutScore} $S(s)$ that ranks samples by shortcut tendency. \textbf{(C)} A working set is selected by a single threshold on $S(s)$. \textbf{(D)} Per-sample, conflict-only gradient surgery fires only when $\mathbf{g}_s$ genuinely opposes $\mathbf{g}_{\mathcal{V}}$, removing only the conflicting component and preserving the validation-aligned residual that the same sample still carries. \textbf{(E)} Aggregated updates prioritize reasoning signals over shortcut patterns without dropping samples or scaling magnitudes.}
     \label{fig:overview}
 \end{figure}
 
-Figure~\ref{fig:overview} shows the framework of SART including two steps: 1) gradient-structure shortcut detection; 2) conflict-only gradient surgery. In Step~1, each training sample is scored from its gradient geometry alone: a per-sample gradient $\mathbf{g}_s$ and a small validation gradient $\mathbf{g}_{\mathcal{V}}$ together yield two signals---\emph{non-transfer alignment} (low cosine with $\mathbf{g}_{\mathcal{V}}$, signaling updates that reduce loss without improving held-out reasoning) and \emph{answer-gradient concentration} (gradient energy dominated by final-answer tokens rather than intermediate reasoning tokens). The two signals are linearly combined into a unified \textsc{ShortcutScore} that flags shortcut-prone samples without needing shortcut labels or environment splits. In Step~2, every flagged sample undergoes a PCGrad-style~\cite{yu2020gradient} conflict-only projection that removes the component of $\mathbf{g}_s$ which genuinely opposes $\mathbf{g}_{\mathcal{V}}$, while leaving positively-aligned directions inside the same sample untouched; samples not flagged retain their original gradient. The conflict-only gate is the load-bearing design choice: it converts shortcut samples from training liabilities into still-usable supervision, instead of discarding them as data filtering does or shrinking them uniformly as scalar reweighting does. Section~\ref{sec:method} formalizes each step.
+We take a gradient-geometry perspective: shortcut-aware reasoning training is not a sample-selection problem but a directional correction problem. A shortcut-prone sample is rarely purely harmful; its gradient typically mixes a validation-aligned component that supports reasoning with a conflicting component that promotes shortcut learning. Dropping the sample discards both; scalar reweighting shrinks both. SART instead acts at the level where the distinction lives---the per-sample gradient direction.
+Figure~\ref{fig:overview} summarizes the resulting detection-then-correction framework. At the detection level, SART computes a \textsc{ShortcutScore} from two complementary gradient signals: non-transfer alignment with a small validation gradient $\mathbf{g}_{\mathcal{V}}$ and answer-gradient concentration on final-answer tokens. This score defines a working set of shortcut-prone samples. At the correction level, SART applies a per-sample, conflict-only projection that removes only the component of $\mathbf{g}_s$ opposing $\mathbf{g}_{\mathcal{V}}$, while preserving any validation-aligned residual. This converts shortcut mitigation from loss shaping or sample filtering into directional inference over the per-sample gradient field.
