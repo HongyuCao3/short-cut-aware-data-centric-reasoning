@@ -3,7 +3,7 @@
 
 \begin{figure}[t]
     \centering
-    \includegraphics[width=\linewidth]{figures/short_cut_aware_framework2.png}
+    \includegraphics[width=\linewidth]{figures/editable/short_cut_aware_framework3.pdf}
     \caption{SART as a detection-then-correction framework for shortcut-aware reasoning training. \textbf{(A)} Per-sample gradients are read against a small validation gradient $\mathbf{g}_{\mathcal{V}}$ for non-transfer alignment and against a token-level partition for answer-gradient concentration. \textbf{(B)} The two signals combine into a unified \textsc{ShortcutScore} $S(s)$ that ranks samples by shortcut tendency. \textbf{(C)} A working set is selected by a single threshold on $S(s)$. \textbf{(D)} Per-sample, conflict-only gradient surgery fires only when $\mathbf{g}_s$ genuinely opposes $\mathbf{g}_{\mathcal{V}}$, removing only the conflicting component and preserving the validation-aligned residual that the same sample still carries. \textbf{(E)} Aggregated updates prioritize reasoning signals over shortcut patterns without dropping samples or scaling magnitudes.}
     \label{fig:overview}
 \end{figure}
